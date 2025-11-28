@@ -1,0 +1,73 @@
+# HCI Lab ToolKit Configuration
+
+# =============================================================================
+# Data Paths
+# =============================================================================
+data:
+  raw_dir: "data/raw"
+  processed_dir: "data/processed"
+
+# =============================================================================
+# Tobii Eye Tracker Settings
+# =============================================================================
+tobii:
+  enabled: true
+  sample_rate: 120  # Hz (depends on your tracker model)
+  output_format: "csv"
+  metrics:
+    - gaze_point
+    - pupil_diameter
+    - fixations
+    - saccades
+
+# =============================================================================
+# Emotiv EEG Settings
+# =============================================================================
+emotiv:
+  enabled: true
+  client_id: ""      # Your Emotiv client ID
+  client_secret: ""  # Your Emotiv client secret
+  headset: "EPOC"    # EPOC, EPOC+, Insight, EPOC X
+  streams:
+    - eeg
+    - motion
+    - performance_metrics
+
+# =============================================================================
+# Shimmer Settings
+# =============================================================================
+shimmer:
+  enabled: true
+  connection: "bluetooth"  # bluetooth or serial
+  address: ""              # Bluetooth address or COM port
+  sample_rate: 512         # Hz
+  sensors:
+    - gsr
+    - ecg
+    - emg
+    - accelerometer
+    - gyroscope
+
+# =============================================================================
+# Behavioral Recording Settings
+# =============================================================================
+behavioral:
+  enabled: true
+  record_mouse: true
+  record_keyboard: true
+  record_clicks: true
+  sample_rate: 60  # Hz for mouse position
+
+# =============================================================================
+# Synchronization Settings
+# =============================================================================
+sync:
+  use_lsl: true           # Use Lab Streaming Layer
+  master_clock: "system"  # system, tobii, emotiv
+
+# =============================================================================
+# Logging
+# =============================================================================
+logging:
+  level: "INFO"
+  file: "logs/hci_toolkit.log"

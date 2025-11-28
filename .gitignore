@@ -1,0 +1,46 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+.venv/
+ENV/
+
+# Data files (keep structure, ignore data)
+data/raw/**/*.csv
+data/raw/**/*.json
+data/raw/**/*.edf
+data/raw/**/*.xdf
+data/processed/**/*.csv
+data/processed/**/*.parquet
+data/processed/**/*.h5
+!data/**/.gitkeep
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+
+# Environment
+.env
+*.env
+
+# Credentials
+configs/credentials.yaml
+configs/secrets.yaml
