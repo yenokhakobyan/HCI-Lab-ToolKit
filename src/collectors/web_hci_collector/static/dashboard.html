@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HCI Collector - Dashboard</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="dashboard">
+        <!-- Header -->
+        <header class="header">
+            <h1>Web HCI Collector Dashboard</h1>
+            <div class="status-indicator">
+                <span class="status-dot" id="connection-status"></span>
+                <span id="connection-text">Disconnected</span>
+            </div>
+        </header>
+
+        <!-- Left Sidebar - Video and Emotions -->
+        <aside class="sidebar-left">
+            <!-- Live Webcam Preview -->
+            <div class="panel">
+                <div class="panel-title">Live Camera Feed</div>
+                <div class="video-container" style="position: relative;">
+                    <video id="webcam-video" autoplay playsinline muted style="width: 100%; border-radius: 8px; transform: scaleX(-1);"></video>
+                    <div id="camera-status" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: var(--text-secondary); font-size: 0.875rem;">
+                        Initializing camera...
+                    </div>
+                </div>
+            </div>
+
+            <!-- Face Mesh Visualization -->
+            <div class="panel">
+                <div class="panel-title">Face Mesh (468 landmarks)</div>
+                <div class="video-container">
+                    <canvas id="face-canvas"></canvas>
+                </div>
+                <div style="display: flex; justify-content: space-between; margin-top: 8px; font-size: 0.75rem; color: var(--text-secondary);">
+                    <span>Landmarks: <span id="landmark-count">0</span></span>
+                    <span>Head Pose: <span id="head-pose">-</span></span>
+                </div>
+            </div>
+
+            <!-- Cognitive States -->
+            <div class="panel">
+                <div class="panel-title">Cognitive States</div>
+                <div class="emotion-bars">
+                    <div class="emotion-bar">
+                        <span class="emotion-label">Confusion</span>
+                        <div class="emotion-track">
+                            <div class="emotion-fill confusion" id="confusion-bar" style="width: 0%"></div>
+                        </div>
+                        <span class="emotion-value" id="confusion-value">0%</span>
+                    </div>
+                    <div class="emotion-bar">
+                        <span class="emotion-label">Engagement</span>
+                        <div class="emotion-track">
+                            <div class="emotion-fill engagement" id="engagement-bar" style="width: 0%"></div>
+                        </div>
+                        <span class="emotion-value" id="engagement-value">0%</span>
+                    </div>
+                    <div class="emotion-bar">
+                        <span class="emotion-label">Boredom</span>
+                        <div class="emotion-track">
+                            <div class="emotion-fill boredom" id="boredom-bar" style="width: 0%"></div>
+                        </div>
+                        <span class="emotion-value" id="boredom-value">0%</span>
+                    </div>
+                    <div class="emotion-bar">
+                        <span class="emotion-label">Frustration</span>
+                        <div class="emotion-track">
+                            <div class="emotion-fill frustration" id="frustration-bar" style="width: 0%"></div>
+                        </div>
+                        <span class="emotion-value" id="frustration-value">0%</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Controls -->
+            <div class="panel">
+                <div class="panel-title">Controls</div>
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                    <button class="btn btn-primary" id="start-btn" onclick="startCollection()">Start Collection</button>
+                    <button class="btn btn-secondary" id="calibrate-btn" onclick="window.open('/calibration', '_blank')">Calibrate Gaze</button>
+                    <button class="btn btn-secondary" id="export-btn" onclick="exportData()">Export Data</button>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content - Gaze Visualization -->
+        <main class="main-content">
+            <div class="panel" style="flex: 1; display: flex; flex-direction: column;">
+                <div class="panel-title">Gaze Tracking Visualization</div>
+                <div class="gaze-display" id="gaze-display">
+                    <canvas id="gaze-canvas"></canvas>
+                    <div class="gaze-point" id="gaze-point"></div>
+                </div>
+            </div>
+
+            <!-- Data Stream Stats -->
+            <div class="data-streams">
+                <div class="stream-card">
+                    <div class="stream-value" id="gaze-rate">0</div>
+                    <div class="stream-label">Gaze Hz</div>
+                </div>
+                <div class="stream-card">
+                    <div class="stream-value" id="mouse-events">0</div>
+                    <div class="stream-label">Mouse Events</div>
+                </div>
+                <div class="stream-card">
+                    <div class="stream-value" id="keyboard-events">0</div>
+                    <div class="stream-label">Key Events</div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Right Sidebar - Stats and Log -->
+        <aside class="sidebar-right">
+            <!-- Session Info -->
+            <div class="panel">
+                <div class="panel-title">Session Info</div>
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <div class="stat-value" id="session-duration">0:00</div>
+                        <div class="stat-label">Duration</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="total-samples">0</div>
+                        <div class="stat-label">Samples</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="gaze-samples">0</div>
+                        <div class="stat-label">Gaze</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="face-samples">0</div>
+                        <div class="stat-label">Face</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Gaze Position -->
+            <div class="panel">
+                <div class="panel-title">Current Position</div>
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <div class="stat-value" id="gaze-x">-</div>
+                        <div class="stat-label">Gaze X</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="gaze-y">-</div>
+                        <div class="stat-label">Gaze Y</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="mouse-x">-</div>
+                        <div class="stat-label">Mouse X</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="mouse-y">-</div>
+                        <div class="stat-label">Mouse Y</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Event Log -->
+            <div class="panel" style="flex: 1;">
+                <div class="panel-title">Event Log</div>
+                <div class="event-log" id="event-log">
+                    <div class="event-item">
+                        <span class="event-time">--:--:--</span>
+                        <span class="event-type">system</span>
+                        <span>Dashboard loaded</span>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <div>
+                <span style="color: var(--text-secondary);">Session ID: </span>
+                <span id="session-id">Not started</span>
+            </div>
+            <div>
+                <span style="color: var(--text-secondary);">WebGazer + MediaPipe + DenseAttNet</span>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://webgazer.cs.brown.edu/webgazer.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script type="module" src="/static/js/dashboard.js"></script>
+</body>
+</html>

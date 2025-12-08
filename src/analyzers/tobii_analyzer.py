@@ -1156,20 +1156,32 @@ class TobiiAnalyzer:
 
         # Overall TEPR metrics
         post_baseline = pupil[~baseline_mask]
-        if len(post_baseline) == 0:
+        if len(post_baseline) == 0 or np.isnan(baseline_mean) or baseline_mean == 0:
             return {"baseline_mean": baseline_mean, "baseline_std": baseline_std}
 
         tepr = (post_baseline - baseline_mean) / baseline_mean * 100  # Percent change
 
+        # Check if tepr has any valid (non-NaN) values
+        valid_tepr_mask = ~np.isnan(tepr)
+        has_valid_tepr = np.any(valid_tepr_mask)
+
+        # Compute peak_dilation_time safely
+        peak_dilation_time = None
+        if has_valid_tepr:
+            try:
+                peak_idx = np.nanargmax(tepr)
+                peak_dilation_time = timestamps[~baseline_mask][peak_idx]
+            except ValueError:
+                pass  # All-NaN slice encountered
+
         results = {
             "baseline_mean": baseline_mean,
             "baseline_std": baseline_std,
-            "mean_tepr": np.nanmean(tepr),
-            "max_tepr": np.nanmax(tepr),
-            "min_tepr": np.nanmin(tepr),
-            "tepr_std": np.nanstd(tepr),
-            "peak_dilation_time": timestamps[~baseline_mask][np.nanargmax(tepr)]
-                                   if len(tepr) > 0 else None,
+            "mean_tepr": np.nanmean(tepr) if has_valid_tepr else np.nan,
+            "max_tepr": np.nanmax(tepr) if has_valid_tepr else np.nan,
+            "min_tepr": np.nanmin(tepr) if has_valid_tepr else np.nan,
+            "tepr_std": np.nanstd(tepr) if has_valid_tepr else np.nan,
+            "peak_dilation_time": peak_dilation_time,
         }
 
         # Event-locked responses if provided

@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HCI Collector - Gaze Calibration</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <style>
+        .calibration-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: var(--bg-primary);
+            z-index: 100;
+        }
+
+        .calibration-point {
+            position: absolute;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background: var(--accent);
+            transform: translate(-50%, -50%);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+        }
+
+        .calibration-point.active {
+            opacity: 1;
+            animation: pulse-point 1s infinite;
+        }
+
+        .calibration-point.completed {
+            background: var(--success);
+            opacity: 0.5;
+        }
+
+        .calibration-point::before {
+            content: '';
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: white;
+        }
+
+        @keyframes pulse-point {
+            0%, 100% { transform: translate(-50%, -50%) scale(1); }
+            50% { transform: translate(-50%, -50%) scale(1.2); }
+        }
+
+        .calibration-ui {
+            position: fixed;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            text-align: center;
+            z-index: 101;
+        }
+
+        .calibration-progress {
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+
+        .progress-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.2);
+        }
+
+        .progress-dot.completed {
+            background: var(--success);
+        }
+
+        .progress-dot.current {
+            background: var(--accent);
+            animation: pulse 1s infinite;
+        }
+
+        .instruction-text {
+            font-size: 1.25rem;
+            margin-bottom: 16px;
+        }
+
+        .sub-text {
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+        }
+    </style>
+</head>
+<body>
+    <!-- Calibration Overlay -->
+    <div class="calibration-overlay" id="calibration-overlay">
+        <!-- Calibration points will be dynamically created -->
+    </div>
+
+    <!-- Hidden video element for WebGazer (no preview shown) -->
+    <video id="webcam-video" autoplay playsinline muted style="display: none;"></video>
+
+    <!-- Calibration UI -->
+    <div class="calibration-ui">
+        <div class="calibration-progress" id="progress-dots">
+            <!-- Progress dots will be created dynamically -->
+        </div>
+        <p class="instruction-text" id="instruction">Click "Start" to begin calibration</p>
+        <p class="sub-text" id="sub-instruction">Look at each red dot and click on it</p>
+        <button class="btn btn-primary" id="start-btn" onclick="startCalibration()">Start Calibration</button>
+        <button class="btn btn-success hidden" id="done-btn" onclick="finishCalibration()">Done - Return to Experiment</button>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://webgazer.cs.brown.edu/webgazer.js"></script>
+    <script>
+        // Calibration points (9-point calibration)
+        const calibrationPoints = [
+            { x: 10, y: 10 },   // Top-left
+            { x: 50, y: 10 },   // Top-center
+            { x: 90, y: 10 },   // Top-right
+            { x: 10, y: 50 },   // Middle-left
+            { x: 50, y: 50 },   // Center
+            { x: 90, y: 50 },   // Middle-right
+            { x: 10, y: 90 },   // Bottom-left
+            { x: 50, y: 90 },   // Bottom-center
+            { x: 90, y: 90 },   // Bottom-right
+        ];
+
+        let currentPoint = 0;
+        let clicksPerPoint = 5;
+        let currentClicks = 0;
+        let isCalibrating = false;
+        let pointElements = [];
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Create progress dots
+            const progressContainer = document.getElementById('progress-dots');
+            calibrationPoints.forEach((_, i) => {
+                const dot = document.createElement('div');
+                dot.className = 'progress-dot';
+                dot.id = `progress-${i}`;
+                progressContainer.appendChild(dot);
+            });
+
+            // Create calibration point elements
+            const overlay = document.getElementById('calibration-overlay');
+            calibrationPoints.forEach((point, i) => {
+                const el = document.createElement('div');
+                el.className = 'calibration-point';
+                el.id = `cal-point-${i}`;
+                el.style.left = `${point.x}%`;
+                el.style.top = `${point.y}%`;
+                el.onclick = () => handlePointClick(i);
+                overlay.appendChild(el);
+                pointElements.push(el);
+            });
+
+            // Initialize WebGazer
+            try {
+                await webgazer
+                    .setGazeListener((data, timestamp) => {
+                        // Gaze data during calibration
+                    })
+                    .saveDataAcrossSessions(true)
+                    .begin();
+
+                // Hide WebGazer's default video preview
+                webgazer.showVideoPreview(false);
+                webgazer.showPredictionPoints(false);
+                webgazer.showFaceOverlay(false);
+                webgazer.showFaceFeedbackBox(false);
+
+                // Get video element for our preview
+                const video = document.getElementById('webcam-video');
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                video.srcObject = stream;
+
+                document.getElementById('instruction').textContent = 'WebGazer ready. Click "Start" to begin.';
+            } catch (e) {
+                console.error('WebGazer init error:', e);
+                document.getElementById('instruction').textContent = 'Error: Could not access webcam';
+            }
+        });
+
+        function startCalibration() {
+            isCalibrating = true;
+            currentPoint = 0;
+            currentClicks = 0;
+
+            document.getElementById('start-btn').classList.add('hidden');
+            document.getElementById('instruction').textContent = 'Click on the red dot 5 times';
+            document.getElementById('sub-instruction').textContent = 'Look at the dot while clicking';
+
+            // Show first point
+            showPoint(0);
+        }
+
+        function showPoint(index) {
+            // Update progress dots
+            calibrationPoints.forEach((_, i) => {
+                const dot = document.getElementById(`progress-${i}`);
+                dot.classList.remove('current', 'completed');
+                if (i < index) dot.classList.add('completed');
+                if (i === index) dot.classList.add('current');
+            });
+
+            // Show current point
+            pointElements.forEach((el, i) => {
+                el.classList.remove('active');
+                if (i === index) el.classList.add('active');
+            });
+        }
+
+        function handlePointClick(index) {
+            if (!isCalibrating || index !== currentPoint) return;
+
+            currentClicks++;
+
+            // Visual feedback
+            const point = pointElements[index];
+            point.style.transform = 'translate(-50%, -50%) scale(0.8)';
+            setTimeout(() => {
+                point.style.transform = 'translate(-50%, -50%) scale(1)';
+            }, 100);
+
+            document.getElementById('sub-instruction').textContent =
+                `Click ${clicksPerPoint - currentClicks} more times`;
+
+            if (currentClicks >= clicksPerPoint) {
+                // Point completed
+                point.classList.add('completed');
+                point.classList.remove('active');
+                currentClicks = 0;
+                currentPoint++;
+
+                if (currentPoint >= calibrationPoints.length) {
+                    // Calibration complete
+                    finishCalibrationUI();
+                } else {
+                    // Next point
+                    showPoint(currentPoint);
+                    document.getElementById('sub-instruction').textContent =
+                        `Click ${clicksPerPoint} times`;
+                }
+            }
+        }
+
+        function finishCalibrationUI() {
+            isCalibrating = false;
+            document.getElementById('instruction').textContent = 'Calibration Complete!';
+            document.getElementById('sub-instruction').textContent =
+                'Eye tracking is now calibrated for better accuracy';
+            document.getElementById('done-btn').classList.remove('hidden');
+
+            // Mark all progress dots as complete
+            calibrationPoints.forEach((_, i) => {
+                document.getElementById(`progress-${i}`).classList.add('completed');
+                document.getElementById(`progress-${i}`).classList.remove('current');
+            });
+        }
+
+        function finishCalibration() {
+            // Store calibration status
+            localStorage.setItem('webgazer_calibrated', 'true');
+            localStorage.setItem('webgazer_calibrated_at', new Date().toISOString());
+
+            // Return to experiment or dashboard
+            const returnUrl = new URLSearchParams(window.location.search).get('return') || '/';
+            window.location.href = returnUrl;
+        }
+    </script>
+</body>
+</html>
