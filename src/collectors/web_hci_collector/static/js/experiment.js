@@ -26,6 +26,13 @@ let isCollecting = false;
 let faceMesh = null;
 let camera = null;
 
+// Screen recording using MediaRecorder API
+let screenStream = null;
+let mediaRecorder = null;
+let recordedChunks = [];
+let recordingStartTime = 0;
+const VIDEO_CHUNK_INTERVAL = 1000; // Send video chunk every 1 second
+
 // DOM Elements
 const connectionStatus = document.getElementById('connection-status');
 const connectionText = document.getElementById('connection-text');
@@ -258,10 +265,28 @@ function onFaceMeshResults(results) {
 
 /**
  * Setup mouse tracking
+ *
+ * NOTE: Due to browser security (Same-Origin Policy), mouse events INSIDE
+ * cross-origin iframes cannot be captured by the parent document.
+ *
+ * What we CAN track:
+ * - Mouse position when cursor is outside the iframe (on parent document)
+ * - Mouse entering/leaving the iframe area
+ * - Scroll and wheel events on the parent document
+ *
+ * What we CANNOT track (cross-origin limitation):
+ * - Mouse movement inside the iframe
+ * - Clicks inside the iframe
+ *
+ * SOLUTION: Screen recording captures the actual cursor position visually.
+ * The recorded video shows where the user's mouse is at all times.
  */
 function setupMouseTracking() {
-    // Mouse move (throttled)
     let lastMouseMove = 0;
+    let isOverIframe = false;
+
+    // Track mouse position on parent document
+    // This works when mouse is outside the iframe
     document.addEventListener('mousemove', (e) => {
         if (!isCollecting) return;
 
@@ -269,16 +294,46 @@ function setupMouseTracking() {
         if (now - lastMouseMove < 50) return; // 20 Hz max
         lastMouseMove = now;
 
+        // Check if mouse is over the iframe
+        const iframe = document.getElementById('content-frame');
+        if (iframe) {
+            const rect = iframe.getBoundingClientRect();
+            const wasOverIframe = isOverIframe;
+            isOverIframe = (
+                e.clientX >= rect.left &&
+                e.clientX <= rect.right &&
+                e.clientY >= rect.top &&
+                e.clientY <= rect.bottom
+            );
+
+            // Log when mouse enters/exits iframe area
+            if (isOverIframe && !wasOverIframe) {
+                sendData('mouse', {
+                    event: 'enter_iframe',
+                    x: e.clientX,
+                    y: e.clientY
+                });
+            } else if (!isOverIframe && wasOverIframe) {
+                sendData('mouse', {
+                    event: 'exit_iframe',
+                    x: e.clientX,
+                    y: e.clientY
+                });
+            }
+        }
+
+        // Always send position (even if over iframe, we get the last known position)
         sendData('mouse', {
             event: 'move',
             x: e.clientX,
             y: e.clientY,
             screenX: e.screenX,
-            screenY: e.screenY
+            screenY: e.screenY,
+            overIframe: isOverIframe
         });
-    });
+    }, true);
 
-    // Mouse click
+    // Track clicks on parent document (won't capture iframe clicks)
     document.addEventListener('click', (e) => {
         if (!isCollecting) return;
 
@@ -287,12 +342,12 @@ function setupMouseTracking() {
             x: e.clientX,
             y: e.clientY,
             button: e.button,
-            target: e.target.tagName
+            target: e.target?.tagName || 'unknown'
         });
-    });
+    }, true);
 
-    // Mouse scroll
-    document.addEventListener('scroll', () => {
+    // Mouse scroll on parent window
+    window.addEventListener('scroll', () => {
         if (!isCollecting) return;
 
         sendData('mouse', {
@@ -300,7 +355,33 @@ function setupMouseTracking() {
             scrollX: window.scrollX,
             scrollY: window.scrollY
         });
-    });
+    }, true);
+
+    // Wheel events
+    document.addEventListener('wheel', (e) => {
+        if (!isCollecting) return;
+
+        sendData('mouse', {
+            event: 'wheel',
+            x: e.clientX,
+            y: e.clientY,
+            deltaX: e.deltaX,
+            deltaY: e.deltaY
+        });
+    }, true);
+
+    // Right-click
+    document.addEventListener('contextmenu', (e) => {
+        if (!isCollecting) return;
+
+        sendData('mouse', {
+            event: 'rightclick',
+            x: e.clientX,
+            y: e.clientY
+        });
+    }, true);
+
+    console.log('Mouse tracking initialized. Note: Cross-origin iframe mouse events are captured via screen recording.');
 }
 
 /**
@@ -362,22 +443,104 @@ function getSafeKey(e) {
 /**
  * Start the experiment
  */
-window.startExperiment = function() {
+window.startExperiment = async function() {
     console.log('Starting experiment...');
     console.log('Loading content:', CONTENT_URL);
-    isCollecting = true;
 
     // Hide pre-experiment, show active experiment
     preExperiment.classList.add('hidden');
     activeExperiment.classList.remove('hidden');
-    floatingControls.classList.remove('hidden');
 
     // Make experiment content fullscreen - add class to body for CSS targeting
     document.body.classList.add('experiment-active');
     experimentContent.classList.add('fullscreen');
 
-    // Load content URL into iframe
+    // Load content URL into iframe FIRST
     contentFrame.src = CONTENT_URL;
+
+    // Show a loading message while waiting
+    const loadingOverlay = document.createElement('div');
+    loadingOverlay.id = 'loading-overlay';
+    loadingOverlay.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(26, 26, 46, 0.95);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+        color: white;
+        font-family: system-ui, sans-serif;
+    `;
+    loadingOverlay.innerHTML = `
+        <div style="text-align: center;">
+            <div style="font-size: 1.5rem; margin-bottom: 20px;">Loading Experiment Content...</div>
+            <div style="font-size: 0.9rem; color: #888; margin-bottom: 30px;">
+                Please wait for the content to load, then you'll be asked to share your screen.
+            </div>
+            <div style="width: 200px; height: 4px; background: #333; border-radius: 2px; overflow: hidden;">
+                <div id="loading-progress" style="width: 0%; height: 100%; background: #4ecca3; transition: width 0.3s;"></div>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(loadingOverlay);
+
+    // Animate progress bar
+    const progressBar = document.getElementById('loading-progress');
+    let progress = 0;
+    const progressInterval = setInterval(() => {
+        progress = Math.min(progress + 10, 90);
+        if (progressBar) progressBar.style.width = progress + '%';
+    }, 200);
+
+    // Wait for iframe to load (or timeout after 5 seconds)
+    await new Promise((resolve) => {
+        const timeout = setTimeout(() => {
+            console.log('Iframe load timeout, proceeding anyway');
+            resolve();
+        }, 5000);
+
+        contentFrame.onload = () => {
+            console.log('Iframe content loaded');
+            clearTimeout(timeout);
+            resolve();
+        };
+    });
+
+    // Complete the progress bar
+    clearInterval(progressInterval);
+    if (progressBar) progressBar.style.width = '100%';
+
+    // Update loading message
+    loadingOverlay.innerHTML = `
+        <div style="text-align: center;">
+            <div style="font-size: 1.5rem; margin-bottom: 20px;">Content Loaded!</div>
+            <div style="font-size: 0.9rem; color: #4ecca3; margin-bottom: 10px;">
+                Now select the screen sharing option...
+            </div>
+            <div style="font-size: 0.8rem; color: #888; max-width: 400px; line-height: 1.5;">
+                In the dialog that appears, select <strong>"This Tab"</strong> or <strong>"Chrome Tab"</strong>
+                and choose this browser tab to record what you see during the experiment.
+            </div>
+        </div>
+    `;
+
+    // Small delay to let user see the message
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
+    // Now start screen recording (will prompt user for permission)
+    const recordingStarted = await startScreenRecording();
+
+    // Remove loading overlay
+    loadingOverlay.remove();
+
+    // Now enable data collection
+    isCollecting = true;
+    floatingControls.classList.remove('hidden');
 
     // Show gaze cursor
     gazeCursor.style.display = 'block';
@@ -390,8 +553,13 @@ window.startExperiment = function() {
         screenWidth: window.screen.width,
         screenHeight: window.screen.height,
         windowWidth: window.innerWidth,
-        windowHeight: window.innerHeight
+        windowHeight: window.innerHeight,
+        screenRecording: recordingStarted
     });
+
+    if (!recordingStarted) {
+        console.warn('Screen recording was not started - user may have denied permission');
+    }
 };
 
 /**
@@ -400,6 +568,9 @@ window.startExperiment = function() {
 window.endExperiment = function() {
     console.log('Ending experiment...');
     isCollecting = false;
+
+    // Stop screen recording
+    stopScreenRecording();
 
     // Send session end event
     sendData('session', {
@@ -436,6 +607,125 @@ window.endExperiment = function() {
     // Stop WebGazer
     webgazer.end();
 };
+
+/**
+ * Start screen recording using MediaRecorder API
+ * Prompts user to share their screen/tab
+ */
+async function startScreenRecording() {
+    console.log('Starting screen recording...');
+
+    try {
+        // Request screen capture permission
+        // User selects which screen/window/tab to share
+        screenStream = await navigator.mediaDevices.getDisplayMedia({
+            video: {
+                cursor: 'always',
+                displaySurface: 'browser', // Prefer browser tab
+                frameRate: { ideal: 15, max: 30 }
+            },
+            audio: false
+        });
+
+        // Create MediaRecorder
+        const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
+            ? 'video/webm;codecs=vp9'
+            : MediaRecorder.isTypeSupported('video/webm;codecs=vp8')
+                ? 'video/webm;codecs=vp8'
+                : 'video/webm';
+
+        mediaRecorder = new MediaRecorder(screenStream, {
+            mimeType: mimeType,
+            videoBitsPerSecond: 1000000 // 1 Mbps for good quality but reasonable size
+        });
+
+        recordedChunks = [];
+        recordingStartTime = Date.now();
+
+        // Handle data available event - send chunks to server
+        mediaRecorder.ondataavailable = async (event) => {
+            if (event.data && event.data.size > 0) {
+                recordedChunks.push(event.data);
+
+                // Convert chunk to base64 and send
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    const base64Data = reader.result.split(',')[1];
+                    const currentTime = Date.now() - recordingStartTime;
+
+                    sendData('video_chunk', {
+                        data: base64Data,
+                        mimeType: mimeType,
+                        chunkIndex: recordedChunks.length - 1,
+                        timestamp: currentTime,
+                        size: event.data.size
+                    });
+
+                    console.log(`Video chunk #${recordedChunks.length} sent (${(event.data.size / 1024).toFixed(1)} KB)`);
+                };
+                reader.readAsDataURL(event.data);
+            }
+        };
+
+        // Handle recording stop
+        mediaRecorder.onstop = () => {
+            console.log('Screen recording stopped');
+            // Send final video blob info
+            if (recordedChunks.length > 0) {
+                const totalSize = recordedChunks.reduce((acc, chunk) => acc + chunk.size, 0);
+                sendData('video_complete', {
+                    totalChunks: recordedChunks.length,
+                    totalSize: totalSize,
+                    duration: Date.now() - recordingStartTime,
+                    mimeType: mimeType
+                });
+            }
+        };
+
+        // Handle stream ending (user stops sharing)
+        screenStream.getVideoTracks()[0].onended = () => {
+            console.log('Screen sharing stopped by user');
+            stopScreenRecording();
+        };
+
+        // Start recording with timeslice for chunked data
+        mediaRecorder.start(VIDEO_CHUNK_INTERVAL);
+
+        console.log('Screen recording started with', mimeType);
+
+        // Send recording start event
+        sendData('video_start', {
+            mimeType: mimeType,
+            width: screenStream.getVideoTracks()[0].getSettings().width,
+            height: screenStream.getVideoTracks()[0].getSettings().height,
+            startTime: recordingStartTime
+        });
+
+        return true;
+
+    } catch (error) {
+        console.error('Screen recording error:', error);
+        // User denied permission or API not supported
+        return false;
+    }
+}
+
+/**
+ * Stop screen recording and release resources
+ */
+function stopScreenRecording() {
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+        mediaRecorder.stop();
+    }
+
+    if (screenStream) {
+        screenStream.getTracks().forEach(track => track.stop());
+        screenStream = null;
+    }
+
+    mediaRecorder = null;
+    console.log('Screen recording stopped, total chunks:', recordedChunks.length);
+}
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', init);

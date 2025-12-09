@@ -11,9 +11,12 @@
         <!-- Header -->
         <header class="header">
             <h1>Web HCI Collector Dashboard</h1>
-            <div class="status-indicator">
-                <span class="status-dot" id="connection-status"></span>
-                <span id="connection-text">Disconnected</span>
+            <div style="display: flex; align-items: center; gap: 16px;">
+                <span id="playback-badge" class="playback-badge" style="display: none;">PLAYBACK</span>
+                <div class="status-indicator">
+                    <span class="status-dot" id="connection-status"></span>
+                    <span id="connection-text">Disconnected</span>
+                </div>
             </div>
         </header>
 
@@ -88,13 +91,36 @@
             </div>
         </aside>
 
-        <!-- Main Content - Gaze Visualization -->
+        <!-- Main Content - Participant View with Tracking Overlays -->
         <main class="main-content">
+            <!-- Participant Page View with Eye Tracking and Mouse Overlay -->
             <div class="panel" style="flex: 1; display: flex; flex-direction: column;">
-                <div class="panel-title">Gaze Tracking Visualization</div>
-                <div class="gaze-display" id="gaze-display">
-                    <canvas id="gaze-canvas"></canvas>
-                    <div class="gaze-point" id="gaze-point"></div>
+                <div class="panel-title">
+                    Participant View
+                    <span id="participant-url" style="font-weight: normal; font-size: 0.7rem; margin-left: 10px; color: var(--text-secondary);">Waiting for session...</span>
+                </div>
+                <div class="participant-view-container" id="participant-view-container">
+                    <!-- Iframe showing participant's page -->
+                    <iframe id="participant-frame" class="participant-frame" src="about:blank"></iframe>
+
+                    <!-- Gaze point overlay -->
+                    <div class="gaze-point-overlay" id="gaze-point-overlay"></div>
+
+                    <!-- Mouse cursor overlay -->
+                    <div class="mouse-cursor-overlay" id="mouse-cursor-overlay">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                            <path d="M5 3L19 12L12 13L9 20L5 3Z" fill="#4ecca3" stroke="#fff" stroke-width="1"/>
+                        </svg>
+                    </div>
+
+                    <!-- Click ripple container -->
+                    <div id="click-ripple-container"></div>
+
+                    <!-- Gaze trail canvas -->
+                    <canvas id="gaze-trail-canvas"></canvas>
+
+                    <!-- Mouse trail canvas -->
+                    <canvas id="mouse-trail-canvas"></canvas>
                 </div>
             </div>
 
@@ -109,8 +135,61 @@
                     <div class="stream-label">Mouse Events</div>
                 </div>
                 <div class="stream-card">
+                    <div class="stream-value" id="click-count">0</div>
+                    <div class="stream-label">Clicks</div>
+                </div>
+                <div class="stream-card">
                     <div class="stream-value" id="keyboard-events">0</div>
                     <div class="stream-label">Key Events</div>
+                </div>
+            </div>
+
+            <!-- Timeline Panel -->
+            <div class="panel timeline-panel">
+                <div class="panel-title">
+                    Session Timeline
+                    <div class="timeline-controls">
+                        <button class="timeline-btn" id="timeline-play-pause" title="Play/Pause">
+                            <svg id="play-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M8 5v14l11-7z"/>
+                            </svg>
+                            <svg id="pause-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="display:none;">
+                                <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
+                            </svg>
+                        </button>
+                        <button class="timeline-btn" id="timeline-live" title="Jump to Live">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                                <circle cx="12" cy="12" r="6"/>
+                            </svg>
+                            LIVE
+                        </button>
+                        <span class="timeline-time" id="timeline-current-time">0:00</span>
+                        <span class="timeline-separator">/</span>
+                        <span class="timeline-time" id="timeline-total-time">0:00</span>
+                    </div>
+                </div>
+                <div class="timeline-container">
+                    <!-- Timeline scrubber -->
+                    <div class="timeline-track" id="timeline-track">
+                        <div class="timeline-progress" id="timeline-progress"></div>
+                        <div class="timeline-scrubber" id="timeline-scrubber"></div>
+                        <!-- Event markers will be added dynamically -->
+                        <div class="timeline-markers" id="timeline-markers"></div>
+                    </div>
+                    <!-- Mini charts -->
+                    <div class="timeline-charts">
+                        <canvas id="timeline-engagement-chart" class="timeline-chart" title="Engagement"></canvas>
+                        <canvas id="timeline-gaze-chart" class="timeline-chart" title="Gaze Activity"></canvas>
+                        <canvas id="timeline-events-chart" class="timeline-chart" title="Events"></canvas>
+                    </div>
+                    <!-- Timeline legend -->
+                    <div class="timeline-legend">
+                        <span class="legend-item"><span class="legend-dot engagement"></span>Engagement</span>
+                        <span class="legend-item"><span class="legend-dot gaze"></span>Gaze</span>
+                        <span class="legend-item"><span class="legend-dot mouse"></span>Mouse</span>
+                        <span class="legend-item"><span class="legend-dot click"></span>Clicks</span>
+                        <span class="legend-item"><span class="legend-dot keyboard"></span>Keys</span>
+                    </div>
                 </div>
             </div>
         </main>
