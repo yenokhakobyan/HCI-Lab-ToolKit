@@ -80,6 +80,7 @@ def load_session_data(session_id: str) -> Dict:
     session_dir = DATA_DIR / session_id
     data = {
         "gaze": None,
+        "l2cs_gaze": None,  # L2CS server-side gaze estimation
         "mouse": None,
         "face_mesh": None,
         "emotion": None,
@@ -2089,20 +2090,24 @@ def create_saccade_direction_polar(saccades_df: pd.DataFrame) -> go.Figure:
 
 def display_session_stats(data: Dict):
     """Display session statistics."""
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3, col4, col5 = st.columns(5)
 
     with col1:
-        st.metric("Gaze Points", len(data["gaze"]) if data["gaze"] is not None else 0)
+        gaze_count = len(data["gaze"]) if data["gaze"] is not None else 0
+        st.metric("WebGazer Points", gaze_count)
     with col2:
-        st.metric("Mouse Events", len(data["mouse"]) if data["mouse"] is not None else 0)
+        l2cs_count = len(data["l2cs_gaze"]) if data["l2cs_gaze"] is not None else 0
+        st.metric("L2CS Gaze Points", l2cs_count)
     with col3:
+        st.metric("Mouse Events", len(data["mouse"]) if data["mouse"] is not None else 0)
+    with col4:
         if data["metadata"]:
             time_range = data["metadata"].get("time_range", {})
             duration = (time_range.get("end", 0) - time_range.get("start", 0)) / 1000
             st.metric("Duration", f"{duration:.1f}s")
         else:
             st.metric("Duration", "N/A")
-    with col4:
+    with col5:
         st.metric("Face Mesh Frames", len(data["face_mesh"]) if data["face_mesh"] is not None else 0)
 
 
@@ -2175,8 +2180,33 @@ def main():
     with tab2:
         st.subheader("Eye Tracking Analysis")
 
-        if data["gaze"] is not None and not data["gaze"].empty:
-            gaze_df = data["gaze"]
+        # Check which gaze sources are available
+        has_webgazer = data["gaze"] is not None and not data["gaze"].empty
+        has_l2cs = data["l2cs_gaze"] is not None and not data["l2cs_gaze"].empty
+
+        if has_webgazer or has_l2cs:
+            # Source selection
+            gaze_sources = []
+            if has_webgazer:
+                gaze_sources.append("WebGazer (Client-side)")
+            if has_l2cs:
+                gaze_sources.append("L2CS-Net (Server-side)")
+
+            selected_source = st.radio(
+                "Select Gaze Data Source",
+                gaze_sources,
+                horizontal=True,
+                help="WebGazer runs in browser (~60Hz), L2CS-Net runs on server with deep learning (~10Hz, more accurate)"
+            )
+
+            # Select appropriate dataframe
+            if "L2CS" in selected_source and has_l2cs:
+                gaze_df = data["l2cs_gaze"]
+                source_label = "L2CS-Net"
+            else:
+                gaze_df = data["gaze"]
+                source_label = "WebGazer"
+
             min_time, max_time = gaze_df['timestamp'].min(), gaze_df['timestamp'].max()
 
             time_range = st.slider(
@@ -2186,19 +2216,19 @@ def main():
 
             col1, col2 = st.columns(2)
             with col1:
-                st.markdown("### Gaze Heatmap")
+                st.markdown(f"### {source_label} Heatmap")
                 fig = create_gaze_heatmap(gaze_df, time_start=time_range[0], time_end=time_range[1])
                 if fig:
                     st.plotly_chart(fig, use_container_width=True)
 
             with col2:
-                st.markdown("### Gaze Scanpath")
+                st.markdown(f"### {source_label} Scanpath")
                 fig = create_gaze_scanpath(gaze_df)
                 if fig:
                     st.plotly_chart(fig, use_container_width=True)
 
-            st.markdown("### Gaze Statistics")
-            col1, col2, col3 = st.columns(3)
+            st.markdown(f"### {source_label} Statistics")
+            col1, col2, col3, col4 = st.columns(4)
             with col1:
                 st.metric("Mean X", f"{gaze_df['x'].mean():.1f}")
             with col2:
@@ -2207,6 +2237,40 @@ def main():
                 if len(gaze_df) > 1:
                     rate = 1000 / gaze_df['timestamp'].diff().mean()
                     st.metric("Sampling Rate", f"{rate:.1f} Hz")
+            with col4:
+                if 'confidence' in gaze_df.columns:
+                    st.metric("Avg Confidence", f"{gaze_df['confidence'].mean():.2f}")
+                else:
+                    st.metric("Data Points", len(gaze_df))
+
+            # Show comparison if both sources available
+            if has_webgazer and has_l2cs:
+                with st.expander("Compare WebGazer vs L2CS-Net"):
+                    st.markdown("### Side-by-Side Comparison")
+                    col1, col2 = st.columns(2)
+
+                    with col1:
+                        st.markdown("**WebGazer (Client-side)**")
+                        wg_df = data["gaze"]
+                        st.write(f"- Points: {len(wg_df)}")
+                        if len(wg_df) > 1:
+                            wg_rate = 1000 / wg_df['timestamp'].diff().mean()
+                            st.write(f"- Sampling Rate: {wg_rate:.1f} Hz")
+                        st.write(f"- Mean Position: ({wg_df['x'].mean():.1f}, {wg_df['y'].mean():.1f})")
+
+                    with col2:
+                        st.markdown("**L2CS-Net (Server-side)**")
+                        l2_df = data["l2cs_gaze"]
+                        st.write(f"- Points: {len(l2_df)}")
+                        if len(l2_df) > 1:
+                            l2_rate = 1000 / l2_df['timestamp'].diff().mean()
+                            st.write(f"- Sampling Rate: {l2_rate:.1f} Hz")
+                        st.write(f"- Mean Position: ({l2_df['x'].mean():.1f}, {l2_df['y'].mean():.1f})")
+                        if 'confidence' in l2_df.columns:
+                            st.write(f"- Avg Confidence: {l2_df['confidence'].mean():.2f}")
+                        if 'source' in l2_df.columns:
+                            st.write(f"- Model: {l2_df['source'].iloc[0] if len(l2_df) > 0 else 'N/A'}")
+
         else:
             st.info("No gaze data available.")
 

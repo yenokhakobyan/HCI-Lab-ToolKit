@@ -27,6 +27,7 @@ import uvicorn
 from .session_manager import SessionManager, Session
 from .data_processor import DataProcessor
 from .emotion_detector import EmotionDetector, AsyncEmotionDetector
+from .gaze_estimator import L2CSGazeEstimator, AsyncGazeEstimator, create_gaze_estimator
 
 
 @dataclass
@@ -36,12 +37,16 @@ class ServerConfig:
     port: int = 8000
     output_dir: str = "data/raw/web_hci"
     enable_emotion_detection: bool = True
+    enable_l2cs_gaze: bool = True  # Enable L2CS-Net server-side gaze estimation
     save_interval_seconds: int = 30
     debug: bool = False
     # SSL/HTTPS settings for WebGazer (requires HTTPS for webcam access)
     ssl_enabled: bool = True
     ssl_certfile: Optional[str] = None  # Path to cert.pem
     ssl_keyfile: Optional[str] = None   # Path to key.pem
+    # Screen dimensions for L2CS gaze mapping
+    screen_width: int = 1920
+    screen_height: int = 1080
 
 
 class WebHCICollectorServer:
@@ -80,6 +85,17 @@ class WebHCICollectorServer:
         else:
             self.emotion_detector = None
             self.async_emotion_detector = None
+
+        # Initialize L2CS gaze estimator
+        if self.config.enable_l2cs_gaze:
+            self.gaze_estimator = create_gaze_estimator(
+                screen_width=self.config.screen_width,
+                screen_height=self.config.screen_height,
+                async_mode=True
+            )
+            print(f"L2CS gaze estimator enabled (screen: {self.config.screen_width}x{self.config.screen_height})")
+        else:
+            self.gaze_estimator = None
 
         # Track connected clients for broadcasting
         self.connected_clients: Dict[str, WebSocket] = {}
@@ -321,6 +337,50 @@ class WebHCICollectorServer:
                 )
                 # Broadcast to dashboard
                 await self._broadcast_to_dashboard(session_id, emotion_data)
+
+        # Process gaze frame for L2CS estimation
+        if data_type == "gaze_frame" and self.gaze_estimator:
+            frame_data = payload.get("frame")
+            if frame_data:
+                # Submit frame for async processing
+                self.gaze_estimator.submit_frame(frame_data, timestamp)
+
+                # Get latest L2CS gaze result and broadcast
+                gaze_result = self.gaze_estimator.get_latest_result()
+                if gaze_result:
+                    l2cs_data = {
+                        "type": "l2cs_gaze",
+                        "data": gaze_result.to_dict()
+                    }
+                    # Store L2CS gaze data
+                    self.data_processor.add_data(
+                        session_id=session_id,
+                        data_type="l2cs_gaze",
+                        timestamp=timestamp,
+                        data=gaze_result.to_dict()
+                    )
+                    # Broadcast to dashboard
+                    await self._broadcast_to_dashboard(session_id, l2cs_data)
+
+        # Process calibration data for L2CS
+        if data_type == "l2cs_calibration" and self.gaze_estimator:
+            screen_x = payload.get("screen_x")
+            screen_y = payload.get("screen_y")
+            pitch = payload.get("pitch")
+            yaw = payload.get("yaw")
+
+            if all(v is not None for v in [screen_x, screen_y, pitch, yaw]):
+                self.gaze_estimator.estimator.add_calibration_point(
+                    screen_x, screen_y, pitch, yaw, timestamp
+                )
+
+            # If calibration command is to fit the model
+            if payload.get("action") == "fit":
+                success = self.gaze_estimator.estimator.fit_calibration()
+                await self._broadcast_to_dashboard(session_id, {
+                    "type": "l2cs_calibration_result",
+                    "data": {"success": success}
+                })
 
     async def _save_video_chunk(self, session_id: str, payload: Dict[str, Any]):
         """Save video chunk to file."""

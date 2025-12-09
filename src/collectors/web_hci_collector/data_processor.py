@@ -20,6 +20,7 @@ import numpy as np
 class DataBuffer:
     """Buffer for storing session data."""
     gaze: List[Dict] = field(default_factory=list)
+    l2cs_gaze: List[Dict] = field(default_factory=list)  # L2CS server-side gaze estimation
     face_mesh: List[Dict] = field(default_factory=list)
     emotion: List[Dict] = field(default_factory=list)
     mouse: List[Dict] = field(default_factory=list)
@@ -28,6 +29,7 @@ class DataBuffer:
 
     def clear(self):
         self.gaze.clear()
+        self.l2cs_gaze.clear()
         self.face_mesh.clear()
         self.emotion.clear()
         self.mouse.clear()
@@ -77,6 +79,8 @@ class DataProcessor:
             # Add to appropriate buffer
             if data_type == "gaze":
                 buffer.gaze.append(record)
+            elif data_type == "l2cs_gaze":
+                buffer.l2cs_gaze.append(record)
             elif data_type == "face_mesh":
                 buffer.face_mesh.append(record)
             elif data_type == "emotion":
@@ -94,6 +98,7 @@ class DataProcessor:
             buffer = self.buffers.get(session_id, DataBuffer())
             return {
                 "gaze": list(buffer.gaze),
+                "l2cs_gaze": list(buffer.l2cs_gaze),
                 "face_mesh": list(buffer.face_mesh),
                 "emotion": list(buffer.emotion),
                 "mouse": list(buffer.mouse),
@@ -107,6 +112,7 @@ class DataProcessor:
             buffer = self.buffers.get(session_id, DataBuffer())
             return {
                 "gaze": list(buffer.gaze[-n:]),
+                "l2cs_gaze": list(buffer.l2cs_gaze[-n:]),
                 "face_mesh": list(buffer.face_mesh[-n:]),
                 "emotion": list(buffer.emotion[-n:]),
                 "mouse": list(buffer.mouse[-n:]),
@@ -182,6 +188,7 @@ class DataProcessor:
             "export_timestamp": timestamp,
             "data_counts": {
                 "gaze": len(data["gaze"]),
+                "l2cs_gaze": len(data["l2cs_gaze"]),
                 "face_mesh": len(data["face_mesh"]),
                 "emotion": len(data["emotion"]),
                 "mouse": len(data["mouse"]),

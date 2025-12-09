@@ -34,6 +34,13 @@ let recordedChunks = [];
 let recordingStartTime = 0;
 const VIDEO_CHUNK_INTERVAL = 1000; // Send video chunk every 1 second
 
+// L2CS gaze frame capture
+let l2csCanvas = null;
+let l2csCtx = null;
+let lastL2CSFrameTime = 0;
+const L2CS_FRAME_INTERVAL = 100; // Send frame every 100ms (~10Hz) for L2CS processing
+const L2CS_ENABLED = true; // Enable L2CS server-side gaze estimation
+
 // DOM Elements
 const connectionStatus = document.getElementById('connection-status');
 const connectionText = document.getElementById('connection-text');
@@ -105,6 +112,43 @@ function sendData(type, data) {
 }
 
 /**
+ * Send video frame to server for L2CS gaze estimation
+ * Throttled to L2CS_FRAME_INTERVAL (~10Hz by default)
+ */
+function sendL2CSFrame(videoElement) {
+    const now = performance.now();
+
+    // Throttle frame rate
+    if (now - lastL2CSFrameTime < L2CS_FRAME_INTERVAL) {
+        return;
+    }
+    lastL2CSFrameTime = now;
+
+    if (!l2csCanvas || !l2csCtx || !videoElement) {
+        return;
+    }
+
+    try {
+        // Draw video frame to canvas
+        l2csCtx.drawImage(videoElement, 0, 0, l2csCanvas.width, l2csCanvas.height);
+
+        // Convert to base64 JPEG (smaller than PNG)
+        const frameData = l2csCanvas.toDataURL('image/jpeg', 0.7);
+
+        // Send to server
+        sendData('gaze_frame', {
+            frame: frameData,
+            width: l2csCanvas.width,
+            height: l2csCanvas.height,
+            screen_width: window.screen.width,
+            screen_height: window.screen.height
+        });
+    } catch (error) {
+        console.error('L2CS frame capture error:', error);
+    }
+}
+
+/**
  * Initialize WebGazer.js for eye tracking
  */
 async function initWebGazer() {
@@ -167,6 +211,11 @@ async function initFaceMesh() {
             onFrame: async () => {
                 if (isCollecting) {
                     await faceMesh.send({ image: videoElement });
+
+                    // Send frame to server for L2CS gaze estimation
+                    if (L2CS_ENABLED) {
+                        sendL2CSFrame(videoElement);
+                    }
                 }
             },
             width: 640,
@@ -174,6 +223,16 @@ async function initFaceMesh() {
         });
 
         await camera.start();
+
+        // Initialize L2CS canvas for frame capture
+        if (L2CS_ENABLED) {
+            l2csCanvas = document.createElement('canvas');
+            l2csCanvas.width = 640;
+            l2csCanvas.height = 480;
+            l2csCtx = l2csCanvas.getContext('2d');
+            console.log('L2CS frame capture initialized');
+        }
+
         console.log('MediaPipe Face Mesh initialized');
 
     } catch (error) {
