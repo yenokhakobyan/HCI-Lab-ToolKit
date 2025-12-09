@@ -15,8 +15,9 @@ const WS_PROTOCOL = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
 const WS_URL = `${WS_PROTOCOL}//${window.location.host}/ws/collect/${SESSION_ID}`;
 
 // Content URL - can be set via URL parameter: ?content=https://example.com
+// For same-origin content (full mouse tracking), use: /static/experiments/your-file.html
 const urlParams = new URLSearchParams(window.location.search);
-const CONTENT_URL = urlParams.get('content') || 'https://superlative-bavarois-0e36a8.netlify.app/';
+const CONTENT_URL = urlParams.get('content') || '/static/experiments/green_energy_demo.html';
 
 // State
 let ws = null;
@@ -266,27 +267,18 @@ function onFaceMeshResults(results) {
 /**
  * Setup mouse tracking
  *
- * NOTE: Due to browser security (Same-Origin Policy), mouse events INSIDE
- * cross-origin iframes cannot be captured by the parent document.
+ * This function sets up comprehensive mouse tracking including:
+ * 1. Parent document mouse events (always works)
+ * 2. Same-origin iframe mouse events (via content window access)
+ * 3. Cross-origin iframe events (via postMessage if iframe supports it)
  *
- * What we CAN track:
- * - Mouse position when cursor is outside the iframe (on parent document)
- * - Mouse entering/leaving the iframe area
- * - Scroll and wheel events on the parent document
- *
- * What we CANNOT track (cross-origin limitation):
- * - Mouse movement inside the iframe
- * - Clicks inside the iframe
- *
- * SOLUTION: Screen recording captures the actual cursor position visually.
- * The recorded video shows where the user's mouse is at all times.
+ * For cross-origin iframes that don't support postMessage communication,
+ * screen recording still captures the visual cursor position.
  */
 function setupMouseTracking() {
     let lastMouseMove = 0;
     let isOverIframe = false;
-
     // Track mouse position on parent document
-    // This works when mouse is outside the iframe
     document.addEventListener('mousemove', (e) => {
         if (!isCollecting) return;
 
@@ -329,7 +321,8 @@ function setupMouseTracking() {
             y: e.clientY,
             screenX: e.screenX,
             screenY: e.screenY,
-            overIframe: isOverIframe
+            overIframe: isOverIframe,
+            source: 'parent'
         });
     }, true);
 
@@ -342,7 +335,8 @@ function setupMouseTracking() {
             x: e.clientX,
             y: e.clientY,
             button: e.button,
-            target: e.target?.tagName || 'unknown'
+            target: e.target?.tagName || 'unknown',
+            source: 'parent'
         });
     }, true);
 
@@ -353,7 +347,8 @@ function setupMouseTracking() {
         sendData('mouse', {
             event: 'scroll',
             scrollX: window.scrollX,
-            scrollY: window.scrollY
+            scrollY: window.scrollY,
+            source: 'parent'
         });
     }, true);
 
@@ -366,7 +361,8 @@ function setupMouseTracking() {
             x: e.clientX,
             y: e.clientY,
             deltaX: e.deltaX,
-            deltaY: e.deltaY
+            deltaY: e.deltaY,
+            source: 'parent'
         });
     }, true);
 
@@ -377,11 +373,189 @@ function setupMouseTracking() {
         sendData('mouse', {
             event: 'rightclick',
             x: e.clientX,
-            y: e.clientY
+            y: e.clientY,
+            source: 'parent'
         });
     }, true);
 
-    console.log('Mouse tracking initialized. Note: Cross-origin iframe mouse events are captured via screen recording.');
+    // Listen for postMessage from iframes (cross-origin support)
+    window.addEventListener('message', (e) => {
+        if (!isCollecting) return;
+
+        // Handle mouse events from iframe
+        if (e.data && e.data.type === 'hci_mouse_event') {
+            const iframe = document.getElementById('content-frame');
+            if (!iframe) return;
+
+            const rect = iframe.getBoundingClientRect();
+            const mouseData = e.data.data;
+
+            // Convert iframe-relative coordinates to parent document coordinates
+            const parentX = rect.left + mouseData.x;
+            const parentY = rect.top + mouseData.y;
+
+            sendData('mouse', {
+                event: mouseData.event,
+                x: parentX,
+                y: parentY,
+                iframeX: mouseData.x,
+                iframeY: mouseData.y,
+                button: mouseData.button,
+                target: mouseData.target,
+                deltaX: mouseData.deltaX,
+                deltaY: mouseData.deltaY,
+                scrollX: mouseData.scrollX,
+                scrollY: mouseData.scrollY,
+                overIframe: true,
+                source: 'iframe_postmessage'
+            });
+        }
+
+        // Handle experiment-specific events from iframe content
+        if (e.data && e.data.type === 'hci_experiment_event') {
+            sendData('experiment_event', e.data.data);
+        }
+    });
+
+    console.log('Mouse tracking initialized with parent document and postMessage iframe support.');
+}
+
+/**
+ * Setup iframe mouse tracking after iframe loads
+ * This attempts to inject mouse tracking into same-origin iframes
+ * For cross-origin iframes, the iframe content must include the iframe-tracker.js script
+ */
+function setupIframeMouseTracking() {
+    const iframe = document.getElementById('content-frame');
+    if (!iframe) return;
+
+    // Wait a bit for iframe to fully load
+    setTimeout(() => {
+        try {
+            // Try to access iframe content (only works for same-origin)
+            const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+
+            if (iframeDoc) {
+                console.log('Same-origin iframe detected, injecting mouse tracking...');
+                injectIframeMouseTracking(iframe, iframeDoc);
+            }
+        } catch (e) {
+            // Cross-origin - can't access directly
+            console.log('Cross-origin iframe detected. Mouse tracking requires iframe-tracker.js in the iframe content.');
+
+            // Send a message to the iframe asking it to enable tracking (if it has our script)
+            try {
+                iframe.contentWindow.postMessage({
+                    type: 'hci_enable_mouse_tracking',
+                    sessionId: SESSION_ID
+                }, '*');
+            } catch (err) {
+                console.log('Could not send postMessage to iframe');
+            }
+        }
+    }, 1000);
+}
+
+/**
+ * Inject mouse tracking script into same-origin iframe
+ */
+function injectIframeMouseTracking(iframe, iframeDoc) {
+    let lastIframeMouseMove = 0;
+    const iframeWindow = iframe.contentWindow;
+
+    // Get iframe rect for coordinate conversion
+    const getIframeRect = () => iframe.getBoundingClientRect();
+
+    // Mouse move in iframe
+    iframeDoc.addEventListener('mousemove', (e) => {
+        if (!isCollecting) return;
+
+        const now = performance.now();
+        if (now - lastIframeMouseMove < 50) return; // 20 Hz max
+        lastIframeMouseMove = now;
+
+        const rect = getIframeRect();
+
+        sendData('mouse', {
+            event: 'move',
+            x: rect.left + e.clientX,
+            y: rect.top + e.clientY,
+            iframeX: e.clientX,
+            iframeY: e.clientY,
+            overIframe: true,
+            source: 'iframe_injected'
+        });
+    }, true);
+
+    // Click in iframe
+    iframeDoc.addEventListener('click', (e) => {
+        if (!isCollecting) return;
+
+        const rect = getIframeRect();
+
+        sendData('mouse', {
+            event: 'click',
+            x: rect.left + e.clientX,
+            y: rect.top + e.clientY,
+            iframeX: e.clientX,
+            iframeY: e.clientY,
+            button: e.button,
+            target: e.target?.tagName || 'unknown',
+            overIframe: true,
+            source: 'iframe_injected'
+        });
+    }, true);
+
+    // Scroll in iframe
+    iframeWindow.addEventListener('scroll', () => {
+        if (!isCollecting) return;
+
+        sendData('mouse', {
+            event: 'scroll',
+            scrollX: iframeWindow.scrollX,
+            scrollY: iframeWindow.scrollY,
+            overIframe: true,
+            source: 'iframe_injected'
+        });
+    }, true);
+
+    // Wheel in iframe
+    iframeDoc.addEventListener('wheel', (e) => {
+        if (!isCollecting) return;
+
+        const rect = getIframeRect();
+
+        sendData('mouse', {
+            event: 'wheel',
+            x: rect.left + e.clientX,
+            y: rect.top + e.clientY,
+            iframeX: e.clientX,
+            iframeY: e.clientY,
+            deltaX: e.deltaX,
+            deltaY: e.deltaY,
+            overIframe: true,
+            source: 'iframe_injected'
+        });
+    }, true);
+
+    // Right-click in iframe
+    iframeDoc.addEventListener('contextmenu', (e) => {
+        if (!isCollecting) return;
+
+        const rect = getIframeRect();
+
+        sendData('mouse', {
+            event: 'rightclick',
+            x: rect.left + e.clientX,
+            y: rect.top + e.clientY,
+            iframeX: e.clientX,
+            iframeY: e.clientY,
+            overIframe: true,
+            source: 'iframe_injected'
+        });
+    }, true);
+
+    console.log('Iframe mouse tracking injected successfully');
 }
 
 /**
@@ -507,6 +681,8 @@ window.startExperiment = async function() {
         contentFrame.onload = () => {
             console.log('Iframe content loaded');
             clearTimeout(timeout);
+            // Setup iframe mouse tracking after content loads
+            setupIframeMouseTracking();
             resolve();
         };
     });
@@ -565,16 +741,20 @@ window.startExperiment = async function() {
 /**
  * End the experiment
  */
-window.endExperiment = function() {
+window.endExperiment = async function() {
     console.log('Ending experiment...');
     isCollecting = false;
 
-    // Stop screen recording
-    stopScreenRecording();
+    // Show saving indicator
+    showSavingIndicator();
 
-    // Send session end event
+    // Stop screen recording and wait for final chunks
+    await stopScreenRecordingAsync();
+
+    // Send session end event with save request
     sendData('session', {
-        event: 'end'
+        event: 'end',
+        saveData: true
     });
 
     // Hide gaze cursor and floating controls
@@ -585,28 +765,96 @@ window.endExperiment = function() {
     document.body.classList.remove('experiment-active');
     experimentContent.classList.remove('fullscreen');
 
-    // Show completion message
+    // Export session data on server
+    try {
+        const response = await fetch(`/api/session/${SESSION_ID}/export?format=csv`, {
+            method: 'POST'
+        });
+        const result = await response.json();
+        if (result.success) {
+            console.log('Session data exported to:', result.filepath);
+        }
+    } catch (error) {
+        console.error('Export error:', error);
+    }
+
+    // Stop WebGazer
+    webgazer.end();
+
+    // Show completion message briefly then redirect to dashboard
     activeExperiment.innerHTML = `
         <div class="experiment-area">
             <div class="sample-content">
                 <h2>Experiment Complete</h2>
-                <p>Thank you for participating! Your data has been recorded.</p>
+                <p>Thank you for participating! Your data has been saved.</p>
                 <p>Session ID: ${SESSION_ID}</p>
+                <p style="color: #4ecca3; margin-top: 20px;">Redirecting to dashboard...</p>
                 <div style="display: flex; gap: 16px; justify-content: center; margin-top: 30px;">
                     <button class="btn btn-secondary" onclick="window.location.reload()">
                         Start New Session
                     </button>
-                    <button class="btn btn-primary" onclick="window.location.href='/dashboard'">
-                        View Dashboard
+                    <button class="btn btn-primary" onclick="window.location.href='/dashboard?session=${SESSION_ID}'">
+                        View Dashboard Now
                     </button>
                 </div>
             </div>
         </div>
     `;
 
-    // Stop WebGazer
-    webgazer.end();
+    // Redirect to dashboard with session ID after a short delay
+    setTimeout(() => {
+        window.location.href = `/dashboard?session=${SESSION_ID}`;
+    }, 2000);
 };
+
+/**
+ * Show saving indicator overlay
+ */
+function showSavingIndicator() {
+    const overlay = document.createElement('div');
+    overlay.id = 'saving-overlay';
+    overlay.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(26, 26, 46, 0.95);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+        color: white;
+        font-family: system-ui, sans-serif;
+    `;
+    overlay.innerHTML = `
+        <div style="text-align: center;">
+            <div style="font-size: 1.5rem; margin-bottom: 20px;">Saving Experiment Data...</div>
+            <div style="font-size: 0.9rem; color: #4ecca3; margin-bottom: 30px;">
+                Please wait while we save your session data and video recording.
+            </div>
+            <div class="spinner" style="width: 40px; height: 40px; border: 3px solid #333; border-top: 3px solid #4ecca3; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto;"></div>
+        </div>
+        <style>
+            @keyframes spin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+            }
+        </style>
+    `;
+    document.body.appendChild(overlay);
+}
+
+/**
+ * Hide saving indicator overlay
+ */
+function hideSavingIndicator() {
+    const overlay = document.getElementById('saving-overlay');
+    if (overlay) {
+        overlay.remove();
+    }
+}
 
 /**
  * Start screen recording using MediaRecorder API
@@ -725,6 +973,50 @@ function stopScreenRecording() {
 
     mediaRecorder = null;
     console.log('Screen recording stopped, total chunks:', recordedChunks.length);
+}
+
+/**
+ * Stop screen recording asynchronously and wait for final data
+ * Returns a promise that resolves when all recording data is processed
+ */
+function stopScreenRecordingAsync() {
+    return new Promise((resolve) => {
+        if (!mediaRecorder || mediaRecorder.state === 'inactive') {
+            if (screenStream) {
+                screenStream.getTracks().forEach(track => track.stop());
+                screenStream = null;
+            }
+            resolve();
+            return;
+        }
+
+        // Wait for the onstop event before resolving
+        mediaRecorder.onstop = () => {
+            console.log('Screen recording stopped, total chunks:', recordedChunks.length);
+
+            // Send final video blob info
+            if (recordedChunks.length > 0) {
+                const totalSize = recordedChunks.reduce((acc, chunk) => acc + chunk.size, 0);
+                sendData('video_complete', {
+                    totalChunks: recordedChunks.length,
+                    totalSize: totalSize,
+                    duration: Date.now() - recordingStartTime,
+                    mimeType: mediaRecorder ? 'video/webm' : 'video/webm'
+                });
+            }
+
+            if (screenStream) {
+                screenStream.getTracks().forEach(track => track.stop());
+                screenStream = null;
+            }
+            mediaRecorder = null;
+
+            // Small delay to ensure data is sent
+            setTimeout(resolve, 500);
+        };
+
+        mediaRecorder.stop();
+    });
 }
 
 // Initialize on page load

@@ -40,6 +40,8 @@ logs/
 # Environment
 .env
 *.env
+# Video recortings
+*.webm
 
 # Credentials
 configs/credentials.yaml

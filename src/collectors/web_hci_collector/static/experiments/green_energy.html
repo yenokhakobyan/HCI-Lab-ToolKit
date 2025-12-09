@@ -1,0 +1,2081 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Green Energy Learning Module</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-green: #1B7340;
+            --secondary-green: #2D9A5D;
+            --accent-yellow: #F5C842;
+            --accent-orange: #E87C3E;
+            --dark-bg: #0D1F17;
+            --card-bg: #FAFDF8;
+            --text-primary: #1A2A1F;
+            --text-secondary: #4A5D52;
+            --border-light: #D4E5DC;
+            --warning-red: #C74B4B;
+            --info-blue: #3B7DD8;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'DM Sans', sans-serif;
+            background: linear-gradient(135deg, #E8F5E9 0%, #F1F8E9 50%, #E0F2F1 100%);
+            min-height: 100vh;
+            color: var(--text-primary);
+        }
+
+        /* Header */
+        .header {
+            background: var(--dark-bg);
+            color: white;
+            padding: 16px 32px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header h1 {
+            font-size: 20px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .header h1::before {
+            content: "☀️";
+        }
+
+        .progress-bar {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .progress-step {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .progress-step.active {
+            background: var(--accent-yellow);
+            color: var(--dark-bg);
+        }
+
+        .progress-step.completed {
+            background: var(--secondary-green);
+        }
+
+        /* Session Container */
+        .session {
+            display: none;
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+
+        .session.active {
+            display: block;
+        }
+
+        .session-header {
+            text-align: center;
+            margin-bottom: 24px;
+        }
+
+        .session-number {
+            background: var(--primary-green);
+            color: white;
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+            display: inline-block;
+            margin-bottom: 12px;
+        }
+
+        .session-title {
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--primary-green);
+        }
+
+        /* Main Content Grid - 3 Column Layout */
+        .content-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 20px;
+            min-height: calc(100vh - 200px);
+        }
+
+        /* Content Panels */
+        .panel {
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 24px;
+            border: 2px solid var(--border-light);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .panel-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 2px solid var(--border-light);
+        }
+
+        .panel-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+        }
+
+        .panel-icon.text { background: #E3F2FD; }
+        .panel-icon.visual { background: #FFF3E0; }
+        .panel-icon.case { background: #F3E5F5; }
+
+        .panel-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-secondary);
+        }
+
+        /* Text Panel Styles */
+        .text-content {
+            font-size: 15px;
+            line-height: 1.7;
+            color: var(--text-primary);
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .text-content h3 {
+            color: var(--primary-green);
+            font-size: 17px;
+            margin: 16px 0 10px 0;
+            font-weight: 600;
+        }
+
+        .text-content h3:first-child {
+            margin-top: 0;
+        }
+
+        .text-content p {
+            margin-bottom: 12px;
+        }
+
+        .text-content ul {
+            margin: 10px 0 14px 20px;
+        }
+
+        .text-content li {
+            margin-bottom: 6px;
+        }
+
+        .highlight-box {
+            background: linear-gradient(135deg, #E8F5E9 0%, #C8E6C9 100%);
+            border-left: 4px solid var(--primary-green);
+            padding: 12px 16px;
+            margin: 14px 0;
+            border-radius: 0 8px 8px 0;
+            font-size: 14px;
+        }
+
+        .key-term {
+            background: var(--accent-yellow);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: 600;
+        }
+
+        .formula-box {
+            background: #F5F5F5;
+            border: 1px solid #E0E0E0;
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 14px;
+            margin: 12px 0;
+            text-align: center;
+        }
+
+        /* Infographic Panel Styles */
+        .infographic-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .chart-container {
+            background: white;
+            border-radius: 12px;
+            padding: 16px;
+            border: 1px solid var(--border-light);
+        }
+
+        .chart-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            margin-bottom: 12px;
+            text-align: center;
+        }
+
+        /* Bar Chart */
+        .bar-chart {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .bar-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .bar-label {
+            width: 100px;
+            font-size: 12px;
+            font-weight: 500;
+            text-align: right;
+        }
+
+        .bar-container {
+            flex: 1;
+            height: 24px;
+            background: #F0F0F0;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .bar {
+            height: 100%;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            padding-right: 8px;
+            font-size: 11px;
+            font-weight: 600;
+            color: white;
+        }
+
+        /* Data Table */
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        .data-table th {
+            background: var(--primary-green);
+            color: white;
+            padding: 10px 8px;
+            text-align: left;
+            font-weight: 600;
+        }
+
+        .data-table td {
+            padding: 10px 8px;
+            border-bottom: 1px solid var(--border-light);
+        }
+
+        .data-table tr:nth-child(even) {
+            background: #F8FAF8;
+        }
+
+        .data-table .number {
+            font-family: 'IBM Plex Mono', monospace;
+            font-weight: 500;
+            text-align: right;
+        }
+
+        /* Comparison Cards */
+        .comparison-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .comparison-card {
+            background: white;
+            border-radius: 10px;
+            padding: 14px;
+            border: 2px solid var(--border-light);
+            text-align: center;
+        }
+
+        .comparison-card.highlight {
+            border-color: var(--primary-green);
+            background: linear-gradient(135deg, #E8F5E9 0%, white 100%);
+        }
+
+        .comparison-card h4 {
+            font-size: 13px;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+        }
+
+        .comparison-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--primary-green);
+            font-family: 'IBM Plex Mono', monospace;
+        }
+
+        .comparison-unit {
+            font-size: 11px;
+            color: var(--text-secondary);
+            margin-top: 4px;
+        }
+
+        /* Pie Chart (CSS only) */
+        .pie-chart-container {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .pie-chart {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            position: relative;
+        }
+
+        .pie-legend {
+            flex: 1;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+            font-size: 12px;
+        }
+
+        .legend-color {
+            width: 14px;
+            height: 14px;
+            border-radius: 3px;
+        }
+
+        /* Case Study Panel */
+        .case-study-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .case-scenario {
+            background: linear-gradient(135deg, #FFF8E1 0%, #FFECB3 100%);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 16px;
+            border: 2px solid #FFD54F;
+        }
+
+        .case-scenario h4 {
+            color: #F57C00;
+            font-size: 15px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .case-scenario h4::before {
+            content: "📋";
+        }
+
+        .case-scenario p {
+            font-size: 14px;
+            line-height: 1.6;
+            color: var(--text-primary);
+        }
+
+        .case-data {
+            background: white;
+            border-radius: 8px;
+            padding: 12px;
+            margin-top: 12px;
+            border: 1px solid #FFD54F;
+        }
+
+        .case-data-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 6px 0;
+            font-size: 13px;
+            border-bottom: 1px dashed #E0E0E0;
+        }
+
+        .case-data-row:last-child {
+            border-bottom: none;
+        }
+
+        .case-data-value {
+            font-family: 'IBM Plex Mono', monospace;
+            font-weight: 600;
+            color: var(--primary-green);
+        }
+
+        /* Question Area */
+        .question-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .question-box {
+            background: white;
+            border-radius: 12px;
+            padding: 16px;
+            border: 2px solid var(--info-blue);
+            margin-bottom: 12px;
+        }
+
+        .question-label {
+            color: var(--info-blue);
+            font-size: 12px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .question-label::before {
+            content: "❓";
+        }
+
+        .question-text {
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--text-primary);
+            line-height: 1.5;
+        }
+
+        /* Answer Options */
+        .answer-options {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            flex: 1;
+        }
+
+        .answer-option {
+            background: white;
+            border: 2px solid var(--border-light);
+            border-radius: 10px;
+            padding: 14px 16px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+        }
+
+        .answer-option:hover {
+            border-color: var(--primary-green);
+            background: #F8FDF9;
+        }
+
+        .answer-option.selected {
+            border-color: var(--primary-green);
+            background: linear-gradient(135deg, #E8F5E9 0%, #C8E6C9 100%);
+        }
+
+        .option-letter {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: var(--border-light);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 13px;
+            flex-shrink: 0;
+        }
+
+        .answer-option.selected .option-letter {
+            background: var(--primary-green);
+            color: white;
+        }
+
+        .option-text {
+            font-size: 14px;
+            line-height: 1.5;
+            padding-top: 3px;
+        }
+
+        /* Financial Input */
+        .financial-input {
+            background: white;
+            border-radius: 10px;
+            padding: 14px;
+            border: 2px solid var(--border-light);
+            margin-bottom: 10px;
+        }
+
+        .input-label {
+            font-size: 13px;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+        }
+
+        .input-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .input-group input {
+            flex: 1;
+            padding: 10px 14px;
+            border: 2px solid var(--border-light);
+            border-radius: 8px;
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .input-group input:focus {
+            outline: none;
+            border-color: var(--primary-green);
+        }
+
+        .input-unit {
+            font-size: 14px;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        /* Submit Button */
+        .submit-btn {
+            background: var(--primary-green);
+            color: white;
+            border: none;
+            padding: 14px 24px;
+            border-radius: 10px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            margin-top: auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .submit-btn:hover {
+            background: #145A32;
+            transform: translateY(-2px);
+        }
+
+        .submit-btn:disabled {
+            background: #9E9E9E;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* Navigation */
+        .navigation {
+            display: flex;
+            justify-content: space-between;
+            padding: 20px 24px;
+            background: white;
+            border-top: 2px solid var(--border-light);
+            margin-top: 20px;
+            border-radius: 16px;
+        }
+
+        .nav-btn {
+            padding: 12px 28px;
+            border-radius: 10px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .nav-btn.prev {
+            background: white;
+            border: 2px solid var(--border-light);
+            color: var(--text-secondary);
+        }
+
+        .nav-btn.prev:hover {
+            border-color: var(--primary-green);
+            color: var(--primary-green);
+        }
+
+        .nav-btn.next {
+            background: var(--primary-green);
+            border: 2px solid var(--primary-green);
+            color: white;
+        }
+
+        .nav-btn.next:hover {
+            background: #145A32;
+        }
+
+        .nav-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* Visual Elements */
+        .icon-solar { color: #FF9800; }
+        .icon-battery { color: #4CAF50; }
+        .icon-money { color: #2196F3; }
+        .icon-leaf { color: #8BC34A; }
+
+        /* Slider */
+        .slider-container {
+            padding: 10px 0;
+        }
+
+        .slider-labels {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            height: 8px;
+            -webkit-appearance: none;
+            background: linear-gradient(to right, var(--primary-green) 0%, var(--primary-green) 50%, #E0E0E0 50%, #E0E0E0 100%);
+            border-radius: 4px;
+            outline: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 20px;
+            height: 20px;
+            background: var(--primary-green);
+            border-radius: 50%;
+            cursor: pointer;
+            border: 3px solid white;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+        }
+
+        /* Metric Cards */
+        .metric-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+        }
+
+        .metric-card {
+            background: white;
+            border-radius: 10px;
+            padding: 12px;
+            text-align: center;
+            border: 1px solid var(--border-light);
+        }
+
+        .metric-icon {
+            font-size: 20px;
+            margin-bottom: 6px;
+        }
+
+        .metric-value {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--primary-green);
+            font-family: 'IBM Plex Mono', monospace;
+        }
+
+        .metric-label {
+            font-size: 11px;
+            color: var(--text-secondary);
+            margin-top: 4px;
+        }
+
+        /* Flow Diagram */
+        .flow-diagram {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px;
+            background: white;
+            border-radius: 12px;
+            border: 1px solid var(--border-light);
+        }
+
+        .flow-step {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+        }
+
+        .flow-icon {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            margin-bottom: 8px;
+        }
+
+        .flow-label {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-secondary);
+        }
+
+        .flow-arrow {
+            font-size: 24px;
+            color: var(--primary-green);
+        }
+
+        /* Timeline */
+        .timeline {
+            position: relative;
+            padding-left: 24px;
+        }
+
+        .timeline::before {
+            content: '';
+            position: absolute;
+            left: 8px;
+            top: 0;
+            bottom: 0;
+            width: 3px;
+            background: var(--border-light);
+            border-radius: 2px;
+        }
+
+        .timeline-item {
+            position: relative;
+            padding-bottom: 16px;
+        }
+
+        .timeline-item::before {
+            content: '';
+            position: absolute;
+            left: -20px;
+            top: 4px;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: var(--primary-green);
+            border: 3px solid white;
+            box-shadow: 0 0 0 2px var(--primary-green);
+        }
+
+        .timeline-year {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--primary-green);
+            margin-bottom: 4px;
+        }
+
+        .timeline-content {
+            font-size: 13px;
+            color: var(--text-primary);
+        }
+
+        /* AOI Markers (hidden in production, visible for testing) */
+        .aoi-marker {
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            background: rgba(255,0,0,0.1);
+            color: red;
+            font-size: 9px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            display: none; /* Set to 'block' for testing */
+        }
+
+        /* Scrollbar Styling */
+        .text-content::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .text-content::-webkit-scrollbar-track {
+            background: #F0F0F0;
+            border-radius: 3px;
+        }
+
+        .text-content::-webkit-scrollbar-thumb {
+            background: var(--border-light);
+            border-radius: 3px;
+        }
+
+        .text-content::-webkit-scrollbar-thumb:hover {
+            background: var(--primary-green);
+        }
+    </style>
+</head>
+<body>
+    <!-- Header with Progress -->
+    <header class="header">
+        <h1>Green Energy Learning Module</h1>
+        <div class="progress-bar">
+            <div class="progress-step active" data-session="1">1</div>
+            <div class="progress-step" data-session="2">2</div>
+            <div class="progress-step" data-session="3">3</div>
+            <div class="progress-step" data-session="4">4</div>
+        </div>
+    </header>
+
+    <!-- SESSION 1: Solar Energy Fundamentals -->
+    <section class="session active" id="session1" data-aoi="session1">
+        <div class="session-header">
+            <span class="session-number">SESSION 1 OF 4</span>
+            <h2 class="session-title">Solar Energy Fundamentals</h2>
+        </div>
+
+        <div class="content-grid">
+            <!-- TEXT PANEL -->
+            <div class="panel" data-aoi="session1-text">
+                <div class="panel-header">
+                    <div class="panel-icon text">📖</div>
+                    <span class="panel-title">Learning Content</span>
+                </div>
+                <div class="text-content">
+                    <h3>How Solar Panels Work</h3>
+                    <p>Solar panels convert sunlight into electricity through the <span class="key-term">photovoltaic effect</span>. When photons from sunlight hit the silicon cells, they knock electrons loose, creating an electrical current. This DC (direct current) electricity is then converted to AC (alternating current) by an inverter for home use.</p>
+
+                    <h3>Panel Efficiency Ratings</h3>
+                    <p>Modern residential solar panels typically have efficiency ratings between <span class="key-term">15% and 22%</span>. This means they convert 15-22% of sunlight energy into electricity. Higher efficiency panels produce more power per square meter but cost more.</p>
+
+                    <div class="highlight-box">
+                        <strong>Key Insight:</strong> A typical 400W panel receives about 1,000 watts of sunlight per square meter. At 20% efficiency, it produces 200 watts in ideal conditions.
+                    </div>
+
+                    <h3>Daily Energy Production</h3>
+                    <p>Solar panels don't produce power at their rated capacity all day. The actual output depends on:</p>
+                    <ul>
+                        <li><strong>Peak Sun Hours:</strong> Hours of full-intensity sunlight (typically 4-6 hours)</li>
+                        <li><strong>Panel Orientation:</strong> South-facing panels (in Northern Hemisphere) capture most light</li>
+                        <li><strong>Weather Conditions:</strong> Clouds reduce output by 10-80%</li>
+                        <li><strong>Temperature:</strong> Panels lose ~0.4% efficiency per degree above 25°C</li>
+                    </ul>
+
+                    <h3>Calculating Daily Production</h3>
+                    <p>To estimate daily energy production:</p>
+                    <div class="formula-box">
+                        Daily kWh = Panel Wattage × Peak Sun Hours × System Efficiency (0.75-0.85)
+                    </div>
+                    <p>For example, a 6kW system in a location with 5 peak sun hours: 6 × 5 × 0.8 = <strong>24 kWh per day</strong>.</p>
+
+                    <h3>Understanding kWh (Kilowatt-Hours)</h3>
+                    <p>Energy is measured in <span class="key-term">kilowatt-hours (kWh)</span>. One kWh is using 1,000 watts for one hour. A typical household uses 20-30 kWh daily. Running a 100W lightbulb for 10 hours = 1 kWh.</p>
+                </div>
+            </div>
+
+            <!-- INFOGRAPHIC PANEL -->
+            <div class="panel" data-aoi="session1-visual">
+                <div class="panel-header">
+                    <div class="panel-icon visual">📊</div>
+                    <span class="panel-title">Visual Data</span>
+                </div>
+                <div class="infographic-content">
+                    <!-- Energy Flow Diagram -->
+                    <div class="chart-container">
+                        <div class="chart-title">Solar Energy Conversion Process</div>
+                        <div class="flow-diagram">
+                            <div class="flow-step">
+                                <div class="flow-icon" style="background: #FFF3E0;">☀️</div>
+                                <span class="flow-label">Sunlight<br>1000W/m²</span>
+                            </div>
+                            <span class="flow-arrow">→</span>
+                            <div class="flow-step">
+                                <div class="flow-icon" style="background: #E3F2FD;">⚡</div>
+                                <span class="flow-label">Panel<br>20% Eff.</span>
+                            </div>
+                            <span class="flow-arrow">→</span>
+                            <div class="flow-step">
+                                <div class="flow-icon" style="background: #E8F5E9;">🔌</div>
+                                <span class="flow-label">Output<br>200W</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Panel Comparison Table -->
+                    <div class="chart-container">
+                        <div class="chart-title">Solar Panel Types Comparison</div>
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Panel Type</th>
+                                    <th>Efficiency</th>
+                                    <th>Cost/Watt</th>
+                                    <th>Lifespan</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Monocrystalline</td>
+                                    <td class="number">19-22%</td>
+                                    <td class="number">$0.90</td>
+                                    <td class="number">25-30 yrs</td>
+                                </tr>
+                                <tr>
+                                    <td>Polycrystalline</td>
+                                    <td class="number">15-17%</td>
+                                    <td class="number">$0.70</td>
+                                    <td class="number">25 yrs</td>
+                                </tr>
+                                <tr>
+                                    <td>Thin-Film</td>
+                                    <td class="number">10-13%</td>
+                                    <td class="number">$0.50</td>
+                                    <td class="number">15-20 yrs</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Daily Production Chart -->
+                    <div class="chart-container">
+                        <div class="chart-title">Typical Daily Production (6kW System)</div>
+                        <div class="bar-chart">
+                            <div class="bar-row">
+                                <span class="bar-label">Summer</span>
+                                <div class="bar-container">
+                                    <div class="bar" style="width: 100%; background: linear-gradient(90deg, #FF9800, #F57C00);">28 kWh</div>
+                                </div>
+                            </div>
+                            <div class="bar-row">
+                                <span class="bar-label">Spring/Fall</span>
+                                <div class="bar-container">
+                                    <div class="bar" style="width: 71%; background: linear-gradient(90deg, #FFC107, #FF9800);">20 kWh</div>
+                                </div>
+                            </div>
+                            <div class="bar-row">
+                                <span class="bar-label">Winter</span>
+                                <div class="bar-container">
+                                    <div class="bar" style="width: 43%; background: linear-gradient(90deg, #90CAF9, #64B5F6);">12 kWh</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Peak Sun Hours by Location -->
+                    <div class="chart-container">
+                        <div class="chart-title">Average Peak Sun Hours (Annual)</div>
+                        <div class="bar-chart">
+                            <div class="bar-row">
+                                <span class="bar-label">Phoenix, AZ</span>
+                                <div class="bar-container">
+                                    <div class="bar" style="width: 100%; background: var(--accent-orange);">6.5 hrs</div>
+                                </div>
+                            </div>
+                            <div class="bar-row">
+                                <span class="bar-label">Denver, CO</span>
+                                <div class="bar-container">
+                                    <div class="bar" style="width: 82%; background: var(--accent-yellow);">5.3 hrs</div>
+                                </div>
+                            </div>
+                            <div class="bar-row">
+                                <span class="bar-label">New York</span>
+                                <div class="bar-container">
+                                    <div class="bar" style="width: 60%; background: var(--secondary-green);">3.9 hrs</div>
+                                </div>
+                            </div>
+                            <div class="bar-row">
+                                <span class="bar-label">Seattle, WA</span>
+                                <div class="bar-container">
+                                    <div class="bar" style="width: 46%; background: var(--info-blue);">3.0 hrs</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CASE STUDY PANEL -->
+            <div class="panel" data-aoi="session1-case">
+                <div class="panel-header">
+                    <div class="panel-icon case">🎯</div>
+                    <span class="panel-title">Case Study</span>
+                </div>
+                <div class="case-study-content">
+                    <div class="case-scenario">
+                        <h4>The Martinez Family Decision</h4>
+                        <p>The Martinez family in Denver, Colorado wants to install solar panels. They use about <strong>25 kWh of electricity per day</strong> on average. They have limited roof space and must choose between two options:</p>
+                        <div class="case-data">
+                            <div class="case-data-row">
+                                <span>Available roof space:</span>
+                                <span class="case-data-value">30 m²</span>
+                            </div>
+                            <div class="case-data-row">
+                                <span>Daily usage:</span>
+                                <span class="case-data-value">25 kWh</span>
+                            </div>
+                            <div class="case-data-row">
+                                <span>System efficiency factor:</span>
+                                <span class="case-data-value">0.80</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="question-area">
+                        <div class="question-box">
+                            <div class="question-label">Question</div>
+                            <p class="question-text">Based on the panel efficiency data and Denver's peak sun hours, which panel type would allow the Martinez family to meet their daily energy needs with their available roof space?</p>
+                        </div>
+
+                        <div class="answer-options">
+                            <div class="answer-option" data-answer="A" onclick="selectAnswer(this, 1)">
+                                <span class="option-letter">A</span>
+                                <span class="option-text"><strong>Monocrystalline panels</strong> – Higher efficiency means more power per square meter, generating approximately 26-29 kWh daily</span>
+                            </div>
+                            <div class="answer-option" data-answer="B" onclick="selectAnswer(this, 1)">
+                                <span class="option-letter">B</span>
+                                <span class="option-text"><strong>Polycrystalline panels</strong> – Moderate efficiency would generate approximately 18-21 kWh daily</span>
+                            </div>
+                            <div class="answer-option" data-answer="C" onclick="selectAnswer(this, 1)">
+                                <span class="option-letter">C</span>
+                                <span class="option-text"><strong>Thin-Film panels</strong> – Lower efficiency but cheapest option, generating approximately 11-14 kWh daily</span>
+                            </div>
+                            <div class="answer-option" data-answer="D" onclick="selectAnswer(this, 1)">
+                                <span class="option-letter">D</span>
+                                <span class="option-text"><strong>Any panel type</strong> – All options would meet their 25 kWh daily requirement with 30 m² of roof space</span>
+                            </div>
+                        </div>
+
+                        <button class="submit-btn" id="submit1" disabled onclick="submitAnswer(1)">
+                            Submit Answer →
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="navigation">
+            <button class="nav-btn prev" disabled>← Previous</button>
+            <button class="nav-btn next" onclick="nextSession(2)">Next Session →</button>
+        </div>
+    </section>
+
+    <!-- SESSION 2: Energy Storage -->
+    <section class="session" id="session2" data-aoi="session2">
+        <div class="session-header">
+            <span class="session-number">SESSION 2 OF 4</span>
+            <h2 class="session-title">Energy Storage Solutions</h2>
+        </div>
+
+        <div class="content-grid">
+            <!-- TEXT PANEL -->
+            <div class="panel" data-aoi="session2-text">
+                <div class="panel-header">
+                    <div class="panel-icon text">📖</div>
+                    <span class="panel-title">Learning Content</span>
+                </div>
+                <div class="text-content">
+                    <h3>Why Energy Storage Matters</h3>
+                    <p>Solar panels only generate electricity during daylight hours, but household energy demand continues around the clock. <span class="key-term">Energy storage</span> bridges this gap by saving excess daytime production for evening and nighttime use.</p>
+
+                    <h3>Battery Capacity Basics</h3>
+                    <p>Battery capacity is measured in <span class="key-term">kilowatt-hours (kWh)</span>. A 10 kWh battery can theoretically power 10,000 watts for one hour, or 1,000 watts for 10 hours. However, most batteries should only be discharged to 80-90% to preserve lifespan.</p>
+
+                    <div class="highlight-box">
+                        <strong>Usable Capacity:</strong> A 13.5 kWh battery with 90% depth of discharge provides only 12.15 kWh of usable storage.
+                    </div>
+
+                    <h3>Battery Chemistry Types</h3>
+                    <p><strong>Lithium-Ion (Li-ion):</strong> Most common for home storage. High energy density, 10-15 year lifespan, 80-90% round-trip efficiency. Examples: Tesla Powerwall, LG Chem.</p>
+                    
+                    <p><strong>Lithium Iron Phosphate (LFP):</strong> Safer, longer-lasting variant of Li-ion. 15-20 year lifespan, slightly lower energy density. Excellent for daily cycling.</p>
+                    
+                    <p><strong>Lead-Acid:</strong> Older technology, cheaper upfront but shorter lifespan (5-7 years), lower efficiency (70-80%), and requires more maintenance.</p>
+
+                    <h3>Round-Trip Efficiency</h3>
+                    <p><span class="key-term">Round-trip efficiency</span> measures how much energy you get back from what you put in. An 85% efficient battery loses 15% of stored energy to heat and chemical processes.</p>
+                    
+                    <div class="formula-box">
+                        Usable Output = Energy Input × Round-Trip Efficiency
+                    </div>
+
+                    <h3>Cycle Life and Degradation</h3>
+                    <p>Batteries degrade with each charge/discharge <span class="key-term">cycle</span>. Quality lithium batteries retain 70-80% capacity after 5,000-6,000 cycles. Daily cycling means approximately 10-15 years of useful life.</p>
+
+                    <h3>Sizing Your Battery</h3>
+                    <p>To size a battery system, consider:</p>
+                    <ul>
+                        <li><strong>Evening/night usage:</strong> How much energy you use when solar isn't producing</li>
+                        <li><strong>Backup duration needs:</strong> Hours of autonomy during grid outages</li>
+                        <li><strong>Budget constraints:</strong> Batteries cost $400-800 per kWh installed</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- INFOGRAPHIC PANEL -->
+            <div class="panel" data-aoi="session2-visual">
+                <div class="panel-header">
+                    <div class="panel-icon visual">📊</div>
+                    <span class="panel-title">Visual Data</span>
+                </div>
+                <div class="infographic-content">
+                    <!-- Battery Comparison Table -->
+                    <div class="chart-container">
+                        <div class="chart-title">Battery Technology Comparison</div>
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Feature</th>
+                                    <th>Li-ion</th>
+                                    <th>LFP</th>
+                                    <th>Lead-Acid</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Round-Trip Efficiency</td>
+                                    <td class="number">85-90%</td>
+                                    <td class="number">92-95%</td>
+                                    <td class="number">70-80%</td>
+                                </tr>
+                                <tr>
+                                    <td>Cycle Life</td>
+                                    <td class="number">4,000</td>
+                                    <td class="number">6,000</td>
+                                    <td class="number">1,500</td>
+                                </tr>
+                                <tr>
+                                    <td>Cost per kWh</td>
+                                    <td class="number">$500</td>
+                                    <td class="number">$550</td>
+                                    <td class="number">$200</td>
+                                </tr>
+                                <tr>
+                                    <td>Depth of Discharge</td>
+                                    <td class="number">80%</td>
+                                    <td class="number">90%</td>
+                                    <td class="number">50%</td>
+                                </tr>
+                                <tr>
+                                    <td>Warranty (years)</td>
+                                    <td class="number">10</td>
+                                    <td class="number">12</td>
+                                    <td class="number">3-5</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Popular Battery Products -->
+                    <div class="chart-container">
+                        <div class="chart-title">Popular Home Battery Systems</div>
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Product</th>
+                                    <th>Capacity</th>
+                                    <th>Usable</th>
+                                    <th>Price</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Tesla Powerwall 3</td>
+                                    <td class="number">13.5 kWh</td>
+                                    <td class="number">13.5 kWh</td>
+                                    <td class="number">$9,200</td>
+                                </tr>
+                                <tr>
+                                    <td>Enphase IQ 5P</td>
+                                    <td class="number">5.0 kWh</td>
+                                    <td class="number">5.0 kWh</td>
+                                    <td class="number">$4,500</td>
+                                </tr>
+                                <tr>
+                                    <td>LG Chem RESU</td>
+                                    <td class="number">9.8 kWh</td>
+                                    <td class="number">8.8 kWh</td>
+                                    <td class="number">$6,500</td>
+                                </tr>
+                                <tr>
+                                    <td>Generac PWRcell</td>
+                                    <td class="number">18.0 kWh</td>
+                                    <td class="number">16.2 kWh</td>
+                                    <td class="number">$12,000</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Daily Energy Flow -->
+                    <div class="chart-container">
+                        <div class="chart-title">Typical Daily Energy Flow</div>
+                        <div class="metric-grid">
+                            <div class="metric-card">
+                                <div class="metric-icon">🌅</div>
+                                <div class="metric-value">6 AM</div>
+                                <div class="metric-label">Battery powers home</div>
+                            </div>
+                            <div class="metric-card">
+                                <div class="metric-icon">☀️</div>
+                                <div class="metric-value">10 AM</div>
+                                <div class="metric-label">Solar charges battery</div>
+                            </div>
+                            <div class="metric-card">
+                                <div class="metric-icon">🔋</div>
+                                <div class="metric-value">3 PM</div>
+                                <div class="metric-label">Battery fully charged</div>
+                            </div>
+                            <div class="metric-card">
+                                <div class="metric-icon">🌙</div>
+                                <div class="metric-value">8 PM</div>
+                                <div class="metric-label">Battery powers evening</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Cost Per Cycle Comparison -->
+                    <div class="chart-container">
+                        <div class="chart-title">Cost Per kWh Over Battery Lifetime</div>
+                        <div class="bar-chart">
+                            <div class="bar-row">
+                                <span class="bar-label">LFP Battery</span>
+                                <div class="bar-container">
+                                    <div class="bar" style="width: 30%; background: var(--primary-green);">$0.09</div>
+                                </div>
+                            </div>
+                            <div class="bar-row">
+                                <span class="bar-label">Li-ion Battery</span>
+                                <div class="bar-container">
+                                    <div class="bar" style="width: 42%; background: var(--secondary-green);">$0.13</div>
+                                </div>
+                            </div>
+                            <div class="bar-row">
+                                <span class="bar-label">Lead-Acid</span>
+                                <div class="bar-container">
+                                    <div class="bar" style="width: 90%; background: var(--accent-orange);">$0.27</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CASE STUDY PANEL -->
+            <div class="panel" data-aoi="session2-case">
+                <div class="panel-header">
+                    <div class="panel-icon case">🎯</div>
+                    <span class="panel-title">Case Study</span>
+                </div>
+                <div class="case-study-content">
+                    <div class="case-scenario">
+                        <h4>The Chen Family Storage Decision</h4>
+                        <p>The Chen family has a 6kW solar system and wants to add battery storage. They use <strong>12 kWh between 6 PM and 6 AM</strong> (when solar isn't producing). They plan to keep the battery for <strong>10 years</strong> with daily cycling.</p>
+                        <div class="case-data">
+                            <div class="case-data-row">
+                                <span>Nightly energy need:</span>
+                                <span class="case-data-value">12 kWh</span>
+                            </div>
+                            <div class="case-data-row">
+                                <span>Planned usage:</span>
+                                <span class="case-data-value">10 years, daily</span>
+                            </div>
+                            <div class="case-data-row">
+                                <span>Budget:</span>
+                                <span class="case-data-value">$8,000 max</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="question-area">
+                        <div class="question-box">
+                            <div class="question-label">Question</div>
+                            <p class="question-text">Considering the battery specifications, cycle life, and depth of discharge, which option best meets the Chen family's needs while staying within budget?</p>
+                        </div>
+
+                        <div class="answer-options">
+                            <div class="answer-option" data-answer="A" onclick="selectAnswer(this, 2)">
+                                <span class="option-letter">A</span>
+                                <span class="option-text"><strong>Tesla Powerwall 3 ($9,200)</strong> – Exceeds budget but provides 13.5 kWh usable capacity with excellent efficiency</span>
+                            </div>
+                            <div class="answer-option" data-answer="B" onclick="selectAnswer(this, 2)">
+                                <span class="option-letter">B</span>
+                                <span class="option-text"><strong>Two Enphase IQ 5P units ($9,000)</strong> – Slightly over budget but provides 10 kWh total, modular design</span>
+                            </div>
+                            <div class="answer-option" data-answer="C" onclick="selectAnswer(this, 2)">
+                                <span class="option-letter">C</span>
+                                <span class="option-text"><strong>LG Chem RESU ($6,500)</strong> – Within budget with 8.8 kWh usable, but won't fully cover 12 kWh need</span>
+                            </div>
+                            <div class="answer-option" data-answer="D" onclick="selectAnswer(this, 2)">
+                                <span class="option-letter">D</span>
+                                <span class="option-text"><strong>Lead-acid equivalent capacity ($3,000)</strong> – Cheapest upfront but won't last 10 years with daily cycling</span>
+                            </div>
+                        </div>
+
+                        <button class="submit-btn" id="submit2" disabled onclick="submitAnswer(2)">
+                            Submit Answer →
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="navigation">
+            <button class="nav-btn prev" onclick="prevSession(1)">← Previous</button>
+            <button class="nav-btn next" onclick="nextSession(3)">Next Session →</button>
+        </div>
+    </section>
+
+    <!-- SESSION 3: Financial Analysis -->
+    <section class="session" id="session3" data-aoi="session3">
+        <div class="session-header">
+            <span class="session-number">SESSION 3 OF 4</span>
+            <h2 class="session-title">Financial Analysis & ROI</h2>
+        </div>
+
+        <div class="content-grid">
+            <!-- TEXT PANEL -->
+            <div class="panel" data-aoi="session3-text">
+                <div class="panel-header">
+                    <div class="panel-icon text">📖</div>
+                    <span class="panel-title">Learning Content</span>
+                </div>
+                <div class="text-content">
+                    <h3>Understanding Solar Costs</h3>
+                    <p>The total cost of a solar installation includes equipment (panels, inverters, mounting), labor, permits, and interconnection fees. The average cost in the US is <span class="key-term">$2.50-3.50 per watt</span> before incentives.</p>
+
+                    <h3>Federal Tax Credit (ITC)</h3>
+                    <p>The federal Investment Tax Credit reduces your tax liability by <span class="key-term">30%</span> of total installation costs. For a $20,000 system, you receive a $6,000 tax credit, reducing net cost to $14,000.</p>
+
+                    <div class="highlight-box">
+                        <strong>Important:</strong> The tax credit is non-refundable—you must owe at least $6,000 in federal taxes to claim the full credit. Excess can be carried forward to future years.
+                    </div>
+
+                    <h3>Calculating Payback Period</h3>
+                    <p>The <span class="key-term">payback period</span> is how long until energy savings equal your investment:</p>
+                    <div class="formula-box">
+                        Payback (years) = Net System Cost ÷ Annual Energy Savings
+                    </div>
+                    <p>If you spend $14,000 (after tax credit) and save $2,000/year on electricity, payback = 7 years.</p>
+
+                    <h3>Electricity Rate Assumptions</h3>
+                    <p>Savings depend heavily on your utility rate. Current average rates:</p>
+                    <ul>
+                        <li><strong>National average:</strong> $0.16/kWh</li>
+                        <li><strong>California:</strong> $0.28/kWh</li>
+                        <li><strong>Texas:</strong> $0.12/kWh</li>
+                        <li><strong>Hawaii:</strong> $0.43/kWh</li>
+                    </ul>
+                    <p>Higher electricity rates mean faster payback and greater lifetime savings.</p>
+
+                    <h3>Net Metering</h3>
+                    <p><span class="key-term">Net metering</span> credits you for excess electricity sent to the grid. Full retail rate net metering (1:1 credit) is most valuable. Some utilities offer reduced rates (1:2 or lower).</p>
+
+                    <h3>25-Year Lifetime Savings</h3>
+                    <p>After payback, all production is essentially "free" electricity. A typical 6kW system produces 8,000-9,000 kWh/year. At $0.16/kWh with 2% annual rate increases:</p>
+                    <ul>
+                        <li>Years 1-7: Paying back investment</li>
+                        <li>Years 8-25: ~$40,000-50,000 in savings</li>
+                    </ul>
+
+                    <h3>Financing Options</h3>
+                    <p><strong>Cash purchase:</strong> Highest ROI but requires upfront capital.</p>
+                    <p><strong>Solar loan:</strong> $0 down, own the system, interest affects ROI.</p>
+                    <p><strong>Lease/PPA:</strong> No ownership, fixed rate, lower savings.</p>
+                </div>
+            </div>
+
+            <!-- INFOGRAPHIC PANEL -->
+            <div class="panel" data-aoi="session3-visual">
+                <div class="panel-header">
+                    <div class="panel-icon visual">📊</div>
+                    <span class="panel-title">Visual Data</span>
+                </div>
+                <div class="infographic-content">
+                    <!-- Cost Breakdown -->
+                    <div class="chart-container">
+                        <div class="chart-title">6kW System Cost Breakdown</div>
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Component</th>
+                                    <th>Cost</th>
+                                    <th>% of Total</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Solar Panels</td>
+                                    <td class="number">$6,600</td>
+                                    <td class="number">36%</td>
+                                </tr>
+                                <tr>
+                                    <td>Inverter</td>
+                                    <td class="number">$2,200</td>
+                                    <td class="number">12%</td>
+                                </tr>
+                                <tr>
+                                    <td>Mounting & Racking</td>
+                                    <td class="number">$1,800</td>
+                                    <td class="number">10%</td>
+                                </tr>
+                                <tr>
+                                    <td>Installation Labor</td>
+                                    <td class="number">$5,400</td>
+                                    <td class="number">30%</td>
+                                </tr>
+                                <tr>
+                                    <td>Permits & Fees</td>
+                                    <td class="number">$2,000</td>
+                                    <td class="number">12%</td>
+                                </tr>
+                                <tr style="background: #E8F5E9; font-weight: 600;">
+                                    <td>Total Before ITC</td>
+                                    <td class="number">$18,000</td>
+                                    <td class="number">100%</td>
+                                </tr>
+                                <tr style="background: #C8E6C9; font-weight: 600;">
+                                    <td>After 30% ITC</td>
+                                    <td class="number">$12,600</td>
+                                    <td class="number">—</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Payback Comparison -->
+                    <div class="chart-container">
+                        <div class="chart-title">Payback Period by Electricity Rate</div>
+                        <div class="bar-chart">
+                            <div class="bar-row">
+                                <span class="bar-label">$0.12/kWh</span>
+                                <div class="bar-container">
+                                    <div class="bar" style="width: 100%; background: var(--warning-red);">12.3 yrs</div>
+                                </div>
+                            </div>
+                            <div class="bar-row">
+                                <span class="bar-label">$0.16/kWh</span>
+                                <div class="bar-container">
+                                    <div class="bar" style="width: 73%; background: var(--accent-orange);">9.0 yrs</div>
+                                </div>
+                            </div>
+                            <div class="bar-row">
+                                <span class="bar-label">$0.23/kWh</span>
+                                <div class="bar-container">
+                                    <div class="bar" style="width: 50%; background: var(--accent-yellow);">6.2 yrs</div>
+                                </div>
+                            </div>
+                            <div class="bar-row">
+                                <span class="bar-label">$0.30/kWh</span>
+                                <div class="bar-container">
+                                    <div class="bar" style="width: 38%; background: var(--secondary-green);">4.7 yrs</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 25-Year Financial Summary -->
+                    <div class="chart-container">
+                        <div class="chart-title">25-Year Financial Projection (6kW System)</div>
+                        <div class="comparison-grid">
+                            <div class="comparison-card">
+                                <h4>Total Investment</h4>
+                                <div class="comparison-value">$12,600</div>
+                                <div class="comparison-unit">after tax credit</div>
+                            </div>
+                            <div class="comparison-card highlight">
+                                <h4>Lifetime Savings</h4>
+                                <div class="comparison-value">$45,000</div>
+                                <div class="comparison-unit">at $0.16/kWh + 2%/yr</div>
+                            </div>
+                            <div class="comparison-card">
+                                <h4>Net Benefit</h4>
+                                <div class="comparison-value">$32,400</div>
+                                <div class="comparison-unit">total profit</div>
+                            </div>
+                            <div class="comparison-card highlight">
+                                <h4>ROI</h4>
+                                <div class="comparison-value">257%</div>
+                                <div class="comparison-unit">return on investment</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Financing Comparison -->
+                    <div class="chart-container">
+                        <div class="chart-title">Financing Options (25-Year Net Savings)</div>
+                        <div class="bar-chart">
+                            <div class="bar-row">
+                                <span class="bar-label">Cash Purchase</span>
+                                <div class="bar-container">
+                                    <div class="bar" style="width: 100%; background: var(--primary-green);">$32,400</div>
+                                </div>
+                            </div>
+                            <div class="bar-row">
+                                <span class="bar-label">Loan (5% APR)</span>
+                                <div class="bar-container">
+                                    <div class="bar" style="width: 72%; background: var(--secondary-green);">$23,500</div>
+                                </div>
+                            </div>
+                            <div class="bar-row">
+                                <span class="bar-label">Lease/PPA</span>
+                                <div class="bar-container">
+                                    <div class="bar" style="width: 31%; background: var(--accent-yellow);">$10,000</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CASE STUDY PANEL -->
+            <div class="panel" data-aoi="session3-case">
+                <div class="panel-header">
+                    <div class="panel-icon case">🎯</div>
+                    <span class="panel-title">Case Study</span>
+                </div>
+                <div class="case-study-content">
+                    <div class="case-scenario">
+                        <h4>The Williams Investment Decision</h4>
+                        <p>The Williams family is considering a 6kW solar system. They've received quotes and want to calculate their financial return. They pay <strong>$0.23/kWh</strong> for electricity and expect their system to produce <strong>8,500 kWh/year</strong>.</p>
+                        <div class="case-data">
+                            <div class="case-data-row">
+                                <span>System cost (before ITC):</span>
+                                <span class="case-data-value">$18,000</span>
+                            </div>
+                            <div class="case-data-row">
+                                <span>Federal tax credit (30%):</span>
+                                <span class="case-data-value">$5,400</span>
+                            </div>
+                            <div class="case-data-row">
+                                <span>Net cost:</span>
+                                <span class="case-data-value">$12,600</span>
+                            </div>
+                            <div class="case-data-row">
+                                <span>Electricity rate:</span>
+                                <span class="case-data-value">$0.23/kWh</span>
+                            </div>
+                            <div class="case-data-row">
+                                <span>Annual production:</span>
+                                <span class="case-data-value">8,500 kWh</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="question-area">
+                        <div class="question-box">
+                            <div class="question-label">Financial Calculation Question</div>
+                            <p class="question-text">Calculate the Williams family's annual savings and payback period. What is their approximate payback period?</p>
+                        </div>
+
+                        <div class="financial-input">
+                            <div class="input-label">Calculate: Annual Production × Electricity Rate = Annual Savings</div>
+                            <div class="input-group">
+                                <input type="number" id="calc3" placeholder="Enter annual savings" oninput="checkCalculation(3)">
+                                <span class="input-unit">$/year</span>
+                            </div>
+                        </div>
+
+                        <div class="answer-options">
+                            <div class="answer-option" data-answer="A" onclick="selectAnswer(this, 3)">
+                                <span class="option-letter">A</span>
+                                <span class="option-text"><strong>5.2 years</strong> – Very fast payback due to high electricity rates</span>
+                            </div>
+                            <div class="answer-option" data-answer="B" onclick="selectAnswer(this, 3)">
+                                <span class="option-letter">B</span>
+                                <span class="option-text"><strong>6.4 years</strong> – Good payback aligned with the rate chart</span>
+                            </div>
+                            <div class="answer-option" data-answer="C" onclick="selectAnswer(this, 3)">
+                                <span class="option-letter">C</span>
+                                <span class="option-text"><strong>9.2 years</strong> – Moderate payback typical of average rates</span>
+                            </div>
+                            <div class="answer-option" data-answer="D" onclick="selectAnswer(this, 3)">
+                                <span class="option-letter">D</span>
+                                <span class="option-text"><strong>11.8 years</strong> – Long payback indicating low savings</span>
+                            </div>
+                        </div>
+
+                        <button class="submit-btn" id="submit3" disabled onclick="submitAnswer(3)">
+                            Submit Answer →
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="navigation">
+            <button class="nav-btn prev" onclick="prevSession(2)">← Previous</button>
+            <button class="nav-btn next" onclick="nextSession(4)">Next Session →</button>
+        </div>
+    </section>
+
+    <!-- SESSION 4: Final Decision -->
+    <section class="session" id="session4" data-aoi="session4">
+        <div class="session-header">
+            <span class="session-number">SESSION 4 OF 4</span>
+            <h2 class="session-title">Energy Plan Decision</h2>
+        </div>
+
+        <div class="content-grid">
+            <!-- TEXT PANEL -->
+            <div class="panel" data-aoi="session4-text">
+                <div class="panel-header">
+                    <div class="panel-icon text">📖</div>
+                    <span class="panel-title">Decision Framework</span>
+                </div>
+                <div class="text-content">
+                    <h3>Making Your Energy Decision</h3>
+                    <p>Choosing the right green energy plan requires balancing multiple factors: <span class="key-term">upfront cost</span>, <span class="key-term">long-term savings</span>, <span class="key-term">reliability</span>, and <span class="key-term">environmental impact</span>.</p>
+
+                    <h3>Key Decision Factors</h3>
+                    <p><strong>1. Budget Constraints</strong></p>
+                    <p>Consider both initial investment and monthly cash flow. Some plans require large upfront payments but offer better long-term returns. Others have low initial costs but higher ongoing expenses.</p>
+
+                    <p><strong>2. Energy Independence</strong></p>
+                    <p>Grid-tied systems are simpler but leave you vulnerable to outages. Battery backup adds cost ($7,000-15,000) but provides energy security. Consider your area's grid reliability.</p>
+
+                    <p><strong>3. Carbon Reduction Goals</strong></p>
+                    <p>Different configurations have different carbon footprints:</p>
+                    <ul>
+                        <li>Solar-only: Reduces emissions by 3-4 tons CO₂/year</li>
+                        <li>Solar + battery: Maximizes self-consumption</li>
+                        <li>Adding EV: Additional 2-3 tons CO₂/year savings</li>
+                    </ul>
+
+                    <div class="highlight-box">
+                        <strong>Trade-off Alert:</strong> The lowest upfront cost rarely provides the best long-term value. Calculate total cost of ownership over 25 years.
+                    </div>
+
+                    <h3>Evaluating Plans</h3>
+                    <p>When comparing plans, create a scorecard:</p>
+                    <ul>
+                        <li><strong>Net 25-year cost:</strong> Total investment minus total savings</li>
+                        <li><strong>Monthly impact:</strong> Loan payment minus utility savings</li>
+                        <li><strong>Risk factors:</strong> Equipment warranty, company reputation</li>
+                        <li><strong>Flexibility:</strong> Can you expand the system later?</li>
+                    </ul>
+
+                    <h3>Common Mistakes to Avoid</h3>
+                    <p>❌ Choosing based only on lowest upfront cost</p>
+                    <p>❌ Ignoring battery degradation in long-term calculations</p>
+                    <p>❌ Undersizing system to save money (limits future options)</p>
+                    <p>❌ Not accounting for electricity rate increases</p>
+
+                    <h3>The Optimal Approach</h3>
+                    <p>The best plan typically balances initial affordability with strong long-term returns. Look for:</p>
+                    <ul>
+                        <li>Payback period under 10 years</li>
+                        <li>Positive monthly cash flow (if financed)</li>
+                        <li>System sized for current + future needs</li>
+                        <li>Quality equipment with strong warranties</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- INFOGRAPHIC PANEL -->
+            <div class="panel" data-aoi="session4-visual">
+                <div class="panel-header">
+                    <div class="panel-icon visual">📊</div>
+                    <span class="panel-title">Plan Comparison Data</span>
+                </div>
+                <div class="infographic-content">
+                    <!-- Plan Comparison Table -->
+                    <div class="chart-container">
+                        <div class="chart-title">Available Energy Plans</div>
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Plan</th>
+                                    <th>Upfront</th>
+                                    <th>Monthly</th>
+                                    <th>25-Yr Net</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><strong>Plan A:</strong> Basic Solar (4kW)</td>
+                                    <td class="number">$8,400</td>
+                                    <td class="number">$0</td>
+                                    <td class="number" style="color: var(--primary-green);">+$18,500</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Plan B:</strong> Standard (6kW)</td>
+                                    <td class="number">$12,600</td>
+                                    <td class="number">$0</td>
+                                    <td class="number" style="color: var(--primary-green);">+$32,400</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Plan C:</strong> Solar + Battery</td>
+                                    <td class="number">$21,000</td>
+                                    <td class="number">$0</td>
+                                    <td class="number" style="color: var(--primary-green);">+$26,000</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Plan D:</strong> Financed 6kW</td>
+                                    <td class="number">$0</td>
+                                    <td class="number">$125</td>
+                                    <td class="number" style="color: var(--primary-green);">+$23,500</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Plan E:</strong> Solar Lease</td>
+                                    <td class="number">$0</td>
+                                    <td class="number">$95</td>
+                                    <td class="number" style="color: var(--primary-green);">+$10,000</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Multi-Factor Comparison -->
+                    <div class="chart-container">
+                        <div class="chart-title">Plan Feature Comparison</div>
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Feature</th>
+                                    <th>A</th>
+                                    <th>B</th>
+                                    <th>C</th>
+                                    <th>D</th>
+                                    <th>E</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>System Size</td>
+                                    <td class="number">4kW</td>
+                                    <td class="number">6kW</td>
+                                    <td class="number">6kW</td>
+                                    <td class="number">6kW</td>
+                                    <td class="number">6kW</td>
+                                </tr>
+                                <tr>
+                                    <td>Battery Backup</td>
+                                    <td class="number">No</td>
+                                    <td class="number">No</td>
+                                    <td class="number">Yes</td>
+                                    <td class="number">No</td>
+                                    <td class="number">No</td>
+                                </tr>
+                                <tr>
+                                    <td>You Own System</td>
+                                    <td class="number">Yes</td>
+                                    <td class="number">Yes</td>
+                                    <td class="number">Yes</td>
+                                    <td class="number">Yes</td>
+                                    <td class="number">No</td>
+                                </tr>
+                                <tr>
+                                    <td>Payback (years)</td>
+                                    <td class="number">7.4</td>
+                                    <td class="number">6.4</td>
+                                    <td class="number">10.7</td>
+                                    <td class="number">8.1</td>
+                                    <td class="number">N/A</td>
+                                </tr>
+                                <tr>
+                                    <td>CO₂ Saved (tons/yr)</td>
+                                    <td class="number">2.8</td>
+                                    <td class="number">4.2</td>
+                                    <td class="number">4.5</td>
+                                    <td class="number">4.2</td>
+                                    <td class="number">4.2</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Visual Score Cards -->
+                    <div class="chart-container">
+                        <div class="chart-title">Key Metrics Summary</div>
+                        <div class="comparison-grid">
+                            <div class="comparison-card">
+                                <h4>Lowest Upfront</h4>
+                                <div class="comparison-value">D, E</div>
+                                <div class="comparison-unit">$0 down</div>
+                            </div>
+                            <div class="comparison-card highlight">
+                                <h4>Best 25-Year ROI</h4>
+                                <div class="comparison-value">B</div>
+                                <div class="comparison-unit">+$32,400</div>
+                            </div>
+                            <div class="comparison-card">
+                                <h4>Fastest Payback</h4>
+                                <div class="comparison-value">B</div>
+                                <div class="comparison-unit">6.4 years</div>
+                            </div>
+                            <div class="comparison-card">
+                                <h4>Best Reliability</h4>
+                                <div class="comparison-value">C</div>
+                                <div class="comparison-unit">Battery backup</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Risk Assessment -->
+                    <div class="chart-container">
+                        <div class="chart-title">25-Year Total Value Comparison</div>
+                        <div class="bar-chart">
+                            <div class="bar-row">
+                                <span class="bar-label">Plan B</span>
+                                <div class="bar-container">
+                                    <div class="bar" style="width: 100%; background: var(--primary-green);">$32,400</div>
+                                </div>
+                            </div>
+                            <div class="bar-row">
+                                <span class="bar-label">Plan C</span>
+                                <div class="bar-container">
+                                    <div class="bar" style="width: 80%; background: var(--secondary-green);">$26,000</div>
+                                </div>
+                            </div>
+                            <div class="bar-row">
+                                <span class="bar-label">Plan D</span>
+                                <div class="bar-container">
+                                    <div class="bar" style="width: 73%; background: var(--accent-yellow);">$23,500</div>
+                                </div>
+                            </div>
+                            <div class="bar-row">
+                                <span class="bar-label">Plan A</span>
+                                <div class="bar-container">
+                                    <div class="bar" style="width: 57%; background: var(--accent-orange);">$18,500</div>
+                                </div>
+                            </div>
+                            <div class="bar-row">
+                                <span class="bar-label">Plan E</span>
+                                <div class="bar-container">
+                                    <div class="bar" style="width: 31%; background: #90A4AE;">$10,000</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CASE STUDY PANEL -->
+            <div class="panel" data-aoi="session4-case">
+                <div class="panel-header">
+                    <div class="panel-icon case">🎯</div>
+                    <span class="panel-title">Final Decision</span>
+                </div>
+                <div class="case-study-content">
+                    <div class="case-scenario">
+                        <h4>The Thompson Family's Choice</h4>
+                        <p>The Thompson family needs to select an energy plan. They have specific requirements and constraints that must be considered:</p>
+                        <div class="case-data">
+                            <div class="case-data-row">
+                                <span>Available savings:</span>
+                                <span class="case-data-value">$15,000</span>
+                            </div>
+                            <div class="case-data-row">
+                                <span>Monthly budget for energy:</span>
+                                <span class="case-data-value">$150 max</span>
+                            </div>
+                            <div class="case-data-row">
+                                <span>Priority #1:</span>
+                                <span class="case-data-value">Long-term savings</span>
+                            </div>
+                            <div class="case-data-row">
+                                <span>Priority #2:</span>
+                                <span class="case-data-value">System ownership</span>
+                            </div>
+                            <div class="case-data-row">
+                                <span>Grid reliability in area:</span>
+                                <span class="case-data-value">Good (rare outages)</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="question-area">
+                        <div class="question-box">
+                            <div class="question-label">Decision Question</div>
+                            <p class="question-text">Based on the Thompson family's budget, priorities, and the plan comparison data, which energy plan should they choose to maximize their goals?</p>
+                        </div>
+
+                        <div class="answer-options">
+                            <div class="answer-option" data-answer="A" onclick="selectAnswer(this, 4)">
+                                <span class="option-letter">A</span>
+                                <span class="option-text"><strong>Plan A (Basic 4kW)</strong> – Lowest upfront cost at $8,400, well within budget, provides ownership</span>
+                            </div>
+                            <div class="answer-option" data-answer="B" onclick="selectAnswer(this, 4)">
+                                <span class="option-letter">B</span>
+                                <span class="option-text"><strong>Plan B (Standard 6kW)</strong> – $12,600 fits budget, highest 25-year return, best payback period, system ownership</span>
+                            </div>
+                            <div class="answer-option" data-answer="C" onclick="selectAnswer(this, 4)">
+                                <span class="option-letter">C</span>
+                                <span class="option-text"><strong>Plan C (Solar + Battery)</strong> – $21,000 exceeds their savings, but provides backup power and ownership</span>
+                            </div>
+                            <div class="answer-option" data-answer="D" onclick="selectAnswer(this, 4)">
+                                <span class="option-letter">D</span>
+                                <span class="option-text"><strong>Plan D (Financed 6kW)</strong> – $0 down, $125/month within budget, ownership after loan, good long-term value</span>
+                            </div>
+                            <div class="answer-option" data-answer="E" onclick="selectAnswer(this, 4)">
+                                <span class="option-letter">E</span>
+                                <span class="option-text"><strong>Plan E (Solar Lease)</strong> – $0 down, lowest monthly cost at $95, but no ownership</span>
+                            </div>
+                        </div>
+
+                        <button class="submit-btn" id="submit4" disabled onclick="submitAnswer(4)">
+                            Submit Final Decision →
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="navigation">
+            <button class="nav-btn prev" onclick="prevSession(3)">← Previous</button>
+            <button class="nav-btn next" disabled style="background: #9E9E9E;">Complete Module</button>
+        </div>
+    </section>
+
+    <script>
+        // Track responses for each session
+        const responses = {
+            1: { answer: null, timestamp: null },
+            2: { answer: null, timestamp: null },
+            3: { answer: null, calculation: null, timestamp: null },
+            4: { answer: null, timestamp: null }
+        };
+
+        // Session navigation
+        function nextSession(num) {
+            document.querySelectorAll('.session').forEach(s => s.classList.remove('active'));
+            document.getElementById('session' + num).classList.add('active');
+            
+            document.querySelectorAll('.progress-step').forEach((step, index) => {
+                if (index < num - 1) {
+                    step.classList.add('completed');
+                    step.classList.remove('active');
+                } else if (index === num - 1) {
+                    step.classList.add('active');
+                    step.classList.remove('completed');
+                } else {
+                    step.classList.remove('active', 'completed');
+                }
+            });
+
+            window.scrollTo(0, 0);
+            logEvent('session_navigate', { to: num });
+        }
+
+        function prevSession(num) {
+            nextSession(num);
+        }
+
+        // Answer selection
+        function selectAnswer(element, session) {
+            const options = element.parentElement.querySelectorAll('.answer-option');
+            options.forEach(opt => opt.classList.remove('selected'));
+            element.classList.add('selected');
+            
+            responses[session].answer = element.dataset.answer;
+            document.getElementById('submit' + session).disabled = false;
+            
+            logEvent('answer_select', { session: session, answer: element.dataset.answer });
+        }
+
+        // Check calculation input
+        function checkCalculation(session) {
+            const input = document.getElementById('calc' + session);
+            responses[session].calculation = input.value;
+            logEvent('calculation_input', { session: session, value: input.value });
+        }
+
+        // Submit answer
+        function submitAnswer(session) {
+            responses[session].timestamp = new Date().toISOString();
+            
+            logEvent('answer_submit', { 
+                session: session, 
+                answer: responses[session].answer,
+                calculation: responses[session].calculation || null
+            });
+
+            // Visual feedback
+            const btn = document.getElementById('submit' + session);
+            btn.textContent = '✓ Submitted';
+            btn.disabled = true;
+            btn.style.background = '#4CAF50';
+        }
+
+        // Event logging (for research data collection)
+        function logEvent(eventType, data) {
+            const event = {
+                type: eventType,
+                timestamp: new Date().toISOString(),
+                data: data
+            };
+            console.log('EVENT:', event);
+            // In production, send to server:
+            // fetch('/api/log', { method: 'POST', body: JSON.stringify(event) });
+        }
+
+        // Progress step click handling
+        document.querySelectorAll('.progress-step').forEach(step => {
+            step.addEventListener('click', () => {
+                const session = parseInt(step.dataset.session);
+                nextSession(session);
+            });
+        });
+
+        // Track time on page for each panel (for AOI analysis)
+        let panelTimers = {};
+        
+        document.querySelectorAll('.panel').forEach(panel => {
+            const aoi = panel.dataset.aoi;
+            panelTimers[aoi] = { enter: null, total: 0 };
+            
+            panel.addEventListener('mouseenter', () => {
+                panelTimers[aoi].enter = Date.now();
+            });
+            
+            panel.addEventListener('mouseleave', () => {
+                if (panelTimers[aoi].enter) {
+                    panelTimers[aoi].total += Date.now() - panelTimers[aoi].enter;
+                    panelTimers[aoi].enter = null;
+                }
+            });
+        });
+
+        // Log session start
+        logEvent('module_start', { timestamp: new Date().toISOString() });
+    </script>
+</body>
+</html>

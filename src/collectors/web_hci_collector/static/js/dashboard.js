@@ -125,6 +125,13 @@ const connectionStatus = document.getElementById('connection-status');
 const connectionText = document.getElementById('connection-text');
 const eventLog = document.getElementById('event-log');
 
+// URL parameters for loading saved sessions
+const urlParams = new URLSearchParams(window.location.search);
+const loadSessionId = urlParams.get('session');
+let isLoadedSession = false;
+let isLiveTrackingStarted = false;
+let loadedSessionDuration = 0; // Duration in ms for loaded sessions
+
 /**
  * Initialize the dashboard
  */
@@ -138,11 +145,20 @@ function init() {
     // Initialize timeline
     initTimeline();
 
-    // Initialize webcam preview
-    initWebcam();
+    // Check if we're loading a saved session
+    if (loadSessionId) {
+        console.log('Loading saved session:', loadSessionId);
+        isLoadedSession = true;
+        loadSavedSession(loadSessionId);
+    } else {
+        // Don't start webcam or WebSocket automatically
+        // Wait for user to click "Start Collection" or for a session to connect
+        // Just connect to WebSocket to listen for incoming sessions
+        connectWebSocket();
 
-    // Connect to WebSocket
-    connectWebSocket();
+        // Show waiting state
+        updateDashboardWaitingState();
+    }
 
     // Start stats update loop
     setInterval(updateStats, 1000);
@@ -153,8 +169,174 @@ function init() {
     // Start trail rendering loop
     requestAnimationFrame(renderTrails);
 
-    // Start timeline update loop
-    setInterval(updateTimeline, 100);
+    // Start timeline update loop using requestAnimationFrame for smoother playback
+    let lastTimelineUpdate = 0;
+    function timelineLoop(timestamp) {
+        // Update every ~50ms for smoother playback (vs 100ms)
+        if (timestamp - lastTimelineUpdate >= 50) {
+            lastTimelineUpdate = timestamp;
+            updateTimeline();
+        }
+        requestAnimationFrame(timelineLoop);
+    }
+    requestAnimationFrame(timelineLoop);
+}
+
+/**
+ * Update dashboard to show waiting state
+ */
+function updateDashboardWaitingState() {
+    const cameraStatus = document.getElementById('camera-status');
+    if (cameraStatus) {
+        cameraStatus.textContent = 'Waiting for session...';
+        cameraStatus.style.display = 'block';
+        cameraStatus.style.color = 'var(--text-secondary)';
+    }
+
+    const urlDisplay = document.getElementById('participant-url');
+    if (urlDisplay) {
+        urlDisplay.textContent = 'Waiting for session...';
+    }
+
+    addLogEntry('system', 'Dashboard ready - click "Start Collection" or wait for participant');
+}
+
+/**
+ * Load a saved session from server
+ */
+async function loadSavedSession(sessionIdToLoad) {
+    try {
+        addLogEntry('system', `Loading session ${sessionIdToLoad}...`);
+
+        // Update session ID display
+        sessionId = sessionIdToLoad;
+        document.getElementById('session-id').textContent = sessionIdToLoad;
+
+        // Fetch session data from server
+        const response = await fetch(`/api/session/${sessionIdToLoad}/data`);
+        const result = await response.json();
+
+        if (!result.success) {
+            addLogEntry('system', `Failed to load session: ${result.error}`);
+            return;
+        }
+
+        // Load timeline data if available
+        if (result.files.timeline) {
+            const timeline = result.files.timeline;
+
+            // Restore timeline data
+            if (timeline.engagement) timelineData.engagement = timeline.engagement;
+            if (timeline.gaze) timelineData.gaze = timeline.gaze;
+            if (timeline.clicks) timelineData.clicks = timeline.clicks;
+            if (timeline.keys) timelineData.keys = timeline.keys;
+            if (timeline.events) timelineData.events = timeline.events;
+            if (timeline.faceMesh) timelineData.faceMesh = timeline.faceMesh;
+            if (timeline.cognitiveStates) timelineData.cognitiveStates = timeline.cognitiveStates;
+            if (timeline.mouse) timelineData.mouse = timeline.mouse;
+            if (timeline.scroll) timelineData.scroll = timeline.scroll;
+            if (timeline.navigation) timelineData.navigation = timeline.navigation;
+
+            // Calculate session duration from timeline data (don't set startTime for loaded sessions)
+            const allTimes = [
+                ...(timelineData.engagement || []).map(d => d.time),
+                ...(timelineData.gaze || []).map(d => d.time),
+                ...(timelineData.mouse || []).map(d => d.time),
+                ...(timelineData.clicks || []).map(d => d.time),
+                ...(timelineData.keys || []).map(d => d.time),
+                ...(timelineData.faceMesh || []).map(d => d.time)
+            ].filter(t => t !== undefined && t !== null && isFinite(t));
+
+            if (allTimes.length > 0) {
+                loadedSessionDuration = Math.max(...allTimes);
+            }
+
+            // Also check metadata for duration
+            if (timeline.metadata && timeline.metadata.duration) {
+                loadedSessionDuration = timeline.metadata.duration;
+            }
+        }
+
+        // Ensure we have a valid duration (default to 1 minute if nothing found)
+        if (!loadedSessionDuration || !isFinite(loadedSessionDuration) || loadedSessionDuration <= 0) {
+            loadedSessionDuration = 60000; // 1 minute default
+            addLogEntry('system', 'Warning: Could not determine session duration, using default');
+        }
+
+        // Load video if available
+        if (result.files.video) {
+            videoUrl = result.files.video;
+            ensureVideoElement();
+            if (videoElement) {
+                // Add event listeners for video loading
+                videoElement.onloadedmetadata = () => {
+                    addLogEntry('system', `Video ready: ${Math.round(videoElement.duration)}s`);
+                    // Update loaded session duration if we got it from video
+                    if (videoElement.duration && videoElement.duration > 0) {
+                        loadedSessionDuration = videoElement.duration * 1000; // Convert to ms
+                    }
+                };
+                videoElement.onerror = (e) => {
+                    console.error('Video load error:', e);
+                    addLogEntry('system', 'Video failed to load');
+                };
+
+                videoElement.src = videoUrl;
+                videoElement.load();
+                // Make video visible for playback mode
+                videoElement.style.display = 'block';
+                // Hide the iframe since we'll be showing video
+                const frame = document.getElementById('participant-frame');
+                if (frame) frame.style.opacity = '0';
+            }
+            addLogEntry('system', 'Loading video recording...');
+        }
+
+        // Set participant dimensions from metadata if available
+        if (result.files.metadata) {
+            const meta = result.files.metadata;
+            if (meta.windowWidth) participantWindowWidth = meta.windowWidth;
+            if (meta.windowHeight) participantWindowHeight = meta.windowHeight;
+        }
+
+        // Update stats from loaded data
+        stats.gazeSamples = timelineData.gaze.length;
+        stats.faceSamples = timelineData.faceMesh.length;
+        stats.mouseEvents = timelineData.mouse.length;
+        stats.keyboardEvents = timelineData.keys.length;
+        stats.clickCount = timelineData.clicks.length;
+        stats.totalSamples = stats.gazeSamples + stats.faceSamples + stats.mouseEvents + stats.keyboardEvents;
+
+        // Switch to playback mode
+        timelineMode = 'playback';
+        timelinePlaybackTime = 0;
+        updateLiveButtonState();
+
+        // Update URL display
+        const urlDisplay = document.getElementById('participant-url');
+        if (urlDisplay) {
+            urlDisplay.textContent = `Loaded session: ${sessionIdToLoad}`;
+        }
+
+        // Hide webcam preview for loaded sessions
+        const webcamContainer = document.getElementById('webcam-video');
+        if (webcamContainer) {
+            webcamContainer.style.display = 'none';
+        }
+        const cameraStatus = document.getElementById('camera-status');
+        if (cameraStatus) {
+            cameraStatus.textContent = 'Playback Mode';
+            cameraStatus.style.display = 'block';
+            cameraStatus.style.color = 'var(--accent)';
+        }
+
+        addLogEntry('system', `Session loaded: ${stats.totalSamples} data points`);
+        addLogEntry('system', 'Use timeline to replay session');
+
+    } catch (error) {
+        console.error('Error loading session:', error);
+        addLogEntry('system', `Error loading session: ${error.message}`);
+    }
 }
 
 /**
@@ -300,11 +482,23 @@ function setupTimelineCanvas(canvas) {
     if (!container) return;
 
     const resizeCanvas = () => {
-        canvas.width = container.clientWidth;
-        canvas.height = canvas.clientHeight || 30;
+        // Get the computed style to get the actual rendered dimensions
+        const rect = canvas.getBoundingClientRect();
+        const dpr = window.devicePixelRatio || 1;
+
+        // Set canvas internal dimensions to match the CSS size with device pixel ratio
+        canvas.width = rect.width * dpr;
+        canvas.height = rect.height * dpr;
+
+        // Scale context for high DPI displays
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+            ctx.scale(dpr, dpr);
+        }
     };
 
-    resizeCanvas();
+    // Initial resize after a small delay to ensure CSS is applied
+    setTimeout(resizeCanvas, 100);
     window.addEventListener('resize', resizeCanvas);
 }
 
@@ -358,17 +552,31 @@ function onTimelineMouseUp() {
 }
 
 /**
+ * Get session duration (works for both live and loaded sessions)
+ */
+function getSessionDuration() {
+    if (isLoadedSession) {
+        // Ensure we return a valid finite number
+        if (loadedSessionDuration && isFinite(loadedSessionDuration) && loadedSessionDuration > 0) {
+            return loadedSessionDuration;
+        }
+        return 60000; // Default 1 minute if not set
+    }
+    return startTime ? Date.now() - startTime : 0;
+}
+
+/**
  * Update timeline position from mouse/touch position
  */
 function updateTimelinePosition(clientX) {
     const track = document.getElementById('timeline-track');
-    if (!track || !startTime) return;
+    const sessionDuration = getSessionDuration();
+    if (!track || sessionDuration <= 0) return;
 
     const rect = track.getBoundingClientRect();
     const x = clientX - rect.left;
     const ratio = Math.max(0, Math.min(1, x / rect.width));
 
-    const sessionDuration = Date.now() - startTime;
     timelinePlaybackTime = ratio * sessionDuration;
 
     // Update scrubber position
@@ -379,13 +587,13 @@ function updateTimelinePosition(clientX) {
  * Update timeline scrubber visual position
  */
 function updateTimelineScrubber() {
-    if (!startTime) return;
+    const sessionDuration = getSessionDuration();
+    if (sessionDuration <= 0) return;
 
     const progress = document.getElementById('timeline-progress');
     const scrubber = document.getElementById('timeline-scrubber');
     const currentTimeEl = document.getElementById('timeline-current-time');
 
-    const sessionDuration = Date.now() - startTime;
     const currentTime = timelineMode === 'live' ? sessionDuration : timelinePlaybackTime;
     const ratio = sessionDuration > 0 ? (currentTime / sessionDuration) * 100 : 0;
 
@@ -410,7 +618,7 @@ function toggleTimelinePlayback() {
     if (timelineMode === 'live') {
         // Switch to playback mode, paused at current position
         timelineMode = 'playback';
-        timelinePlaybackTime = startTime ? Date.now() - startTime : 0;
+        timelinePlaybackTime = getSessionDuration();
         timelineIsPlaying = false;
     } else {
         // Toggle play/pause in playback mode
@@ -528,19 +736,22 @@ function updateLiveButtonState() {
  * Update timeline (called periodically)
  */
 function updateTimeline() {
-    if (!startTime) return;
+    const sessionDuration = getSessionDuration();
+
+    // For live sessions, require startTime; for loaded sessions, require loadedSessionDuration
+    if (!isLoadedSession && !startTime) return;
+    if (isLoadedSession && loadedSessionDuration <= 0) return;
 
     const now = Date.now();
-    const sessionDuration = now - startTime;
 
-    // Sample engagement data periodically (only in live mode)
-    if (timelineMode === 'live' && now - lastTimelineSample >= TIMELINE_SAMPLE_INTERVAL) {
+    // Sample engagement data periodically (only in live mode, not for loaded sessions)
+    if (!isLoadedSession && timelineMode === 'live' && now - lastTimelineSample >= TIMELINE_SAMPLE_INTERVAL) {
         lastTimelineSample = now;
         recordTimelineData();
     }
 
-    // Record face mesh to timeline
-    if (timelineMode === 'live') {
+    // Record face mesh to timeline (only in live mode, not for loaded sessions)
+    if (!isLoadedSession && timelineMode === 'live') {
         recordTimelineFaceMesh();
     }
 
@@ -552,10 +763,22 @@ function updateTimeline() {
 
     // Advance playback if playing
     if (timelineMode === 'playback' && timelineIsPlaying) {
-        timelinePlaybackTime += 100; // Add 100ms (update interval)
+        timelinePlaybackTime += 50; // Add 50ms (update interval for smooth playback)
         if (timelinePlaybackTime >= sessionDuration) {
-            // Reached end, jump to live
-            jumpToLive();
+            // Reached end - pause at end for loaded sessions, jump to live for live sessions
+            if (isLoadedSession) {
+                timelinePlaybackTime = sessionDuration;
+                timelineIsPlaying = false;
+                // Update play button to show play icon
+                const playIcon = document.getElementById('play-icon');
+                const pauseIcon = document.getElementById('pause-icon');
+                if (playIcon && pauseIcon) {
+                    playIcon.style.display = 'block';
+                    pauseIcon.style.display = 'none';
+                }
+            } else {
+                jumpToLive();
+            }
         }
     }
 
@@ -575,7 +798,7 @@ function updateTimeline() {
  * Record current data to timeline
  */
 function recordTimelineData() {
-    if (!startTime) return;
+    if (!startTime || isLoadedSession) return;
 
     const time = Date.now() - startTime;
 
@@ -602,7 +825,7 @@ function recordTimelineData() {
  * Record face mesh to timeline (called less frequently for performance)
  */
 function recordTimelineFaceMesh() {
-    if (!startTime || !latestLandmarks) return;
+    if (!startTime || !latestLandmarks || isLoadedSession) return;
 
     const now = Date.now();
     if (now - lastFaceMeshSample < FACEMESH_SAMPLE_INTERVAL) return;
@@ -739,9 +962,9 @@ function recordTimelineEvent(type, data) {
 function addTimelineMarker(time, type) {
     const markersContainer = document.getElementById('timeline-markers');
     const track = document.getElementById('timeline-track');
-    if (!markersContainer || !track || !startTime) return;
+    const sessionDuration = getSessionDuration();
+    if (!markersContainer || !track || sessionDuration <= 0) return;
 
-    const sessionDuration = Date.now() - startTime;
     const position = (time / sessionDuration) * 100;
 
     const marker = document.createElement('div');
@@ -761,9 +984,9 @@ function addTimelineMarker(time, type) {
  */
 function updateTimelineMarkers() {
     const markersContainer = document.getElementById('timeline-markers');
-    if (!markersContainer || !startTime) return;
+    const sessionDuration = getSessionDuration();
+    if (!markersContainer || sessionDuration <= 0) return;
 
-    const sessionDuration = Date.now() - startTime;
     const markers = markersContainer.querySelectorAll('.timeline-marker');
 
     markers.forEach(marker => {
@@ -797,9 +1020,8 @@ function trimTimelineData() {
  * Render timeline mini charts
  */
 function renderTimelineCharts() {
-    if (!startTime) return;
-
-    const sessionDuration = Date.now() - startTime;
+    const sessionDuration = getSessionDuration();
+    if (sessionDuration <= 0) return;
 
     // Render engagement chart
     if (engagementChartCtx && engagementChartCanvas) {
@@ -826,11 +1048,12 @@ function renderTimelineCharts() {
 function renderEngagementChart(sessionDuration) {
     const ctx = engagementChartCtx;
     const canvas = engagementChartCanvas;
-    const w = canvas.width;
-    const h = canvas.height;
+    const rect = canvas.getBoundingClientRect();
+    const w = rect.width;
+    const h = rect.height;
 
-    // Clear canvas
-    ctx.clearRect(0, 0, w, h);
+    // Clear canvas (use actual canvas dimensions)
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     // Draw background
     ctx.fillStyle = 'rgba(15, 52, 96, 0.3)';
@@ -870,11 +1093,12 @@ function renderEngagementChart(sessionDuration) {
 function renderGazeChart(sessionDuration) {
     const ctx = gazeChartCtx;
     const canvas = gazeChartCanvas;
-    const w = canvas.width;
-    const h = canvas.height;
+    const rect = canvas.getBoundingClientRect();
+    const w = rect.width;
+    const h = rect.height;
 
-    // Clear canvas
-    ctx.clearRect(0, 0, w, h);
+    // Clear canvas (use actual canvas dimensions)
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     // Draw background
     ctx.fillStyle = 'rgba(15, 52, 96, 0.3)';
@@ -911,11 +1135,12 @@ function renderGazeChart(sessionDuration) {
 function renderEventsChart(sessionDuration) {
     const ctx = eventsChartCtx;
     const canvas = eventsChartCanvas;
-    const w = canvas.width;
-    const h = canvas.height;
+    const rect = canvas.getBoundingClientRect();
+    const w = rect.width;
+    const h = rect.height;
 
-    // Clear canvas
-    ctx.clearRect(0, 0, w, h);
+    // Clear canvas (use actual canvas dimensions)
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     // Draw background
     ctx.fillStyle = 'rgba(15, 52, 96, 0.3)';
@@ -950,7 +1175,7 @@ function renderEventsChart(sessionDuration) {
     timelineData.clicks.forEach(click => {
         const x = (click.time / sessionDuration) * w;
         ctx.beginPath();
-        ctx.arc(x, h / 3, 3, 0, Math.PI * 2);
+        ctx.arc(x, h / 3, 4, 0, Math.PI * 2);
         ctx.fill();
     });
 
@@ -959,7 +1184,7 @@ function renderEventsChart(sessionDuration) {
     timelineData.keys.forEach(key => {
         const x = (key.time / sessionDuration) * w;
         ctx.beginPath();
-        ctx.arc(x, (2 * h) / 3, 2, 0, Math.PI * 2);
+        ctx.arc(x, (2 * h) / 3, 3, 0, Math.PI * 2);
         ctx.fill();
     });
 }
@@ -997,12 +1222,57 @@ function findDataAtTime(dataArray, targetTime) {
 }
 
 /**
+ * Find interpolated position data at a given time for smoother playback
+ * Interpolates between two data points for x/y coordinates
+ */
+function findInterpolatedPositionAtTime(dataArray, targetTime) {
+    if (!dataArray || dataArray.length === 0) return null;
+    if (dataArray.length === 1) return dataArray[0];
+
+    // Binary search to find the two surrounding points
+    let left = 0;
+    let right = dataArray.length - 1;
+
+    while (left < right) {
+        const mid = Math.floor((left + right + 1) / 2);
+        if (dataArray[mid].time <= targetTime) {
+            left = mid;
+        } else {
+            right = mid - 1;
+        }
+    }
+
+    const before = dataArray[left];
+
+    // If we're exactly at or before the first point, return it
+    if (before.time > targetTime || left >= dataArray.length - 1) {
+        return before;
+    }
+
+    const after = dataArray[left + 1];
+
+    // If after point is undefined or same time, return before
+    if (!after || after.time === before.time) {
+        return before;
+    }
+
+    // Interpolate between before and after
+    const t = (targetTime - before.time) / (after.time - before.time);
+    const clampedT = Math.max(0, Math.min(1, t));
+
+    return {
+        time: targetTime,
+        x: before.x + (after.x - before.x) * clampedT,
+        y: before.y + (after.y - before.y) * clampedT
+    };
+}
+
+/**
  * Get the current time for visualization (live or playback)
  */
 function getCurrentVisualizationTime() {
-    if (!startTime) return 0;
     if (timelineMode === 'live') {
-        return Date.now() - startTime;
+        return startTime ? Date.now() - startTime : 0;
     }
     return timelinePlaybackTime;
 }
@@ -1055,8 +1325,8 @@ function applyTimelineState() {
         document.getElementById('frustration-value').textContent = `${Math.round(cogStateData.frustration * 100)}%`;
     }
 
-    // Apply gaze position and update gaze history for trail
-    const gazeData = findDataAtTime(timelineData.gaze, time);
+    // Apply gaze position with interpolation for smooth movement
+    const gazeData = findInterpolatedPositionAtTime(timelineData.gaze, time);
     if (gazeData) {
         const normalizedX = (gazeData.x / participantWindowWidth) * containerWidth;
         const normalizedY = (gazeData.y / participantWindowHeight) * containerHeight;
@@ -1074,8 +1344,8 @@ function applyTimelineState() {
     // Build gaze history from timeline data for trail visualization
     updatePlaybackGazeHistory(time, containerWidth, containerHeight);
 
-    // Apply mouse position and update mouse history for trail
-    const mouseData = findDataAtTime(timelineData.mouse, time);
+    // Apply mouse position with interpolation for smooth movement
+    const mouseData = findInterpolatedPositionAtTime(timelineData.mouse, time);
     if (mouseData) {
         const normalizedX = (mouseData.x / participantWindowWidth) * containerWidth;
         const normalizedY = (mouseData.y / participantWindowHeight) * containerHeight;
@@ -1280,6 +1550,9 @@ function updateScrollIndicator(scrollX, scrollY) {
     }
 }
 
+// Track the current playback display state to avoid redundant DOM updates
+let lastPlaybackDisplayState = null;
+
 /**
  * Apply video/screenshot during playback
  * Shows recorded video or captured screenshot instead of live iframe content
@@ -1289,7 +1562,7 @@ function updatePlaybackScreenshot(currentTime) {
     const frame = document.getElementById('participant-frame');
     if (!container) return;
 
-    // Ensure video element exists
+    // Ensure video element exists (only creates once)
     ensureVideoElement();
 
     let screenshotOverlay = document.getElementById('screenshot-overlay');
@@ -1337,15 +1610,24 @@ function updatePlaybackScreenshot(currentTime) {
 
     if (timelineMode === 'playback') {
         // Check if we have video recording available
-        if (videoElement && videoUrl && timelineData.videoChunks.length > 0) {
-            // Use video playback
-            videoElement.style.display = 'block';
-            screenshotOverlay.style.display = 'none';
-            if (frame) frame.style.opacity = '0';
+        // For live sessions: videoChunks.length > 0
+        // For loaded sessions: videoUrl is set (from server API)
+        const hasVideo = videoElement && videoUrl && (timelineData.videoChunks.length > 0 || isLoadedSession);
+        if (hasVideo) {
+            // Only update display styles if state changed to avoid DOM thrashing
+            if (lastPlaybackDisplayState !== 'video') {
+                videoElement.style.display = 'block';
+                screenshotOverlay.style.display = 'none';
+                if (frame) frame.style.opacity = '0';
+                playbackBadge.style.display = 'block';
+                lastPlaybackDisplayState = 'video';
+            }
 
             // Seek video to current time (convert ms to seconds)
+            // Only seek if more than 1 second off to avoid jittery playback
             const videoTime = currentTime / 1000;
-            if (Math.abs(videoElement.currentTime - videoTime) > 0.5) {
+            const timeDiff = Math.abs(videoElement.currentTime - videoTime);
+            if (timeDiff > 1.0 || (!timelineIsPlaying && timeDiff > 0.1)) {
                 videoElement.currentTime = videoTime;
             }
 
@@ -1356,39 +1638,46 @@ function updatePlaybackScreenshot(currentTime) {
                 videoElement.pause();
             }
 
-            // Show badge
+            // Update badge text (this is lightweight)
             playbackBadge.textContent = `🎬 Recording @ ${formatTime(currentTime)}`;
-            playbackBadge.style.display = 'block';
 
         } else {
             // Fallback to screenshots if no video
             const screenshotData = findDataAtTime(timelineData.screenshots, currentTime);
 
-            if (videoElement) videoElement.style.display = 'none';
-
             if (screenshotData && screenshotData.dataUrl) {
+                if (lastPlaybackDisplayState !== 'screenshot') {
+                    if (videoElement) videoElement.style.display = 'none';
+                    screenshotOverlay.style.display = 'block';
+                    if (frame) frame.style.opacity = '0';
+                    playbackBadge.style.display = 'block';
+                    lastPlaybackDisplayState = 'screenshot';
+                }
                 screenshotOverlay.src = screenshotData.dataUrl;
-                screenshotOverlay.style.display = 'block';
-                if (frame) frame.style.opacity = '0';
-
                 playbackBadge.textContent = `📸 Captured @ ${formatTime(screenshotData.time)}`;
-                playbackBadge.style.display = 'block';
             } else {
                 // No video or screenshots available
-                screenshotOverlay.style.display = 'none';
-                playbackBadge.style.display = 'none';
-                if (frame) frame.style.opacity = '1';
+                if (lastPlaybackDisplayState !== 'none') {
+                    if (videoElement) videoElement.style.display = 'none';
+                    screenshotOverlay.style.display = 'none';
+                    playbackBadge.style.display = 'none';
+                    if (frame) frame.style.opacity = '1';
+                    lastPlaybackDisplayState = 'none';
+                }
             }
         }
     } else {
         // Live mode - hide video/screenshot overlays
-        if (videoElement) {
-            videoElement.style.display = 'none';
-            videoElement.pause();
+        if (lastPlaybackDisplayState !== 'live') {
+            if (videoElement) {
+                videoElement.style.display = 'none';
+                videoElement.pause();
+            }
+            screenshotOverlay.style.display = 'none';
+            playbackBadge.style.display = 'none';
+            if (frame) frame.style.opacity = '1';
+            lastPlaybackDisplayState = 'live';
         }
-        screenshotOverlay.style.display = 'none';
-        playbackBadge.style.display = 'none';
-        if (frame) frame.style.opacity = '1';
     }
 }
 
@@ -1463,6 +1752,8 @@ function resetTimelineData() {
     videoBlob = null;
     videoDuration = 0;
     videoStartTime = 0;
+    videoSourceSet = false;  // Allow new video source to be set
+    lastPlaybackDisplayState = null;  // Reset display state tracking
     if (videoElement) {
         videoElement.src = '';
         videoElement.style.display = 'none';
@@ -2097,6 +2388,9 @@ function rebuildVideoBlob() {
 /**
  * Ensure video element exists in participant view container
  */
+// Track if video source has been set to avoid repeated loading
+let videoSourceSet = false;
+
 function ensureVideoElement() {
     const container = document.getElementById('participant-view-container');
     if (!container) return;
@@ -2119,12 +2413,14 @@ function ensureVideoElement() {
         videoElement.muted = true;
         videoElement.playsInline = true;
         container.appendChild(videoElement);
+        videoSourceSet = false;
     }
 
-    // Update video source if we have a URL
-    if (videoUrl && videoElement.src !== videoUrl) {
+    // Update video source only once when we have a URL
+    if (videoUrl && !videoSourceSet) {
         videoElement.src = videoUrl;
         videoElement.load();
+        videoSourceSet = true;
     }
 }
 
@@ -2480,11 +2776,16 @@ function handleKeyboardData(data) {
 /**
  * Handle session events
  */
-function handleSessionEvent(data) {
+async function handleSessionEvent(data) {
     if (data.event === 'start') {
         startTime = Date.now();
         isCollecting = true;
         addLogEntry('system', 'Session started');
+
+        // Start live tracking when a session starts (if not already started)
+        if (!isLiveTrackingStarted && !isLoadedSession) {
+            startLiveTracking();
+        }
 
         // Update participant screen dimensions
         if (data.screenWidth) participantScreenWidth = data.screenWidth;
@@ -2531,11 +2832,86 @@ function handleSessionEvent(data) {
         isCollecting = false;
         addLogEntry('system', 'Session ended');
 
+        // Stop live tracking completely
+        stopLiveTracking();
+
+        // Save timeline data to server
+        await saveTimelineData();
+
         // Update URL display
         const urlDisplay = document.getElementById('participant-url');
         if (urlDisplay) {
-            urlDisplay.textContent = 'Session ended';
+            urlDisplay.textContent = 'Session ended - Playback mode';
         }
+
+        // Switch to playback mode automatically
+        timelineMode = 'playback';
+        timelinePlaybackTime = 0;
+        timelineIsPlaying = false;
+        updateLiveButtonState();
+
+        // Update play button state
+        const playIcon = document.getElementById('play-icon');
+        const pauseIcon = document.getElementById('pause-icon');
+        if (playIcon && pauseIcon) {
+            playIcon.style.display = 'block';
+            pauseIcon.style.display = 'none';
+        }
+
+        addLogEntry('system', 'Switched to playback mode - use timeline to replay session');
+    }
+}
+
+/**
+ * Save timeline data to server
+ */
+async function saveTimelineData() {
+    if (!sessionId) {
+        console.warn('No session ID, cannot save timeline data');
+        return;
+    }
+
+    try {
+        // Prepare timeline data for saving (exclude video chunks as they're saved separately)
+        const dataToSave = {
+            engagement: timelineData.engagement,
+            gaze: timelineData.gaze,
+            clicks: timelineData.clicks,
+            keys: timelineData.keys,
+            events: timelineData.events,
+            faceMesh: timelineData.faceMesh,
+            cognitiveStates: timelineData.cognitiveStates,
+            mouse: timelineData.mouse,
+            scroll: timelineData.scroll,
+            navigation: timelineData.navigation,
+            metadata: {
+                sessionId: sessionId,
+                participantWindowWidth: participantWindowWidth,
+                participantWindowHeight: participantWindowHeight,
+                participantScreenWidth: participantScreenWidth,
+                participantScreenHeight: participantScreenHeight,
+                duration: startTime ? Date.now() - startTime : 0,
+                savedAt: new Date().toISOString()
+            }
+        };
+
+        const response = await fetch(`/api/session/${sessionId}/save-timeline`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(dataToSave)
+        });
+
+        const result = await response.json();
+        if (result.success) {
+            addLogEntry('system', `Timeline data saved to ${result.filepath}`);
+            console.log('Timeline data saved:', result.filepath);
+        } else {
+            console.error('Failed to save timeline:', result.error);
+        }
+    } catch (error) {
+        console.error('Error saving timeline data:', error);
     }
 }
 
@@ -2573,19 +2949,32 @@ function updateStats() {
     document.getElementById('mouse-events').textContent = stats.mouseEvents;
     document.getElementById('keyboard-events').textContent = stats.keyboardEvents;
 
-    // Update duration
-    if (startTime) {
-        const elapsed = Math.floor((Date.now() - startTime) / 1000);
-        const minutes = Math.floor(elapsed / 60);
-        const seconds = elapsed % 60;
-        document.getElementById('session-duration').textContent =
-            `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    // Update duration - use fixed duration for loaded sessions
+    let elapsed;
+    if (isLoadedSession && loadedSessionDuration > 0) {
+        // For loaded sessions, show the saved duration (convert ms to seconds)
+        elapsed = Math.floor(loadedSessionDuration / 1000);
+    } else if (startTime) {
+        // For live sessions, calculate from start time
+        elapsed = Math.floor((Date.now() - startTime) / 1000);
+    } else {
+        elapsed = 0;
     }
 
+    const minutes = Math.floor(elapsed / 60);
+    const seconds = elapsed % 60;
+    document.getElementById('session-duration').textContent =
+        `${minutes}:${seconds.toString().padStart(2, '0')}`;
+
     // Update gaze rate
-    if (startTime) {
-        const elapsed = (Date.now() - startTime) / 1000;
-        const rate = elapsed > 0 ? Math.round(stats.gazeSamples / elapsed) : 0;
+    if (isLoadedSession && loadedSessionDuration > 0) {
+        // For loaded sessions, calculate rate from saved duration
+        const elapsedSec = loadedSessionDuration / 1000;
+        const rate = elapsedSec > 0 ? Math.round(stats.gazeSamples / elapsedSec) : 0;
+        document.getElementById('gaze-rate').textContent = rate;
+    } else if (startTime) {
+        const elapsedSec = (Date.now() - startTime) / 1000;
+        const rate = elapsedSec > 0 ? Math.round(stats.gazeSamples / elapsedSec) : 0;
         document.getElementById('gaze-rate').textContent = rate;
     }
 }
@@ -2594,10 +2983,69 @@ function updateStats() {
  * Start data collection (from dashboard)
  */
 window.startCollection = function() {
+    // Start live tracking if not already started
+    if (!isLiveTrackingStarted && !isLoadedSession) {
+        startLiveTracking();
+    }
+
     // Open experiment page in new tab
     window.open('/', '_blank');
     addLogEntry('system', 'Experiment page opened');
 };
+
+/**
+ * Start live tracking (webcam and face mesh)
+ */
+function startLiveTracking() {
+    if (isLiveTrackingStarted) return;
+
+    isLiveTrackingStarted = true;
+    addLogEntry('system', 'Starting live tracking...');
+
+    // Initialize webcam preview
+    initWebcam();
+
+    // Update UI state
+    const startBtn = document.getElementById('start-btn');
+    if (startBtn) {
+        startBtn.textContent = 'Session Active';
+        startBtn.classList.remove('btn-primary');
+        startBtn.classList.add('btn-success');
+    }
+}
+
+/**
+ * Stop live tracking
+ */
+function stopLiveTracking() {
+    isLiveTrackingStarted = false;
+    localFaceMeshActive = false;
+    isCollecting = false;
+
+    // Stop webcam
+    const video = document.getElementById('webcam-video');
+    if (video && video.srcObject) {
+        video.srcObject.getTracks().forEach(track => track.stop());
+        video.srcObject = null;
+    }
+
+    // Update UI state
+    const startBtn = document.getElementById('start-btn');
+    if (startBtn) {
+        startBtn.textContent = 'Start Collection';
+        startBtn.classList.remove('btn-success');
+        startBtn.classList.add('btn-primary');
+    }
+
+    const cameraStatus = document.getElementById('camera-status');
+    if (cameraStatus) {
+        cameraStatus.textContent = 'Session ended';
+        cameraStatus.style.display = 'block';
+        cameraStatus.style.color = 'var(--text-secondary)';
+    }
+
+    addLogEntry('system', 'Live tracking stopped');
+}
 
 /**
  * Export session data
@@ -2625,6 +3073,129 @@ window.exportData = async function() {
         alert('Export failed');
     }
 };
+
+/**
+ * Load session by ID from the input field
+ */
+window.loadSessionById = async function() {
+    const input = document.getElementById('load-session-id');
+    const loadBtn = document.getElementById('load-session-btn');
+
+    if (!input) return;
+
+    const sessionIdToLoad = input.value.trim();
+
+    if (!sessionIdToLoad) {
+        showLoadStatus('Please enter a session ID', 'error');
+        return;
+    }
+
+    // Show loading state
+    loadBtn.disabled = true;
+    loadBtn.innerHTML = `
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="margin-right: 6px; animation: spin 1s linear infinite;">
+            <path d="M12 4V2A10 10 0 0 0 2 12h2a8 8 0 0 1 8-8z"/>
+        </svg>
+        Loading...
+    `;
+    showLoadStatus('Loading session...', 'info');
+
+    try {
+        // Check if session data exists
+        const response = await fetch(`/api/session/${sessionIdToLoad}/data`);
+        const result = await response.json();
+
+        if (!result.success) {
+            showLoadStatus(`Session not found: ${sessionIdToLoad}`, 'error');
+            resetLoadButton();
+            return;
+        }
+
+        // Stop any existing live tracking
+        if (isCollecting) {
+            isCollecting = false;
+            localFaceMeshActive = false;
+        }
+
+        // Disconnect from live WebSocket if connected
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.close();
+        }
+
+        // Reset timeline data before loading
+        resetTimelineData();
+
+        // Mark as loaded session
+        isLoadedSession = true;
+        loadedSessionDuration = 0;
+        startTime = null;
+
+        // Load the saved session
+        await loadSavedSession(sessionIdToLoad);
+
+        showLoadStatus(`Session ${sessionIdToLoad} loaded successfully!`, 'success');
+
+        // Update URL without reloading page
+        const newUrl = `${window.location.pathname}?session=${sessionIdToLoad}`;
+        window.history.pushState({ session: sessionIdToLoad }, '', newUrl);
+
+        // Clear the input
+        input.value = '';
+
+    } catch (error) {
+        console.error('Error loading session:', error);
+        showLoadStatus(`Error: ${error.message}`, 'error');
+    }
+
+    resetLoadButton();
+};
+
+/**
+ * Show load status message
+ */
+function showLoadStatus(message, type) {
+    const statusEl = document.getElementById('load-session-status');
+    if (!statusEl) return;
+
+    statusEl.style.display = 'block';
+    statusEl.textContent = message;
+
+    switch (type) {
+        case 'error':
+            statusEl.style.color = 'var(--error)';
+            break;
+        case 'success':
+            statusEl.style.color = 'var(--success)';
+            break;
+        case 'info':
+        default:
+            statusEl.style.color = 'var(--text-secondary)';
+            break;
+    }
+
+    // Auto-hide after 5 seconds for success/error
+    if (type !== 'info') {
+        setTimeout(() => {
+            statusEl.style.display = 'none';
+        }, 5000);
+    }
+}
+
+/**
+ * Reset load button to default state
+ */
+function resetLoadButton() {
+    const loadBtn = document.getElementById('load-session-btn');
+    if (!loadBtn) return;
+
+    loadBtn.disabled = false;
+    loadBtn.innerHTML = `
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="margin-right: 6px;">
+            <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
+        </svg>
+        Load Session
+    `;
+}
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', init);

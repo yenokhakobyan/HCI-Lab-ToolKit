@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Example Experiment Content</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 40px;
+            color: white;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 20px;
+        }
+
+        p {
+            font-size: 1.1rem;
+            line-height: 1.6;
+            margin-bottom: 20px;
+            opacity: 0.9;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 20px;
+        }
+
+        .card h2 {
+            font-size: 1.3rem;
+            margin-bottom: 12px;
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 12px 24px;
+            background: white;
+            color: #764ba2;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            margin-right: 10px;
+            margin-bottom: 10px;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+
+        .input-group {
+            margin-bottom: 16px;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 6px;
+            font-weight: 500;
+        }
+
+        .input-group input,
+        .input-group textarea {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            background: rgba(255, 255, 255, 0.9);
+            color: #333;
+        }
+
+        .input-group textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+
+        .scrollable-content {
+            height: 200px;
+            overflow-y: auto;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 16px;
+        }
+
+        .scrollable-content p {
+            margin-bottom: 16px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Example Experiment Page</h1>
+        <p>This is a sample experiment content page. Since it's served from the same origin as the HCI collector, mouse tracking works automatically without any additional scripts.</p>
+
+        <div class="card">
+            <h2>Interactive Elements</h2>
+            <p>Click the buttons below to test click tracking:</p>
+            <button class="btn" onclick="alert('Button 1 clicked!')">Button 1</button>
+            <button class="btn" onclick="alert('Button 2 clicked!')">Button 2</button>
+            <button class="btn" onclick="alert('Button 3 clicked!')">Button 3</button>
+        </div>
+
+        <div class="card">
+            <h2>Form Inputs</h2>
+            <div class="input-group">
+                <label>Text Input</label>
+                <input type="text" placeholder="Type something here...">
+            </div>
+            <div class="input-group">
+                <label>Text Area</label>
+                <textarea placeholder="Write your thoughts..."></textarea>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Scrollable Content</h2>
+            <p>Scroll within this box to test scroll tracking:</p>
+            <div class="scrollable-content">
+                <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.</p>
+                <p>Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.</p>
+                <p>Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.</p>
+                <p>Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.</p>
+                <p>Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium.</p>
+                <p>Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit.</p>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Links</h2>
+            <p>These links demonstrate click tracking on anchor elements:</p>
+            <p>
+                <a href="#section1" style="color: white;">Link to Section 1</a> |
+                <a href="#section2" style="color: white;">Link to Section 2</a> |
+                <a href="#section3" style="color: white;">Link to Section 3</a>
+            </p>
+        </div>
+    </div>
+</body>
+</html>

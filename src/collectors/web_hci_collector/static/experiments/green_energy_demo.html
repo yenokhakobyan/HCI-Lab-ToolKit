@@ -1,0 +1,979 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Green Energy Learning Study</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-green: #1B7340;
+            --secondary-green: #2D9A5D;
+            --light-green: #E8F5E9;
+            --accent-yellow: #F5C842;
+            --accent-orange: #E87C3E;
+            --dark-bg: #0D1F17;
+            --card-bg: #FAFDF8;
+            --text-primary: #1A2A1F;
+            --text-secondary: #4A5D52;
+            --border-light: #D4E5DC;
+            --warning-red: #C74B4B;
+            --info-blue: #3B7DD8;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { height: 100%; overflow: hidden; }
+        body {
+            font-family: 'DM Sans', sans-serif;
+            background: linear-gradient(135deg, #E8F5E9 0%, #F1F8E9 50%, #E0F2F1 100%);
+            color: var(--text-primary);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            background: var(--dark-bg);
+            color: white;
+            padding: 10px 32px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+        }
+        .header h1 { font-size: 17px; font-weight: 600; }
+        .header h1::before { content: "🌱 "; }
+        .progress-bar { display: flex; gap: 4px; align-items: center; }
+        .progress-step {
+            width: 22px; height: 22px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            font-weight: 600;
+        }
+        .progress-step.active { background: var(--accent-yellow); color: var(--dark-bg); }
+        .progress-step.completed { background: var(--secondary-green); }
+        .progress-step.demo { background: var(--info-blue); font-size: 8px; }
+
+        .screen { display: none; flex: 1; overflow: hidden; }
+        .screen.active { display: flex; flex-direction: column; }
+
+        .session-screen { padding: 10px 18px; flex: 1; display: flex; flex-direction: column; }
+        .session-header { text-align: center; margin-bottom: 8px; flex-shrink: 0; }
+        .session-badge {
+            display: inline-block;
+            background: var(--info-blue);
+            color: white;
+            padding: 2px 10px;
+            border-radius: 10px;
+            font-size: 9px;
+            font-weight: 600;
+            margin-bottom: 3px;
+        }
+        .session-badge.demo { background: var(--accent-orange); }
+        .session-title { font-size: 18px; font-weight: 700; color: var(--primary-green); }
+
+        .content-grid {
+            display: grid;
+            grid-template-columns: 1fr 1.15fr 0.95fr;
+            gap: 12px;
+            flex: 1;
+            min-height: 0;
+        }
+
+        .panel {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 12px;
+            border: 2px solid var(--border-light);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .text-content { font-size: 11.5px; line-height: 1.55; flex: 1; }
+        .text-content h3 { color: var(--primary-green); font-size: 12px; margin: 0 0 5px 0; font-weight: 600; }
+        .text-content p { margin-bottom: 6px; }
+        .text-content ul { margin: 4px 0 6px 14px; }
+        .text-content li { margin-bottom: 3px; }
+        .text-content strong { color: var(--primary-green); }
+        .tip-box {
+            background: linear-gradient(135deg, #E8F5E9, #C8E6C9);
+            border-left: 3px solid var(--primary-green);
+            padding: 6px 8px;
+            margin: 6px 0;
+            border-radius: 0 6px 6px 0;
+            font-size: 10.5px;
+        }
+
+        .infographic { flex: 1; display: flex; flex-direction: column; gap: 6px; }
+        .visual-card {
+            background: white;
+            border-radius: 8px;
+            padding: 8px;
+            border: 1px solid var(--border-light);
+        }
+        .visual-title {
+            font-size: 10px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-align: center;
+            margin-bottom: 6px;
+        }
+
+        .icon-stats { display: flex; justify-content: space-around; gap: 6px; }
+        .icon-stat { text-align: center; flex: 1; }
+        .icon-stat-icon { font-size: 20px; margin-bottom: 2px; }
+        .icon-stat-value { font-size: 14px; font-weight: 700; color: var(--primary-green); font-family: 'IBM Plex Mono', monospace; }
+        .icon-stat-label { font-size: 8px; color: var(--text-secondary); margin-top: 1px; }
+
+        .compare-blocks { display: flex; gap: 5px; }
+        .compare-block {
+            flex: 1;
+            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+            border-radius: 6px;
+            padding: 6px;
+            text-align: center;
+            position: relative;
+        }
+        .compare-block.highlight {
+            background: linear-gradient(135deg, #E8F5E9, #C8E6C9);
+            border: 2px solid var(--primary-green);
+        }
+        .compare-block-icon { font-size: 18px; margin-bottom: 2px; }
+        .compare-block-title { font-size: 9px; font-weight: 600; color: var(--text-primary); }
+        .compare-block-value { font-size: 13px; font-weight: 700; color: var(--primary-green); font-family: 'IBM Plex Mono', monospace; margin: 2px 0; }
+        .compare-block-sub { font-size: 8px; color: var(--text-secondary); }
+
+        .meter-row { display: flex; align-items: flex-end; justify-content: space-around; height: 70px; padding: 0 8px; }
+        .meter { display: flex; flex-direction: column; align-items: center; width: 44px; }
+        .meter-bar-container { width: 26px; height: 55px; background: #E0E0E0; border-radius: 4px; position: relative; overflow: hidden; }
+        .meter-bar {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            border-radius: 4px;
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+            padding-top: 3px;
+            font-size: 8px;
+            font-weight: 600;
+            color: white;
+        }
+        .meter-label { font-size: 8px; margin-top: 3px; text-align: center; color: var(--text-secondary); }
+
+        .progress-bars { display: flex; flex-direction: column; gap: 5px; }
+        .progress-item { display: flex; align-items: center; gap: 6px; }
+        .progress-icon { font-size: 14px; width: 20px; text-align: center; }
+        .progress-info { flex: 1; }
+        .progress-label { font-size: 9px; color: var(--text-secondary); margin-bottom: 2px; }
+        .progress-track { height: 12px; background: #E0E0E0; border-radius: 6px; overflow: hidden; position: relative; }
+        .progress-fill {
+            height: 100%;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            padding-right: 5px;
+            font-size: 8px;
+            font-weight: 600;
+            color: white;
+        }
+
+        .flow-diagram { display: flex; align-items: center; justify-content: center; gap: 3px; padding: 6px 0; }
+        .flow-step { display: flex; flex-direction: column; align-items: center; text-align: center; }
+        .flow-icon { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; margin-bottom: 2px; }
+        .flow-text { font-size: 8px; color: var(--text-secondary); font-weight: 500; }
+        .flow-value { font-size: 10px; font-weight: 700; color: var(--primary-green); }
+        .flow-arrow { font-size: 14px; color: var(--primary-green); }
+
+        .data-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px; }
+        .data-cell {
+            background: #f8f9fa;
+            border-radius: 4px;
+            padding: 5px;
+            text-align: center;
+        }
+        .data-cell-label { font-size: 8px; color: var(--text-secondary); }
+        .data-cell-value { font-size: 11px; font-weight: 700; color: var(--primary-green); font-family: 'IBM Plex Mono', monospace; }
+
+        .timeline { display: flex; justify-content: space-between; align-items: center; padding: 8px; position: relative; }
+        .timeline::before { content: ''; position: absolute; top: 50%; left: 25px; right: 25px; height: 2px; background: var(--border-light); z-index: 0; }
+        .timeline-point { position: relative; z-index: 1; text-align: center; }
+        .timeline-dot { width: 20px; height: 20px; border-radius: 50%; background: var(--primary-green); color: white; display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 600; margin: 0 auto 3px; }
+        .timeline-label { font-size: 8px; color: var(--text-secondary); }
+
+        .case-study-content { flex: 1; display: flex; flex-direction: column; }
+        .case-scenario {
+            background: linear-gradient(135deg, #FFF8E1, #FFECB3);
+            border-radius: 8px;
+            padding: 8px;
+            margin-bottom: 6px;
+            border: 2px solid #FFD54F;
+        }
+        .case-scenario h4 { color: #E65100; font-size: 11px; margin-bottom: 4px; }
+        .case-scenario p { font-size: 10.5px; line-height: 1.4; }
+        .case-data { background: white; border-radius: 5px; padding: 5px 7px; margin-top: 5px; }
+        .case-data-row { display: flex; justify-content: space-between; padding: 2px 0; font-size: 9.5px; border-bottom: 1px dashed #E0E0E0; }
+        .case-data-row:last-child { border-bottom: none; }
+        .case-data-value { font-family: 'IBM Plex Mono', monospace; font-weight: 600; color: var(--primary-green); }
+
+        .question-area { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+        .question-box { background: white; border-radius: 6px; padding: 6px; border: 2px solid var(--info-blue); margin-bottom: 5px; }
+        .question-label { color: var(--info-blue); font-size: 8px; font-weight: 600; margin-bottom: 2px; }
+        .question-text { font-size: 10.5px; font-weight: 500; line-height: 1.3; }
+
+        .answer-options { display: flex; flex-direction: column; gap: 4px; flex: 1; }
+        .answer-option {
+            background: white;
+            border: 2px solid var(--border-light);
+            border-radius: 6px;
+            padding: 6px 8px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            display: flex;
+            align-items: flex-start;
+            gap: 6px;
+        }
+        .answer-option:hover { border-color: var(--primary-green); background: #F8FDF9; }
+        .answer-option.selected { border-color: var(--primary-green); background: linear-gradient(135deg, #E8F5E9, #C8E6C9); }
+        .option-letter { width: 18px; height: 18px; border-radius: 50%; background: var(--border-light); display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 9px; flex-shrink: 0; }
+        .answer-option.selected .option-letter { background: var(--primary-green); color: white; }
+        .option-text { font-size: 9.5px; line-height: 1.3; }
+
+        .financial-input { background: white; border-radius: 5px; padding: 5px; border: 2px solid var(--border-light); margin-bottom: 4px; }
+        .input-label { font-size: 9px; color: var(--text-secondary); margin-bottom: 2px; }
+        .input-group { display: flex; align-items: center; gap: 4px; }
+        .input-group input { flex: 1; padding: 4px 6px; border: 2px solid var(--border-light); border-radius: 4px; font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 600; }
+        .input-group input:focus { outline: none; border-color: var(--primary-green); }
+        .input-unit { font-size: 10px; color: var(--text-secondary); }
+
+        .submit-btn { background: var(--primary-green); color: white; border: none; padding: 7px 12px; border-radius: 5px; font-size: 11px; font-weight: 600; cursor: pointer; margin-top: 5px; flex-shrink: 0; }
+        .submit-btn:hover { background: #145A32; }
+        .submit-btn:disabled { background: #9E9E9E; cursor: not-allowed; }
+
+        .navigation { display: flex; justify-content: flex-end; padding: 8px 0 0 0; flex-shrink: 0; }
+        .nav-btn { padding: 7px 18px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; background: var(--primary-green); border: none; color: white; }
+        .nav-btn:hover { background: #145A32; }
+
+        .intro-screen, .refocus-screen, .completion-screen { flex: 1; display: flex; align-items: center; justify-content: center; padding: 25px; }
+        .intro-card, .refocus-card, .completion-card { background: white; border-radius: 14px; padding: 25px 35px; text-align: center; box-shadow: 0 4px 20px rgba(0,0,0,0.08); max-width: 500px; }
+        .intro-icon, .refocus-icon, .completion-icon { font-size: 36px; margin-bottom: 10px; }
+        .intro-title, .refocus-title, .completion-title { font-size: 20px; font-weight: 700; color: var(--primary-green); margin-bottom: 8px; }
+        .intro-text, .refocus-text, .completion-message { font-size: 13px; line-height: 1.5; color: var(--text-secondary); margin-bottom: 14px; }
+        .intro-list { text-align: left; margin: 12px 0; padding: 0; list-style: none; }
+        .intro-list li { padding: 5px 0; font-size: 12px; display: flex; align-items: center; gap: 8px; }
+        .intro-list li::before { content: "✓"; background: var(--secondary-green); color: white; width: 16px; height: 16px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 9px; flex-shrink: 0; }
+        .intro-btn, .refocus-btn { background: var(--primary-green); color: white; border: none; padding: 10px 24px; border-radius: 7px; font-size: 13px; font-weight: 600; cursor: pointer; }
+        .intro-btn:hover, .refocus-btn:hover { background: #145A32; }
+        .refocus-dot { width: 12px; height: 12px; background: var(--primary-green); border-radius: 50%; margin: 0 auto 16px; animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.3); opacity: 0.7; } }
+
+        .survey-screen { flex: 1; display: flex; flex-direction: column; padding: 14px 28px; overflow-y: auto; }
+        .survey-header { text-align: center; margin-bottom: 12px; }
+        .survey-title { font-size: 18px; font-weight: 700; color: var(--primary-green); }
+        .survey-subtitle { font-size: 12px; color: var(--text-secondary); margin-top: 3px; }
+        .survey-section { background: white; border-radius: 10px; padding: 14px 18px; margin-bottom: 10px; border: 1px solid var(--border-light); }
+        .survey-section-title { font-size: 13px; font-weight: 600; color: var(--primary-green); margin-bottom: 10px; padding-bottom: 6px; border-bottom: 2px solid var(--border-light); }
+        .survey-question { margin-bottom: 12px; }
+        .survey-question:last-child { margin-bottom: 0; }
+        .survey-q-label { font-size: 11px; font-weight: 500; color: var(--text-primary); margin-bottom: 6px; display: flex; gap: 5px; }
+        .survey-q-num { background: var(--border-light); color: var(--text-secondary); width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 600; flex-shrink: 0; }
+        .survey-options { display: flex; flex-direction: column; gap: 5px; margin-left: 23px; }
+        .survey-option { display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 11px; }
+        .survey-option input { width: 14px; height: 14px; accent-color: var(--primary-green); }
+        .likert-scale { display: flex; justify-content: space-between; align-items: center; margin-left: 23px; padding: 6px 0; }
+        .likert-label { font-size: 9px; color: var(--text-secondary); width: 60px; }
+        .likert-label.left { text-align: right; }
+        .likert-label.right { text-align: left; }
+        .likert-options { display: flex; gap: 8px; }
+        .likert-option { display: flex; flex-direction: column; align-items: center; gap: 1px; cursor: pointer; }
+        .likert-option input { width: 16px; height: 16px; accent-color: var(--primary-green); }
+        .likert-option span { font-size: 8px; color: var(--text-secondary); }
+        .survey-input { width: 100%; padding: 6px 10px; border: 2px solid var(--border-light); border-radius: 5px; font-size: 12px; font-family: inherit; margin-left: 23px; max-width: calc(100% - 23px); }
+        .survey-input:focus { outline: none; border-color: var(--primary-green); }
+        .survey-select { padding: 6px 10px; border: 2px solid var(--border-light); border-radius: 5px; font-size: 12px; font-family: inherit; margin-left: 23px; min-width: 160px; background: white; }
+        .survey-select:focus { outline: none; border-color: var(--primary-green); }
+        .survey-nav { display: flex; justify-content: center; padding: 14px 0; }
+        .survey-submit { background: var(--primary-green); color: white; border: none; padding: 10px 36px; border-radius: 7px; font-size: 13px; font-weight: 600; cursor: pointer; }
+        .survey-submit:hover { background: #145A32; }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <h1>Green Energy Learning Study</h1>
+        <div class="progress-bar">
+            <div class="progress-step demo active">Demo</div>
+            <div class="progress-step">1</div>
+            <div class="progress-step">2</div>
+            <div class="progress-step">3</div>
+            <div class="progress-step">4</div>
+            <div class="progress-step">5</div>
+        </div>
+    </header>
+
+    <!-- INTRO -->
+    <section class="screen active" id="intro">
+        <div class="intro-screen">
+            <div class="intro-card">
+                <div class="intro-icon">🌍</div>
+                <h2 class="intro-title">Welcome to the Study</h2>
+                <p class="intro-text">You'll learn about green energy through short lessons, then apply what you learned to help families make decisions.</p>
+                <ul class="intro-list">
+                    <li>First, a quick practice round</li>
+                    <li>Then 5 learning sessions with questions</li>
+                    <li>Each screen shows information in different formats</li>
+                    <li>Finally, a brief survey</li>
+                </ul>
+                <button class="intro-btn" onclick="showScreen('demo')">Start Practice →</button>
+            </div>
+        </div>
+    </section>
+
+    <!-- DEMO -->
+    <section class="screen" id="demo">
+        <div class="session-screen">
+            <div class="session-header">
+                <span class="session-badge demo">PRACTICE ROUND</span>
+                <h2 class="session-title">Understanding Energy Units ⚡</h2>
+            </div>
+            <div class="content-grid">
+                <div class="panel" data-aoi="demo-text">
+                    <div class="text-content">
+                        <h3>What's a Kilowatt-Hour?</h3>
+                        <p>When you pay your electricity bill, you're paying for <strong>kilowatt-hours (kWh)</strong> — the standard unit of energy consumption. Think of it this way: if you use 1,000 watts of power continuously for one hour, you've consumed exactly 1 kWh.</p>
+                        <p><strong>The Formula:</strong> kWh = Watts × Hours ÷ 1,000</p>
+                        <h3>How Much Do Appliances Use?</h3>
+                        <p>Every appliance has a <strong>wattage rating</strong> — the power it draws when running:</p>
+                        <ul>
+                            <li>LED bulb: <strong>10W</strong> (very efficient)</li>
+                            <li>Laptop: <strong>50W</strong> (low power)</li>
+                            <li>Refrigerator: <strong>150W</strong> (runs constantly)</li>
+                            <li>Air conditioner: <strong>1,500W</strong> (high draw)</li>
+                            <li>Electric heater: <strong>2,000W</strong> (highest draw)</li>
+                        </ul>
+                        <div class="tip-box">
+                            <strong>Try it:</strong> 1,500W AC × 4 hours ÷ 1,000 = 6 kWh
+                        </div>
+                    </div>
+                </div>
+                <div class="panel" data-aoi="demo-visual">
+                    <div class="infographic">
+                        <div class="visual-card">
+                            <div class="visual-title">⚡ Appliance Power Ratings</div>
+                            <div class="icon-stats">
+                                <div class="icon-stat"><div class="icon-stat-icon">💡</div><div class="icon-stat-value">10W</div><div class="icon-stat-label">LED</div></div>
+                                <div class="icon-stat"><div class="icon-stat-icon">💻</div><div class="icon-stat-value">50W</div><div class="icon-stat-label">Laptop</div></div>
+                                <div class="icon-stat"><div class="icon-stat-icon">🧊</div><div class="icon-stat-value">150W</div><div class="icon-stat-label">Fridge</div></div>
+                                <div class="icon-stat"><div class="icon-stat-icon">❄️</div><div class="icon-stat-value">1,500W</div><div class="icon-stat-label">AC</div></div>
+                                <div class="icon-stat"><div class="icon-stat-icon">🔥</div><div class="icon-stat-value">2,000W</div><div class="icon-stat-label">Heater</div></div>
+                            </div>
+                        </div>
+                        <div class="visual-card">
+                            <div class="visual-title">📊 Energy Per Hour</div>
+                            <div class="progress-bars">
+                                <div class="progress-item"><span class="progress-icon">🔥</span><div class="progress-info"><div class="progress-track"><div class="progress-fill" style="width: 100%; background: #E91E63;">2.0 kWh</div></div></div></div>
+                                <div class="progress-item"><span class="progress-icon">❄️</span><div class="progress-info"><div class="progress-track"><div class="progress-fill" style="width: 75%; background: var(--warning-red);">1.5 kWh</div></div></div></div>
+                                <div class="progress-item"><span class="progress-icon">🧊</span><div class="progress-info"><div class="progress-track"><div class="progress-fill" style="width: 7.5%; background: var(--accent-orange);"></div></div></div></div>
+                            </div>
+                        </div>
+                        <div class="visual-card">
+                            <div class="visual-title">🔢 Formula</div>
+                            <div class="flow-diagram">
+                                <div class="flow-step"><div class="flow-icon" style="background: #E3F2FD;">⚡</div><span class="flow-text">Watts</span></div>
+                                <span class="flow-arrow">×</span>
+                                <div class="flow-step"><div class="flow-icon" style="background: #FFF3E0;">⏱️</div><span class="flow-text">Hours</span></div>
+                                <span class="flow-arrow">÷</span>
+                                <div class="flow-step"><div class="flow-icon" style="background: #F3E5F5;">1000</div></div>
+                                <span class="flow-arrow">=</span>
+                                <div class="flow-step"><div class="flow-icon" style="background: #E8F5E9;">⚡</div><span class="flow-text">kWh</span></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="panel" data-aoi="demo-case">
+                    <div class="case-study-content">
+                        <div class="case-scenario">
+                            <h4>🏠 Practice Question</h4>
+                            <p>The Garcia family runs their <strong>electric heater</strong> for <strong>3 hours</strong>. How much energy does it use?</p>
+                            <div class="case-data">
+                                <div class="case-data-row"><span>Appliance:</span><span class="case-data-value">Electric Heater</span></div>
+                                <div class="case-data-row"><span>Duration:</span><span class="case-data-value">3 hours</span></div>
+                            </div>
+                        </div>
+                        <div class="question-area">
+                            <div class="question-box"><div class="question-label">Find the Answer</div><p class="question-text">Look up the heater's wattage to calculate.</p></div>
+                            <div class="answer-options">
+                                <div class="answer-option" data-answer="A" onclick="selectAnswer(this, 'demo')"><span class="option-letter">A</span><span class="option-text"><strong>3 kWh</strong></span></div>
+                                <div class="answer-option" data-answer="B" onclick="selectAnswer(this, 'demo')"><span class="option-letter">B</span><span class="option-text"><strong>4.5 kWh</strong></span></div>
+                                <div class="answer-option" data-answer="C" onclick="selectAnswer(this, 'demo')"><span class="option-letter">C</span><span class="option-text"><strong>6 kWh</strong></span></div>
+                                <div class="answer-option" data-answer="D" onclick="selectAnswer(this, 'demo')"><span class="option-letter">D</span><span class="option-text"><strong>8 kWh</strong></span></div>
+                            </div>
+                            <button class="submit-btn" id="submitdemo" disabled onclick="submitAnswer('demo')">Submit</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="navigation"><button class="nav-btn" onclick="showScreen('refocus0')">Continue →</button></div>
+        </div>
+    </section>
+
+    <section class="screen" id="refocus0"><div class="refocus-screen"><div class="refocus-card"><div class="refocus-icon">✨</div><h2 class="refocus-title">Nice work!</h2><p class="refocus-text">Now let's begin. Focus on the dot, then continue.</p><div class="refocus-dot"></div><button class="refocus-btn" onclick="showScreen('session1')">Begin Session 1</button></div></div></section>
+
+    <!-- SESSION 1: Green Energy Intro -->
+    <section class="screen" id="session1">
+        <div class="session-screen">
+            <div class="session-header"><span class="session-badge">SESSION 1 OF 5</span><h2 class="session-title">Introduction to Green Energy 🌍</h2></div>
+            <div class="content-grid">
+                <div class="panel" data-aoi="session1-text">
+                    <div class="text-content">
+                        <h3>The Shift to Clean Energy</h3>
+                        <p><strong>Renewable energy</strong> comes from natural sources that continuously replenish themselves. Unlike coal, oil, and natural gas — which take millions of years to form and release harmful CO2 when burned — renewables offer a sustainable path forward.</p>
+                        <h3>Four Major Types</h3>
+                        <p>Each renewable source has specific <strong>location requirements</strong>:</p>
+                        <ul>
+                            <li><strong>Solar:</strong> Requires <strong>5+ peak sun hours</strong> daily. Panels convert sunlight directly to electricity. Reduces home CO2 by 80%.</li>
+                            <li><strong>Wind:</strong> Needs <strong>flat, open terrain</strong> for consistent airflow. Turbines spin generators. Reduces CO2 by 85%.</li>
+                            <li><strong>Hydro:</strong> Requires a <strong>flowing river</strong> to spin turbines. Very reliable but geographically limited. Reduces CO2 by 75%.</li>
+                            <li><strong>Geothermal:</strong> Taps underground heat near <strong>volcanic zones</strong>. Works 24/7 regardless of weather.</li>
+                        </ul>
+                        <h3>Why It Matters</h3>
+                        <p>The average home using fossil fuel electricity produces <strong>7.5 tons of CO2 annually</strong>. Switching to renewables can dramatically cut this footprint.</p>
+                        <div class="tip-box"><strong>To calculate savings:</strong> 7.5 tons × reduction % = tons saved</div>
+                    </div>
+                </div>
+                <div class="panel" data-aoi="session1-visual">
+                    <div class="infographic">
+                        <div class="visual-card">
+                            <div class="visual-title">🌱 Energy Sources &amp; Requirements</div>
+                            <div class="compare-blocks">
+                                <div class="compare-block"><div class="compare-block-icon">☀️</div><div class="compare-block-title">Solar</div><div class="compare-block-value">5+ hrs</div><div class="compare-block-sub">sun needed</div></div>
+                                <div class="compare-block"><div class="compare-block-icon">💨</div><div class="compare-block-title">Wind</div><div class="compare-block-value">Flat</div><div class="compare-block-sub">open land</div></div>
+                                <div class="compare-block"><div class="compare-block-icon">💧</div><div class="compare-block-title">Hydro</div><div class="compare-block-value">River</div><div class="compare-block-sub">required</div></div>
+                                <div class="compare-block"><div class="compare-block-icon">🌋</div><div class="compare-block-title">Geo</div><div class="compare-block-value">Volcanic</div><div class="compare-block-sub">zone</div></div>
+                            </div>
+                        </div>
+                        <div class="visual-card">
+                            <div class="visual-title">📉 CO2 Reduction Rates</div>
+                            <div class="progress-bars">
+                                <div class="progress-item"><span class="progress-icon">💨</span><div class="progress-info"><div class="progress-label">Wind</div><div class="progress-track"><div class="progress-fill" style="width: 85%; background: var(--info-blue);">85%</div></div></div></div>
+                                <div class="progress-item"><span class="progress-icon">☀️</span><div class="progress-info"><div class="progress-label">Solar</div><div class="progress-track"><div class="progress-fill" style="width: 80%; background: var(--accent-yellow);">80%</div></div></div></div>
+                                <div class="progress-item"><span class="progress-icon">💧</span><div class="progress-info"><div class="progress-label">Hydro</div><div class="progress-track"><div class="progress-fill" style="width: 75%; background: var(--secondary-green);">75%</div></div></div></div>
+                            </div>
+                        </div>
+                        <div class="visual-card">
+                            <div class="visual-title">🏠 Baseline Emissions</div>
+                            <div class="icon-stats"><div class="icon-stat"><div class="icon-stat-icon">🏭</div><div class="icon-stat-value">7.5</div><div class="icon-stat-label">tons CO2/year</div></div></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="panel" data-aoi="session1-case">
+                    <div class="case-study-content">
+                        <div class="case-scenario">
+                            <h4>🏠 The Anderson Family</h4>
+                            <p>They want to reduce their carbon footprint significantly while staying within what's possible for their location.</p>
+                            <div class="case-data">
+                                <div class="case-data-row"><span>Location:</span><span class="case-data-value">Hilly suburb, 6 sun hrs</span></div>
+                                <div class="case-data-row"><span>Nearby:</span><span class="case-data-value">Small creek (not river)</span></div>
+                                <div class="case-data-row"><span>Goal:</span><span class="case-data-value">Save 5+ tons CO2/year</span></div>
+                            </div>
+                        </div>
+                        <div class="question-area">
+                            <div class="question-box"><div class="question-label">Find the Answer</div><p class="question-text">Which energy source meets their goal AND works for their location?</p></div>
+                            <div class="answer-options">
+                                <div class="answer-option" data-answer="A" onclick="selectAnswer(this, 1)"><span class="option-letter">A</span><span class="option-text"><strong>Solar</strong> — they have enough sun</span></div>
+                                <div class="answer-option" data-answer="B" onclick="selectAnswer(this, 1)"><span class="option-letter">B</span><span class="option-text"><strong>Wind</strong> — highest CO2 reduction</span></div>
+                                <div class="answer-option" data-answer="C" onclick="selectAnswer(this, 1)"><span class="option-letter">C</span><span class="option-text"><strong>Hydro</strong> — they have water nearby</span></div>
+                                <div class="answer-option" data-answer="D" onclick="selectAnswer(this, 1)"><span class="option-letter">D</span><span class="option-text"><strong>None</strong> — can't reach 5 tons</span></div>
+                            </div>
+                            <button class="submit-btn" id="submit1" disabled onclick="submitAnswer(1)">Submit</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="navigation"><button class="nav-btn" onclick="showScreen('refocus1')">Continue →</button></div>
+        </div>
+    </section>
+
+    <section class="screen" id="refocus1"><div class="refocus-screen"><div class="refocus-card"><div class="refocus-icon">👁️</div><h2 class="refocus-title">Brief Pause</h2><p class="refocus-text">Focus on the dot, then continue.</p><div class="refocus-dot"></div><button class="refocus-btn" onclick="showScreen('session2')">Session 2</button></div></div></section>
+
+    <!-- SESSION 2: Solar Panels -->
+    <section class="screen" id="session2">
+        <div class="session-screen">
+            <div class="session-header"><span class="session-badge">SESSION 2 OF 5</span><h2 class="session-title">Solar Panel Efficiency ☀️</h2></div>
+            <div class="content-grid">
+                <div class="panel" data-aoi="session2-text">
+                    <div class="text-content">
+                        <h3>How Solar Panels Work</h3>
+                        <p>Solar panels contain photovoltaic cells that convert sunlight into electricity. When photons from sunlight hit these cells, they knock electrons loose, creating an electrical current. The <strong>efficiency rating</strong> tells you what percentage of sunlight actually becomes usable electricity.</p>
+                        <h3>Choosing Your Panel Type</h3>
+                        <p>Higher efficiency means more power from the same roof space:</p>
+                        <ul>
+                            <li><strong>Monocrystalline:</strong> 20% efficiency — premium choice, best for limited roof space</li>
+                            <li><strong>Polycrystalline:</strong> 16% efficiency — solid mid-range, good value balance</li>
+                            <li><strong>Thin-Film:</strong> 11% efficiency — budget option, requires more area</li>
+                        </ul>
+                        <h3>Location Matters: Peak Sun Hours</h3>
+                        <p>Not all sunlight is equal. <strong>Peak sun hours</strong> measure the equivalent hours of full-intensity sunlight your location receives daily:</p>
+                        <ul>
+                            <li>Phoenix: <strong>6.5 hrs</strong> · Denver: <strong>5.0 hrs</strong></li>
+                            <li>Chicago: <strong>4.0 hrs</strong> · Seattle: <strong>3.5 hrs</strong></li>
+                        </ul>
+                        <div class="tip-box"><strong>Daily Production:</strong> Roof m² × Efficiency × Sun Hours = kWh</div>
+                    </div>
+                </div>
+                <div class="panel" data-aoi="session2-visual">
+                    <div class="infographic">
+                        <div class="visual-card">
+                            <div class="visual-title">🔋 Panel Efficiency</div>
+                            <div class="compare-blocks">
+                                <div class="compare-block highlight"><div class="compare-block-icon">⬛</div><div class="compare-block-title">Mono</div><div class="compare-block-value">20%</div><div class="compare-block-sub">Premium</div></div>
+                                <div class="compare-block"><div class="compare-block-icon">🔷</div><div class="compare-block-title">Poly</div><div class="compare-block-value">16%</div><div class="compare-block-sub">Standard</div></div>
+                                <div class="compare-block"><div class="compare-block-icon">📄</div><div class="compare-block-title">Thin</div><div class="compare-block-value">11%</div><div class="compare-block-sub">Budget</div></div>
+                            </div>
+                        </div>
+                        <div class="visual-card">
+                            <div class="visual-title">☀️ Peak Sun Hours</div>
+                            <div class="meter-row">
+                                <div class="meter"><div class="meter-bar-container"><div class="meter-bar" style="height: 100%; background: linear-gradient(to top, #FF5722, #FF9800);">6.5</div></div><span class="meter-label">Phoenix</span></div>
+                                <div class="meter"><div class="meter-bar-container"><div class="meter-bar" style="height: 77%; background: linear-gradient(to top, #FFC107, #FFEB3B);">5.0</div></div><span class="meter-label">Denver</span></div>
+                                <div class="meter"><div class="meter-bar-container"><div class="meter-bar" style="height: 62%; background: linear-gradient(to top, #4CAF50, #8BC34A);">4.0</div></div><span class="meter-label">Chicago</span></div>
+                                <div class="meter"><div class="meter-bar-container"><div class="meter-bar" style="height: 54%; background: linear-gradient(to top, #2196F3, #03A9F4);">3.5</div></div><span class="meter-label">Seattle</span></div>
+                            </div>
+                        </div>
+                        <div class="visual-card">
+                            <div class="visual-title">📐 Production Formula</div>
+                            <div class="flow-diagram">
+                                <div class="flow-step"><div class="flow-icon" style="background: #FFECB3;">📏</div><span class="flow-text">m²</span></div>
+                                <span class="flow-arrow">×</span>
+                                <div class="flow-step"><div class="flow-icon" style="background: #C8E6C9;">%</div><span class="flow-text">Eff</span></div>
+                                <span class="flow-arrow">×</span>
+                                <div class="flow-step"><div class="flow-icon" style="background: #BBDEFB;">☀️</div><span class="flow-text">Hrs</span></div>
+                                <span class="flow-arrow">=</span>
+                                <div class="flow-step"><div class="flow-icon" style="background: #E8F5E9;">⚡</div><span class="flow-text">kWh</span></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="panel" data-aoi="session2-case">
+                    <div class="case-study-content">
+                        <div class="case-scenario">
+                            <h4>🏠 The Martinez Family</h4>
+                            <p>They're comparing panel types for their roof. They want to know which type produces the most energy.</p>
+                            <div class="case-data">
+                                <div class="case-data-row"><span>City:</span><span class="case-data-value">Chicago</span></div>
+                                <div class="case-data-row"><span>Roof space:</span><span class="case-data-value">25 m²</span></div>
+                                <div class="case-data-row"><span>Daily need:</span><span class="case-data-value">15 kWh</span></div>
+                            </div>
+                        </div>
+                        <div class="question-area">
+                            <div class="question-box"><div class="question-label">Calculate</div><p class="question-text">Which is the cheapest panel type that meets their 15 kWh need?</p></div>
+                            <div class="answer-options">
+                                <div class="answer-option" data-answer="A" onclick="selectAnswer(this, 2)"><span class="option-letter">A</span><span class="option-text"><strong>Thin-Film</strong> — budget option works</span></div>
+                                <div class="answer-option" data-answer="B" onclick="selectAnswer(this, 2)"><span class="option-letter">B</span><span class="option-text"><strong>Polycrystalline</strong> — standard is enough</span></div>
+                                <div class="answer-option" data-answer="C" onclick="selectAnswer(this, 2)"><span class="option-letter">C</span><span class="option-text"><strong>Monocrystalline</strong> — need premium</span></div>
+                                <div class="answer-option" data-answer="D" onclick="selectAnswer(this, 2)"><span class="option-letter">D</span><span class="option-text"><strong>None</strong> — roof too small</span></div>
+                            </div>
+                            <button class="submit-btn" id="submit2" disabled onclick="submitAnswer(2)">Submit</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="navigation"><button class="nav-btn" onclick="showScreen('refocus2')">Continue →</button></div>
+        </div>
+    </section>
+
+    <section class="screen" id="refocus2"><div class="refocus-screen"><div class="refocus-card"><div class="refocus-icon">👁️</div><h2 class="refocus-title">Brief Pause</h2><p class="refocus-text">Focus on the dot, then continue.</p><div class="refocus-dot"></div><button class="refocus-btn" onclick="showScreen('session3')">Session 3</button></div></div></section>
+
+    <!-- SESSION 3: Batteries -->
+    <section class="screen" id="session3">
+        <div class="session-screen">
+            <div class="session-header"><span class="session-badge">SESSION 3 OF 5</span><h2 class="session-title">Battery Storage 🔋</h2></div>
+            <div class="content-grid">
+                <div class="panel" data-aoi="session3-text">
+                    <div class="text-content">
+                        <h3>Why Add Battery Storage?</h3>
+                        <p>Solar panels generate electricity only during daylight, but your home needs power around the clock. <strong>Battery storage</strong> captures excess daytime energy so you can use it at night or during outages — making your solar system truly independent.</p>
+                        <h3>Understanding Battery Chemistry</h3>
+                        <p><strong>Usable capacity</strong> is what matters — batteries shouldn't be fully drained, so you can only use a portion:</p>
+                        <ul>
+                            <li><strong>Lithium-Ion (Li-Ion):</strong> Use 80% of rated capacity. Lasts ~10 years. Most common technology.</li>
+                            <li><strong>LFP (Lithium Iron Phosphate):</strong> Use 90% of rated capacity. Lasts ~15 years. Premium longevity.</li>
+                            <li><strong>Lead-Acid:</strong> Use only 50% of rated capacity. Lasts ~4 years. Cheapest upfront but poor long-term value.</li>
+                        </ul>
+                        <h3>Products on the Market</h3>
+                        <ul>
+                            <li><strong>Tesla Powerwall:</strong> 13.5 kWh rated, Li-Ion chemistry, $9,000</li>
+                            <li><strong>LG Chem RESU:</strong> 10 kWh rated, Li-Ion chemistry, $6,500</li>
+                            <li><strong>Enphase IQ:</strong> 5 kWh rated, LFP chemistry, $4,500</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="panel" data-aoi="session3-visual">
+                    <div class="infographic">
+                        <div class="visual-card">
+                            <div class="visual-title">🔋 Battery Type Specs</div>
+                            <div class="compare-blocks">
+                                <div class="compare-block highlight"><div class="compare-block-icon">🔵</div><div class="compare-block-title">LFP</div><div class="compare-block-value">90%</div><div class="compare-block-sub">15 yr</div></div>
+                                <div class="compare-block"><div class="compare-block-icon">🟢</div><div class="compare-block-title">Li-Ion</div><div class="compare-block-value">80%</div><div class="compare-block-sub">10 yr</div></div>
+                                <div class="compare-block"><div class="compare-block-icon">⚫</div><div class="compare-block-title">Lead</div><div class="compare-block-value">50%</div><div class="compare-block-sub">4 yr</div></div>
+                            </div>
+                        </div>
+                        <div class="visual-card">
+                            <div class="visual-title">💰 Products (Type &amp; Price)</div>
+                            <div class="progress-bars">
+                                <div class="progress-item"><span class="progress-icon">🟢</span><div class="progress-info"><div class="progress-label">Tesla 13.5kWh (Li-Ion)</div><div class="progress-track"><div class="progress-fill" style="width: 100%; background: var(--warning-red);">$9,000</div></div></div></div>
+                                <div class="progress-item"><span class="progress-icon">🟢</span><div class="progress-info"><div class="progress-label">LG 10kWh (Li-Ion)</div><div class="progress-track"><div class="progress-fill" style="width: 72%; background: var(--accent-orange);">$6,500</div></div></div></div>
+                                <div class="progress-item"><span class="progress-icon">🔵</span><div class="progress-info"><div class="progress-label">Enphase 5kWh (LFP)</div><div class="progress-track"><div class="progress-fill" style="width: 50%; background: var(--secondary-green);">$4,500</div></div></div></div>
+                            </div>
+                        </div>
+                        <div class="visual-card">
+                            <div class="visual-title">⏱️ Lifespan</div>
+                            <div class="timeline">
+                                <div class="timeline-point"><div class="timeline-dot" style="background: #9E9E9E;">4</div><div class="timeline-label">Lead</div></div>
+                                <div class="timeline-point"><div class="timeline-dot" style="background: var(--secondary-green);">10</div><div class="timeline-label">Li-Ion</div></div>
+                                <div class="timeline-point"><div class="timeline-dot" style="background: var(--info-blue);">15</div><div class="timeline-label">LFP</div></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="panel" data-aoi="session3-case">
+                    <div class="case-study-content">
+                        <div class="case-scenario">
+                            <h4>🏠 The Chen Family</h4>
+                            <p>They need reliable storage that will last. They're comparing the available products.</p>
+                            <div class="case-data">
+                                <div class="case-data-row"><span>Usable capacity needed:</span><span class="case-data-value">7.5 kWh</span></div>
+                                <div class="case-data-row"><span>Minimum lifespan:</span><span class="case-data-value">12 years</span></div>
+                                <div class="case-data-row"><span>Budget:</span><span class="case-data-value">$10,000</span></div>
+                            </div>
+                        </div>
+                        <div class="question-area">
+                            <div class="question-box"><div class="question-label">Analyze</div><p class="question-text">Which option meets ALL three requirements?</p></div>
+                            <div class="answer-options">
+                                <div class="answer-option" data-answer="A" onclick="selectAnswer(this, 3)"><span class="option-letter">A</span><span class="option-text"><strong>Tesla Powerwall</strong> — largest capacity</span></div>
+                                <div class="answer-option" data-answer="B" onclick="selectAnswer(this, 3)"><span class="option-letter">B</span><span class="option-text"><strong>LG Chem RESU</strong> — mid-range option</span></div>
+                                <div class="answer-option" data-answer="C" onclick="selectAnswer(this, 3)"><span class="option-letter">C</span><span class="option-text"><strong>Two Enphase IQ units</strong> — combined capacity</span></div>
+                                <div class="answer-option" data-answer="D" onclick="selectAnswer(this, 3)"><span class="option-letter">D</span><span class="option-text"><strong>None</strong> — no option meets all requirements</span></div>
+                            </div>
+                            <button class="submit-btn" id="submit3" disabled onclick="submitAnswer(3)">Submit</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="navigation"><button class="nav-btn" onclick="showScreen('refocus3')">Continue →</button></div>
+        </div>
+    </section>
+
+    <section class="screen" id="refocus3"><div class="refocus-screen"><div class="refocus-card"><div class="refocus-icon">👁️</div><h2 class="refocus-title">Brief Pause</h2><p class="refocus-text">Focus on the dot, then continue.</p><div class="refocus-dot"></div><button class="refocus-btn" onclick="showScreen('session4')">Session 4</button></div></div></section>
+
+    <!-- SESSION 4: Financial -->
+    <section class="screen" id="session4">
+        <div class="session-screen">
+            <div class="session-header"><span class="session-badge">SESSION 4 OF 5</span><h2 class="session-title">Solar Investment 💰</h2></div>
+            <div class="content-grid">
+                <div class="panel" data-aoi="session4-text">
+                    <div class="text-content">
+                        <h3>The True Cost of Going Solar</h3>
+                        <p>A typical 6kW residential system costs around <strong>$18,000</strong> before incentives. However, the federal government offers a generous <strong>30% tax credit</strong>, reducing your actual out-of-pocket cost to just <strong>$12,600</strong>.</p>
+                        <h3>Calculating Your Annual Savings</h3>
+                        <p>Your savings depend on two factors — how much electricity your system produces and what you currently pay per kWh:</p>
+                        <p><strong>Annual Savings = kWh Produced × Your Rate</strong></p>
+                        <p>A well-positioned 6kW system typically generates <strong>7,500 to 9,000 kWh per year</strong>, depending on your location's sunlight.</p>
+                        <h3>The Payback Period</h3>
+                        <p>This tells you how many years until your savings equal your investment:</p>
+                        <p><strong>Payback Years = Net Cost ÷ Annual Savings</strong></p>
+                        <h3>Electricity Rates Vary Widely</h3>
+                        <ul>
+                            <li>Low-cost regions: <strong>$0.10/kWh</strong></li>
+                            <li>National average: <strong>$0.15/kWh</strong></li>
+                            <li>High-cost regions: <strong>$0.22/kWh</strong></li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="panel" data-aoi="session4-visual">
+                    <div class="infographic">
+                        <div class="visual-card">
+                            <div class="visual-title">💵 Cost After Credit</div>
+                            <div class="flow-diagram">
+                                <div class="flow-step"><div class="flow-icon" style="background: #FFCDD2; font-size: 11px;">$18K</div><span class="flow-text">Cost</span></div>
+                                <span class="flow-arrow">−</span>
+                                <div class="flow-step"><div class="flow-icon" style="background: #C8E6C9; font-size: 10px;">30%</div><span class="flow-text">Credit</span></div>
+                                <span class="flow-arrow">=</span>
+                                <div class="flow-step"><div class="flow-icon" style="background: #A5D6A7; font-size: 10px;">$12.6K</div><span class="flow-text">Net</span></div>
+                            </div>
+                        </div>
+                        <div class="visual-card">
+                            <div class="visual-title">⚡ Electricity Rates</div>
+                            <div class="compare-blocks">
+                                <div class="compare-block"><div class="compare-block-title">Low</div><div class="compare-block-value">$0.10</div><div class="compare-block-sub">/kWh</div></div>
+                                <div class="compare-block"><div class="compare-block-title">Avg</div><div class="compare-block-value">$0.15</div><div class="compare-block-sub">/kWh</div></div>
+                                <div class="compare-block highlight"><div class="compare-block-title">High</div><div class="compare-block-value">$0.22</div><div class="compare-block-sub">/kWh</div></div>
+                            </div>
+                        </div>
+                        <div class="visual-card">
+                            <div class="visual-title">📊 6kW System Output</div>
+                            <div class="icon-stats"><div class="icon-stat"><div class="icon-stat-icon">☀️</div><div class="icon-stat-value">7,500-9,000</div><div class="icon-stat-label">kWh/year</div></div></div>
+                        </div>
+                        <div class="visual-card">
+                            <div class="visual-title">🧮 Payback Formula</div>
+                            <div class="flow-diagram">
+                                <div class="flow-step"><div class="flow-icon" style="background: #FFECB3; font-size: 9px;">Net $</div><span class="flow-text">Cost</span></div>
+                                <span class="flow-arrow">÷</span>
+                                <div class="flow-step"><div class="flow-icon" style="background: #C8E6C9;">💰</div><span class="flow-text">$/yr</span></div>
+                                <span class="flow-arrow">=</span>
+                                <div class="flow-step"><div class="flow-icon" style="background: #BBDEFB;">📅</div><span class="flow-text">Years</span></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="panel" data-aoi="session4-case">
+                    <div class="case-study-content">
+                        <div class="case-scenario">
+                            <h4>🧮 The Williams Family</h4>
+                            <p>They want to know if solar makes financial sense for their situation.</p>
+                            <div class="case-data">
+                                <div class="case-data-row"><span>System:</span><span class="case-data-value">6 kW</span></div>
+                                <div class="case-data-row"><span>Local rate:</span><span class="case-data-value">$0.12/kWh</span></div>
+                                <div class="case-data-row"><span>Expected output:</span><span class="case-data-value">8,400 kWh/yr</span></div>
+                            </div>
+                        </div>
+                        <div class="question-area">
+                            <div class="question-box"><div class="question-label">Calculate</div><p class="question-text">What is their approximate payback period?</p></div>
+                            <div class="financial-input">
+                                <div class="input-label">Annual savings (kWh × rate):</div>
+                                <div class="input-group"><input type="number" id="calc4" placeholder="$" oninput="checkCalculation(4)"><span class="input-unit">/yr</span></div>
+                            </div>
+                            <div class="answer-options">
+                                <div class="answer-option" data-answer="A" onclick="selectAnswer(this, 4)"><span class="option-letter">A</span><span class="option-text"><strong>~8 years</strong></span></div>
+                                <div class="answer-option" data-answer="B" onclick="selectAnswer(this, 4)"><span class="option-letter">B</span><span class="option-text"><strong>~10 years</strong></span></div>
+                                <div class="answer-option" data-answer="C" onclick="selectAnswer(this, 4)"><span class="option-letter">C</span><span class="option-text"><strong>~12.5 years</strong></span></div>
+                                <div class="answer-option" data-answer="D" onclick="selectAnswer(this, 4)"><span class="option-letter">D</span><span class="option-text"><strong>~15 years</strong></span></div>
+                            </div>
+                            <button class="submit-btn" id="submit4" disabled onclick="submitAnswer(4)">Submit</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="navigation"><button class="nav-btn" onclick="showScreen('refocus4')">Continue →</button></div>
+        </div>
+    </section>
+
+    <section class="screen" id="refocus4"><div class="refocus-screen"><div class="refocus-card"><div class="refocus-icon">👁️</div><h2 class="refocus-title">Almost Done!</h2><p class="refocus-text">One more session. Focus on the dot.</p><div class="refocus-dot"></div><button class="refocus-btn" onclick="showScreen('session5')">Session 5</button></div></div></section>
+
+    <!-- SESSION 5: Decision -->
+    <section class="screen" id="session5">
+        <div class="session-screen">
+            <div class="session-header"><span class="session-badge">SESSION 5 OF 5</span><h2 class="session-title">Choosing a Plan 🎯</h2></div>
+            <div class="content-grid">
+                <div class="panel" data-aoi="session5-text">
+                    <div class="text-content">
+                        <h3>Understanding Your Options</h3>
+                        <p>When going solar, you'll choose between different system sizes, financing methods, and whether to include battery backup. Each choice involves trade-offs between upfront cost, long-term profit, and features.</p>
+                        <h3>Five Common Paths</h3>
+                        <ul>
+                            <li><strong>Plan A (4kW System):</strong> $5,600 upfront. Smaller system, lower output. 25-year profit: <strong>+$15K</strong>. You own it.</li>
+                            <li><strong>Plan B (6kW System):</strong> $12,600 upfront. Standard home size. 25-year profit: <strong>+$29K</strong>. You own it.</li>
+                            <li><strong>Plan C (6kW + Battery):</strong> $21,000 upfront. Includes backup power for outages. 25-year profit: <strong>+$22K</strong>. You own it.</li>
+                            <li><strong>Plan D (Financed 6kW):</strong> $0 down, pay $150/month for 10 years. 25-year profit: <strong>+$24K</strong>. You own it after loan payoff.</li>
+                            <li><strong>Plan E (Solar Lease):</strong> $0 down, pay $95/month forever. 25-year profit: <strong>+$8K</strong>. You never own the system.</li>
+                        </ul>
+                        <div class="tip-box"><strong>Key insight:</strong> Ownership (A-D) builds equity. Leasing (E) means lower commitment but also lower returns and no asset ownership.</div>
+                    </div>
+                </div>
+                <div class="panel" data-aoi="session5-visual">
+                    <div class="infographic">
+                        <div class="visual-card">
+                            <div class="visual-title">💰 Upfront Cost</div>
+                            <div class="progress-bars">
+                                <div class="progress-item"><span class="progress-icon" style="font-size: 11px; font-weight: 700;">A</span><div class="progress-info"><div class="progress-track"><div class="progress-fill" style="width: 27%; background: var(--secondary-green);">$5.6K</div></div></div></div>
+                                <div class="progress-item"><span class="progress-icon" style="font-size: 11px; font-weight: 700;">B</span><div class="progress-info"><div class="progress-track"><div class="progress-fill" style="width: 60%; background: var(--accent-yellow);">$12.6K</div></div></div></div>
+                                <div class="progress-item"><span class="progress-icon" style="font-size: 11px; font-weight: 700;">C</span><div class="progress-info"><div class="progress-track"><div class="progress-fill" style="width: 100%; background: var(--accent-orange);">$21K</div></div></div></div>
+                                <div class="progress-item"><span class="progress-icon" style="font-size: 11px; font-weight: 700;">D,E</span><div class="progress-info"><div class="progress-track"><div class="progress-fill" style="width: 3%; background: var(--primary-green);"></div></div></div></div>
+                            </div>
+                        </div>
+                        <div class="visual-card">
+                            <div class="visual-title">📈 25-Year Profit</div>
+                            <div class="compare-blocks">
+                                <div class="compare-block"><div class="compare-block-title">A</div><div class="compare-block-value" style="font-size: 11px;">$15K</div></div>
+                                <div class="compare-block highlight"><div class="compare-block-title">B</div><div class="compare-block-value" style="font-size: 11px;">$29K</div></div>
+                                <div class="compare-block"><div class="compare-block-title">C</div><div class="compare-block-value" style="font-size: 11px;">$22K</div></div>
+                                <div class="compare-block"><div class="compare-block-title">D</div><div class="compare-block-value" style="font-size: 11px;">$24K</div></div>
+                                <div class="compare-block"><div class="compare-block-title">E</div><div class="compare-block-value" style="font-size: 11px;">$8K</div></div>
+                            </div>
+                        </div>
+                        <div class="visual-card">
+                            <div class="visual-title">🔑 Features</div>
+                            <div class="data-grid">
+                                <div class="data-cell"><div class="data-cell-label">Ownership</div><div class="data-cell-value">A,B,C,D</div></div>
+                                <div class="data-cell"><div class="data-cell-label">Lease</div><div class="data-cell-value">E</div></div>
+                                <div class="data-cell"><div class="data-cell-label">Battery</div><div class="data-cell-value">C</div></div>
+                                <div class="data-cell"><div class="data-cell-label">$0 Down</div><div class="data-cell-value">D, E</div></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="panel" data-aoi="session5-case">
+                    <div class="case-study-content">
+                        <div class="case-scenario">
+                            <h4>🎯 The Thompson Family</h4>
+                            <p>Help them choose the best plan for their needs.</p>
+                            <div class="case-data">
+                                <div class="case-data-row"><span>Available cash:</span><span class="case-data-value">$6,000</span></div>
+                                <div class="case-data-row"><span>Monthly budget:</span><span class="case-data-value">$160 max</span></div>
+                                <div class="case-data-row"><span>Priority:</span><span class="case-data-value">Best long-term value</span></div>
+                                <div class="case-data-row"><span>Power outages:</span><span class="case-data-value">Frequent in area</span></div>
+                            </div>
+                        </div>
+                        <div class="question-area">
+                            <div class="question-box"><div class="question-label">Decide</div><p class="question-text">Which plan best fits their situation?</p></div>
+                            <div class="answer-options">
+                                <div class="answer-option" data-answer="A" onclick="selectAnswer(this, 5)"><span class="option-letter">A</span><span class="option-text"><strong>Plan A</strong> — fits cash budget</span></div>
+                                <div class="answer-option" data-answer="B" onclick="selectAnswer(this, 5)"><span class="option-letter">B</span><span class="option-text"><strong>Plan B</strong> — highest profit</span></div>
+                                <div class="answer-option" data-answer="C" onclick="selectAnswer(this, 5)"><span class="option-letter">C</span><span class="option-text"><strong>Plan C</strong> — includes battery</span></div>
+                                <div class="answer-option" data-answer="D" onclick="selectAnswer(this, 5)"><span class="option-letter">D</span><span class="option-text"><strong>Plan D</strong> — $0 down, good profit</span></div>
+                                <div class="answer-option" data-answer="E" onclick="selectAnswer(this, 5)"><span class="option-letter">E</span><span class="option-text"><strong>Plan E</strong> — lowest monthly</span></div>
+                            </div>
+                            <button class="submit-btn" id="submit5" disabled onclick="submitAnswer(5)">Submit</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="navigation"><button class="nav-btn" onclick="showScreen('refocus5')">Continue to Survey →</button></div>
+        </div>
+    </section>
+
+    <section class="screen" id="refocus5"><div class="refocus-screen"><div class="refocus-card"><div class="refocus-icon">📝</div><h2 class="refocus-title">Learning Complete!</h2><p class="refocus-text">Please complete a brief survey.</p><div class="refocus-dot"></div><button class="refocus-btn" onclick="showScreen('survey')">Start Survey</button></div></div></section>
+
+    <!-- SURVEY -->
+    <section class="screen" id="survey">
+        <div class="survey-screen">
+            <div class="survey-header"><h2 class="survey-title">Post-Study Survey</h2><p class="survey-subtitle">Please answer honestly.</p></div>
+
+            <div class="survey-section">
+                <h3 class="survey-section-title">📚 Understanding</h3>
+                <div class="survey-question"><div class="survey-q-label"><span class="survey-q-num">1</span><span>Highest efficiency panel type?</span></div><div class="survey-options"><label class="survey-option"><input type="radio" name="q1" value="a"> Thin-Film</label><label class="survey-option"><input type="radio" name="q1" value="b"> Polycrystalline</label><label class="survey-option"><input type="radio" name="q1" value="c"> Monocrystalline</label></div></div>
+                <div class="survey-question"><div class="survey-q-label"><span class="survey-q-num">2</span><span>Federal tax credit percentage?</span></div><div class="survey-options"><label class="survey-option"><input type="radio" name="q2" value="a"> 20%</label><label class="survey-option"><input type="radio" name="q2" value="b"> 30%</label><label class="survey-option"><input type="radio" name="q2" value="c"> 40%</label></div></div>
+                <div class="survey-question"><div class="survey-q-label"><span class="survey-q-num">3</span><span>Longest-lasting battery type?</span></div><div class="survey-options"><label class="survey-option"><input type="radio" name="q3" value="a"> Lead-Acid</label><label class="survey-option"><input type="radio" name="q3" value="b"> Lithium-Ion</label><label class="survey-option"><input type="radio" name="q3" value="c"> LFP</label></div></div>
+                <div class="survey-question"><div class="survey-q-label"><span class="survey-q-num">4</span><span>Higher electricity rates mean:</span></div><div class="survey-options"><label class="survey-option"><input type="radio" name="q4" value="a"> Longer payback</label><label class="survey-option"><input type="radio" name="q4" value="b"> Shorter payback</label><label class="survey-option"><input type="radio" name="q4" value="c"> No effect</label></div></div>
+                <div class="survey-question"><div class="survey-q-label"><span class="survey-q-num">5</span><span>Lease = ownership?</span></div><div class="survey-options"><label class="survey-option"><input type="radio" name="q5" value="a"> Yes</label><label class="survey-option"><input type="radio" name="q5" value="b"> After lease</label><label class="survey-option"><input type="radio" name="q5" value="c"> Never</label></div></div>
+            </div>
+
+            <div class="survey-section">
+                <h3 class="survey-section-title">📊 Difficulty</h3>
+                <div class="survey-question"><div class="survey-q-label"><span class="survey-q-num">6</span><span>Material difficulty:</span></div><div class="likert-scale"><span class="likert-label left">Very Easy</span><div class="likert-options"><label class="likert-option"><input type="radio" name="q6" value="1"><span>1</span></label><label class="likert-option"><input type="radio" name="q6" value="2"><span>2</span></label><label class="likert-option"><input type="radio" name="q6" value="3"><span>3</span></label><label class="likert-option"><input type="radio" name="q6" value="4"><span>4</span></label><label class="likert-option"><input type="radio" name="q6" value="5"><span>5</span></label></div><span class="likert-label right">Very Hard</span></div></div>
+                <div class="survey-question"><div class="survey-q-label"><span class="survey-q-num">7</span><span>Question difficulty:</span></div><div class="likert-scale"><span class="likert-label left">Very Easy</span><div class="likert-options"><label class="likert-option"><input type="radio" name="q7" value="1"><span>1</span></label><label class="likert-option"><input type="radio" name="q7" value="2"><span>2</span></label><label class="likert-option"><input type="radio" name="q7" value="3"><span>3</span></label><label class="likert-option"><input type="radio" name="q7" value="4"><span>4</span></label><label class="likert-option"><input type="radio" name="q7" value="5"><span>5</span></label></div><span class="likert-label right">Very Hard</span></div></div>
+                <div class="survey-question"><div class="survey-q-label"><span class="survey-q-num">8</span><span>Mental effort:</span></div><div class="likert-scale"><span class="likert-label left">Very Little</span><div class="likert-options"><label class="likert-option"><input type="radio" name="q8" value="1"><span>1</span></label><label class="likert-option"><input type="radio" name="q8" value="2"><span>2</span></label><label class="likert-option"><input type="radio" name="q8" value="3"><span>3</span></label><label class="likert-option"><input type="radio" name="q8" value="4"><span>4</span></label><label class="likert-option"><input type="radio" name="q8" value="5"><span>5</span></label></div><span class="likert-label right">Very Much</span></div></div>
+            </div>
+
+            <div class="survey-section">
+                <h3 class="survey-section-title">📖 Information Preferences</h3>
+                <div class="survey-question"><div class="survey-q-label"><span class="survey-q-num">9</span><span>Which panel did you rely on more?</span></div><div class="survey-options"><label class="survey-option"><input type="radio" name="q9" value="a"> Text (left)</label><label class="survey-option"><input type="radio" name="q9" value="b"> Visuals (center)</label><label class="survey-option"><input type="radio" name="q9" value="c"> Both equally</label><label class="survey-option"><input type="radio" name="q9" value="d"> Case details (right)</label></div></div>
+                <div class="survey-question"><div class="survey-q-label"><span class="survey-q-num">10</span><span>Which format helped understanding?</span></div><div class="survey-options"><label class="survey-option"><input type="radio" name="q10" value="a"> Text</label><label class="survey-option"><input type="radio" name="q10" value="b"> Visuals</label><label class="survey-option"><input type="radio" name="q10" value="c"> Both equally</label></div></div>
+                <div class="survey-question"><div class="survey-q-label"><span class="survey-q-num">11</span><span>I prefer learning through:</span></div><div class="likert-scale"><span class="likert-label left">Text</span><div class="likert-options"><label class="likert-option"><input type="radio" name="q11" value="1"><span>1</span></label><label class="likert-option"><input type="radio" name="q11" value="2"><span>2</span></label><label class="likert-option"><input type="radio" name="q11" value="3"><span>3</span></label><label class="likert-option"><input type="radio" name="q11" value="4"><span>4</span></label><label class="likert-option"><input type="radio" name="q11" value="5"><span>5</span></label></div><span class="likert-label right">Visuals</span></div></div>
+                <div class="survey-question"><div class="survey-q-label"><span class="survey-q-num">12</span><span>Notice similar info in both panels?</span></div><div class="survey-options"><label class="survey-option"><input type="radio" name="q12" value="a"> Yes, clearly</label><label class="survey-option"><input type="radio" name="q12" value="b"> Somewhat</label><label class="survey-option"><input type="radio" name="q12" value="c"> Seemed different</label><label class="survey-option"><input type="radio" name="q12" value="d"> Didn't notice</label></div></div>
+            </div>
+
+            <div class="survey-section">
+                <h3 class="survey-section-title">🧠 Decision Style</h3>
+                <div class="survey-question"><div class="survey-q-label"><span class="survey-q-num">13</span><span>Decisions: gut vs data</span></div><div class="likert-scale"><span class="likert-label left">Gut</span><div class="likert-options"><label class="likert-option"><input type="radio" name="q13" value="1"><span>1</span></label><label class="likert-option"><input type="radio" name="q13" value="2"><span>2</span></label><label class="likert-option"><input type="radio" name="q13" value="3"><span>3</span></label><label class="likert-option"><input type="radio" name="q13" value="4"><span>4</span></label><label class="likert-option"><input type="radio" name="q13" value="5"><span>5</span></label></div><span class="likert-label right">Data</span></div></div>
+                <div class="survey-question"><div class="survey-q-label"><span class="survey-q-num">14</span><span>OK with incomplete info</span></div><div class="likert-scale"><span class="likert-label left">Disagree</span><div class="likert-options"><label class="likert-option"><input type="radio" name="q14" value="1"><span>1</span></label><label class="likert-option"><input type="radio" name="q14" value="2"><span>2</span></label><label class="likert-option"><input type="radio" name="q14" value="3"><span>3</span></label><label class="likert-option"><input type="radio" name="q14" value="4"><span>4</span></label><label class="likert-option"><input type="radio" name="q14" value="5"><span>5</span></label></div><span class="likert-label right">Agree</span></div></div>
+                <div class="survey-question"><div class="survey-q-label"><span class="survey-q-num">15</span><span>Decision speed</span></div><div class="likert-scale"><span class="likert-label left">Quick</span><div class="likert-options"><label class="likert-option"><input type="radio" name="q15" value="1"><span>1</span></label><label class="likert-option"><input type="radio" name="q15" value="2"><span>2</span></label><label class="likert-option"><input type="radio" name="q15" value="3"><span>3</span></label><label class="likert-option"><input type="radio" name="q15" value="4"><span>4</span></label><label class="likert-option"><input type="radio" name="q15" value="5"><span>5</span></label></div><span class="likert-label right">Careful</span></div></div>
+                <div class="survey-question"><div class="survey-q-label"><span class="survey-q-num">16</span><span>Work alone vs with others</span></div><div class="likert-scale"><span class="likert-label left">Alone</span><div class="likert-options"><label class="likert-option"><input type="radio" name="q16" value="1"><span>1</span></label><label class="likert-option"><input type="radio" name="q16" value="2"><span>2</span></label><label class="likert-option"><input type="radio" name="q16" value="3"><span>3</span></label><label class="likert-option"><input type="radio" name="q16" value="4"><span>4</span></label><label class="likert-option"><input type="radio" name="q16" value="5"><span>5</span></label></div><span class="likert-label right">Others</span></div></div>
+            </div>
+
+            <div class="survey-section">
+                <h3 class="survey-section-title">💭 Experience</h3>
+                <div class="survey-question"><div class="survey-q-label"><span class="survey-q-num">17</span><span>Engagement level:</span></div><div class="likert-scale"><span class="likert-label left">Not at all</span><div class="likert-options"><label class="likert-option"><input type="radio" name="q17" value="1"><span>1</span></label><label class="likert-option"><input type="radio" name="q17" value="2"><span>2</span></label><label class="likert-option"><input type="radio" name="q17" value="3"><span>3</span></label><label class="likert-option"><input type="radio" name="q17" value="4"><span>4</span></label><label class="likert-option"><input type="radio" name="q17" value="5"><span>5</span></label></div><span class="likert-label right">Very</span></div></div>
+                <div class="survey-question"><div class="survey-q-label"><span class="survey-q-num">18</span><span>Confidence in answers:</span></div><div class="likert-scale"><span class="likert-label left">Not</span><div class="likert-options"><label class="likert-option"><input type="radio" name="q18" value="1"><span>1</span></label><label class="likert-option"><input type="radio" name="q18" value="2"><span>2</span></label><label class="likert-option"><input type="radio" name="q18" value="3"><span>3</span></label><label class="likert-option"><input type="radio" name="q18" value="4"><span>4</span></label><label class="likert-option"><input type="radio" name="q18" value="5"><span>5</span></label></div><span class="likert-label right">Very</span></div></div>
+                <div class="survey-question"><div class="survey-q-label"><span class="survey-q-num">19</span><span>Prior solar knowledge?</span></div><div class="survey-options"><label class="survey-option"><input type="radio" name="q19" value="a"> None</label><label class="survey-option"><input type="radio" name="q19" value="b"> A little</label><label class="survey-option"><input type="radio" name="q19" value="c"> Moderate</label><label class="survey-option"><input type="radio" name="q19" value="d"> A lot</label></div></div>
+            </div>
+
+            <div class="survey-section">
+                <h3 class="survey-section-title">👤 About You</h3>
+                <div class="survey-question"><div class="survey-q-label"><span class="survey-q-num">20</span><span>Age:</span></div><select class="survey-select" name="q20"><option value="">Select...</option><option value="18-24">18-24</option><option value="25-34">25-34</option><option value="35-44">35-44</option><option value="45+">45+</option></select></div>
+                <div class="survey-question"><div class="survey-q-label"><span class="survey-q-num">21</span><span>Gender:</span></div><div class="survey-options"><label class="survey-option"><input type="radio" name="q21" value="m"> Male</label><label class="survey-option"><input type="radio" name="q21" value="f"> Female</label><label class="survey-option"><input type="radio" name="q21" value="o"> Other</label></div></div>
+                <div class="survey-question"><div class="survey-q-label"><span class="survey-q-num">22</span><span>Field:</span></div><select class="survey-select" name="q22"><option value="">Select...</option><option value="stem">STEM</option><option value="business">Business</option><option value="humanities">Humanities</option><option value="arts">Arts</option><option value="health">Health</option><option value="other">Other</option></select></div>
+                <div class="survey-question"><div class="survey-q-label"><span class="survey-q-num">23</span><span>Education:</span></div><div class="survey-options"><label class="survey-option"><input type="radio" name="q23" value="hs"> High school</label><label class="survey-option"><input type="radio" name="q23" value="some"> Some college</label><label class="survey-option"><input type="radio" name="q23" value="ba"> Bachelor's</label><label class="survey-option"><input type="radio" name="q23" value="grad"> Graduate+</label></div></div>
+                <div class="survey-question"><div class="survey-q-label"><span class="survey-q-num">24</span><span>Math comfort:</span></div><div class="likert-scale"><span class="likert-label left">Low</span><div class="likert-options"><label class="likert-option"><input type="radio" name="q24" value="1"><span>1</span></label><label class="likert-option"><input type="radio" name="q24" value="2"><span>2</span></label><label class="likert-option"><input type="radio" name="q24" value="3"><span>3</span></label><label class="likert-option"><input type="radio" name="q24" value="4"><span>4</span></label><label class="likert-option"><input type="radio" name="q24" value="5"><span>5</span></label></div><span class="likert-label right">High</span></div></div>
+                <div class="survey-question"><div class="survey-q-label"><span class="survey-q-num">25</span><span>Comments (optional):</span></div><textarea class="survey-input" name="q25" rows="2" placeholder="Feedback..."></textarea></div>
+            </div>
+
+            <div class="survey-nav"><button class="survey-submit" onclick="submitSurvey()">Submit Survey</button></div>
+        </div>
+    </section>
+
+    <section class="screen" id="completion"><div class="completion-screen"><div class="completion-card"><div class="completion-icon">🎉</div><h2 class="completion-title">Thank You!</h2><p class="completion-message">Study complete. You may close this window.</p></div></div></section>
+
+    <script>
+        const responses = { demo: {}, 1: {}, 2: {}, 3: {}, 4: {}, 5: {} };
+        const surveyData = {};
+        const startTime = Date.now();
+
+        function showScreen(id) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
+            const map = { demo: 0, session1: 1, session2: 2, session3: 3, session4: 4, session5: 5 };
+            if (map[id] !== undefined) {
+                document.querySelectorAll('.progress-step').forEach((s, i) => {
+                    s.classList.remove('active', 'completed');
+                    if (i < map[id]) s.classList.add('completed');
+                    else if (i === map[id]) s.classList.add('active');
+                });
+            }
+            logEvent('screen_view', { screen: id });
+        }
+
+        function selectAnswer(el, session) {
+            el.parentElement.querySelectorAll('.answer-option').forEach(o => o.classList.remove('selected'));
+            el.classList.add('selected');
+            responses[session].answer = el.dataset.answer;
+            document.getElementById('submit' + session).disabled = false;
+            logEvent('answer_select', { session, answer: el.dataset.answer });
+        }
+
+        function checkCalculation(s) { responses[s].calculation = document.getElementById('calc' + s).value; }
+
+        function submitAnswer(session) {
+            responses[session].timestamp = Date.now() - startTime;
+            const btn = document.getElementById('submit' + session);
+            btn.textContent = '✓';
+            btn.disabled = true;
+            btn.style.background = '#4CAF50';
+            logEvent('answer_submit', { session, ...responses[session] });
+        }
+
+        function submitSurvey() {
+            for (let i = 1; i <= 25; i++) {
+                const el = document.querySelector(`[name="q${i}"]:checked`) || document.querySelector(`select[name="q${i}"]`) || document.querySelector(`textarea[name="q${i}"]`);
+                if (el) surveyData['q' + i] = el.value;
+            }
+            logEvent('survey_complete', { surveyData, responses, totalTime: Date.now() - startTime });
+            showScreen('completion');
+        }
+
+        function logEvent(type, data) {
+            const eventData = { type, ts: Date.now() - startTime, ...data };
+            console.log('EVENT:', eventData);
+            // Send to parent HCI collector if running in iframe
+            if (window.parent !== window) {
+                window.parent.postMessage({
+                    type: 'hci_experiment_event',
+                    data: eventData
+                }, '*');
+            }
+        }
+
+        document.querySelectorAll('.panel').forEach(p => {
+            let enter = null;
+            p.addEventListener('mouseenter', () => enter = Date.now());
+            p.addEventListener('mouseleave', () => { if (enter) { logEvent('panel_dwell', { aoi: p.dataset.aoi, duration: Date.now() - enter }); enter = null; } });
+        });
+
+        logEvent('module_start', {});
+    </script>
+</body>
+</html>

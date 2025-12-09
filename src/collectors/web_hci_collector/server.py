@@ -19,7 +19,7 @@ import time
 
 import numpy as np
 import pandas as pd
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, FileResponse
 import uvicorn
@@ -153,6 +153,81 @@ class WebHCICollectorServer:
                 return {"success": True, "filepath": str(filepath)}
             return {"success": False, "error": "Export failed"}
 
+        @self.app.post("/api/session/{session_id}/save-timeline")
+        async def save_timeline(session_id: str, request: Request):
+            """Save timeline data from dashboard."""
+            try:
+                data = await request.json()
+
+                session_dir = Path(self.config.output_dir) / session_id
+                session_dir.mkdir(parents=True, exist_ok=True)
+
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                timeline_path = session_dir / f"timeline_{timestamp}.json"
+
+                with open(timeline_path, 'w') as f:
+                    json.dump(data, f, indent=2)
+
+                print(f"[{datetime.now().strftime('%H:%M:%S')}] Timeline saved for session {session_id}")
+                return {"success": True, "filepath": str(timeline_path)}
+            except Exception as e:
+                print(f"Error saving timeline: {e}")
+                return {"success": False, "error": str(e)}
+
+        @self.app.post("/api/session/{session_id}/save-video")
+        async def save_video(session_id: str):
+            """Save video from request body."""
+            # Video is saved via the video chunks during collection
+            # This endpoint confirms the save location
+            session_dir = Path(self.config.output_dir) / session_id
+            video_path = session_dir / "recording.webm"
+            return {"success": True, "filepath": str(video_path)}
+
+        @self.app.get("/api/session/{session_id}/data")
+        async def get_session_data(session_id: str):
+            """Get all saved session data for replay in dashboard."""
+            session_dir = Path(self.config.output_dir) / session_id
+
+            if not session_dir.exists():
+                return {"success": False, "error": "Session data not found"}
+
+            result = {
+                "success": True,
+                "session_id": session_id,
+                "files": {}
+            }
+
+            # Find all data files
+            for file_path in session_dir.glob("*"):
+                if file_path.is_file():
+                    file_type = file_path.stem.split("_")[0]
+                    if file_path.suffix == ".json":
+                        try:
+                            with open(file_path, 'r') as f:
+                                result["files"][file_type] = json.load(f)
+                        except:
+                            pass
+                    elif file_path.suffix == ".csv":
+                        result["files"][f"{file_type}_csv"] = str(file_path)
+                    elif file_path.suffix == ".webm":
+                        result["files"]["video"] = f"/api/session/{session_id}/video"
+
+            return result
+
+        @self.app.get("/api/session/{session_id}/video")
+        async def get_session_video(session_id: str):
+            """Stream the session video file."""
+            session_dir = Path(self.config.output_dir) / session_id
+            video_path = session_dir / "recording.webm"
+
+            if video_path.exists():
+                return FileResponse(
+                    video_path,
+                    media_type="video/webm",
+                    filename=f"session_{session_id}_recording.webm"
+                )
+            return {"error": "Video not found"}
+
         @self.app.websocket("/ws/collect/{session_id}")
         async def websocket_collect(websocket: WebSocket, session_id: str):
             """WebSocket endpoint for data collection."""
@@ -220,6 +295,14 @@ class WebHCICollectorServer:
             data=payload
         )
 
+        # Handle video chunks - save to file
+        if data_type == "video_chunk" and payload.get("data"):
+            await self._save_video_chunk(session_id, payload)
+
+        # Handle session end - finalize video file
+        if data_type == "session" and payload.get("event") == "end":
+            await self._finalize_video(session_id)
+
         # Process face mesh for emotion detection
         if data_type == "face_mesh" and self.async_emotion_detector:
             # Get latest emotion prediction and broadcast
@@ -238,6 +321,36 @@ class WebHCICollectorServer:
                 )
                 # Broadcast to dashboard
                 await self._broadcast_to_dashboard(session_id, emotion_data)
+
+    async def _save_video_chunk(self, session_id: str, payload: Dict[str, Any]):
+        """Save video chunk to file."""
+        try:
+            session_dir = Path(self.config.output_dir) / session_id
+            session_dir.mkdir(parents=True, exist_ok=True)
+
+            video_path = session_dir / "recording.webm"
+
+            # Decode base64 video data
+            video_data = base64.b64decode(payload["data"])
+
+            # Append to video file
+            mode = 'ab' if video_path.exists() else 'wb'
+            with open(video_path, mode) as f:
+                f.write(video_data)
+
+            chunk_index = payload.get("chunkIndex", 0)
+            print(f"[{datetime.now().strftime('%H:%M:%S')}] Video chunk #{chunk_index + 1} saved for session {session_id}")
+        except Exception as e:
+            print(f"Error saving video chunk: {e}")
+
+    async def _finalize_video(self, session_id: str):
+        """Finalize video file after session ends."""
+        session_dir = Path(self.config.output_dir) / session_id
+        video_path = session_dir / "recording.webm"
+
+        if video_path.exists():
+            size_mb = video_path.stat().st_size / (1024 * 1024)
+            print(f"[{datetime.now().strftime('%H:%M:%S')}] Video finalized for session {session_id}: {size_mb:.2f} MB")
 
     async def _broadcast_to_dashboard(self, session_id: str, data: Dict[str, Any]):
         """Broadcast data to all connected dashboard clients."""

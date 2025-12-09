@@ -89,6 +89,22 @@
                     <button class="btn btn-secondary" id="export-btn" onclick="exportData()">Export Data</button>
                 </div>
             </div>
+
+            <!-- Load Session -->
+            <div class="panel">
+                <div class="panel-title">Load Session</div>
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                    <input type="text" id="load-session-id" placeholder="Enter Session ID..."
+                           style="padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--surface); color: var(--text-primary); font-size: 0.875rem;">
+                    <button class="btn btn-secondary" id="load-session-btn" onclick="loadSessionById()">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="margin-right: 6px;">
+                            <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
+                        </svg>
+                        Load Session
+                    </button>
+                    <div id="load-session-status" style="font-size: 0.75rem; color: var(--text-secondary); display: none;"></div>
+                </div>
+            </div>
         </aside>
 
         <!-- Main Content - Participant View with Tracking Overlays -->
@@ -176,11 +192,20 @@
                         <!-- Event markers will be added dynamically -->
                         <div class="timeline-markers" id="timeline-markers"></div>
                     </div>
-                    <!-- Mini charts -->
+                    <!-- Mini charts with labels -->
                     <div class="timeline-charts">
-                        <canvas id="timeline-engagement-chart" class="timeline-chart" title="Engagement"></canvas>
-                        <canvas id="timeline-gaze-chart" class="timeline-chart" title="Gaze Activity"></canvas>
-                        <canvas id="timeline-events-chart" class="timeline-chart" title="Events"></canvas>
+                        <div class="timeline-chart-wrapper">
+                            <span class="timeline-chart-label">Engagement</span>
+                            <canvas id="timeline-engagement-chart" class="timeline-chart" title="Engagement"></canvas>
+                        </div>
+                        <div class="timeline-chart-wrapper">
+                            <span class="timeline-chart-label">Gaze</span>
+                            <canvas id="timeline-gaze-chart" class="timeline-chart" title="Gaze Activity"></canvas>
+                        </div>
+                        <div class="timeline-chart-wrapper">
+                            <span class="timeline-chart-label">Events</span>
+                            <canvas id="timeline-events-chart" class="timeline-chart" title="Clicks &amp; Keys"></canvas>
+                        </div>
                     </div>
                     <!-- Timeline legend -->
                     <div class="timeline-legend">

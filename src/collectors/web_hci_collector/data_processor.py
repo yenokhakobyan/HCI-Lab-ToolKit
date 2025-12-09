@@ -24,6 +24,7 @@ class DataBuffer:
     emotion: List[Dict] = field(default_factory=list)
     mouse: List[Dict] = field(default_factory=list)
     keyboard: List[Dict] = field(default_factory=list)
+    experiment_event: List[Dict] = field(default_factory=list)
 
     def clear(self):
         self.gaze.clear()
@@ -31,6 +32,7 @@ class DataBuffer:
         self.emotion.clear()
         self.mouse.clear()
         self.keyboard.clear()
+        self.experiment_event.clear()
 
 
 class DataProcessor:
@@ -83,6 +85,8 @@ class DataProcessor:
                 buffer.mouse.append(record)
             elif data_type == "keyboard":
                 buffer.keyboard.append(record)
+            elif data_type == "experiment_event":
+                buffer.experiment_event.append(record)
 
     def get_session_data(self, session_id: str) -> Dict[str, List[Dict]]:
         """Get all data for a session."""
@@ -94,6 +98,7 @@ class DataProcessor:
                 "emotion": list(buffer.emotion),
                 "mouse": list(buffer.mouse),
                 "keyboard": list(buffer.keyboard),
+                "experiment_event": list(buffer.experiment_event),
             }
 
     def get_latest_data(self, session_id: str, n: int = 100) -> Dict[str, List[Dict]]:
