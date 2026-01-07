@@ -57,6 +57,20 @@ WebHCICollectorServer = server_globals["WebHCICollectorServer"]
 ServerConfig = server_globals["ServerConfig"]
 
 
+# =============================================================================
+# Default Configuration (can be overridden via environment variables)
+# =============================================================================
+DEFAULT_HOST = "0.0.0.0"
+DEFAULT_PORT = 8000
+DEFAULT_OUTPUT_DIR = "data/raw/web_hci"
+AUTO_START = True  # Set to True to auto-start server on load
+
+# SSL Certificate paths (set these for trusted HTTPS)
+# For Let's Encrypt: /etc/letsencrypt/live/yourdomain.com/
+SSL_CERTFILE = None  # e.g., "/etc/letsencrypt/live/yourdomain.com/fullchain.pem"
+SSL_KEYFILE = None   # e.g., "/etc/letsencrypt/live/yourdomain.com/privkey.pem"
+
+
 def find_free_port(start_port: int = 8000, max_attempts: int = 100) -> int:
     """Find a free port starting from start_port."""
     for port in range(start_port, start_port + max_attempts):
@@ -72,9 +86,41 @@ def is_port_in_use(port: int, host: str = "127.0.0.1") -> bool:
         return sock.connect_ex((host, port)) == 0
 
 
-def run_server_thread(server: WebHCICollectorServer):
+def run_server_thread(server):
     """Run the server in a background thread."""
     server.run(open_browser=False)
+
+
+def start_server(host, port, output_dir, use_ssl, enable_emotion, enable_l2cs,
+                 debug_mode, screen_width, screen_height,
+                 ssl_certfile=None, ssl_keyfile=None):
+    """Start the HCI collector server."""
+    config = ServerConfig(
+        host=host,
+        port=port,
+        output_dir=output_dir,
+        debug=debug_mode,
+        enable_emotion_detection=enable_emotion,
+        enable_l2cs_gaze=enable_l2cs,
+        ssl_enabled=use_ssl,
+        ssl_certfile=ssl_certfile,
+        ssl_keyfile=ssl_keyfile,
+        screen_width=screen_width,
+        screen_height=screen_height
+    )
+
+    server = WebHCICollectorServer(config)
+    server_thread = threading.Thread(
+        target=run_server_thread,
+        args=(server,),
+        daemon=True
+    )
+    server_thread.start()
+
+    # Wait for server to start
+    time.sleep(2)
+
+    return server, server_thread
 
 
 def main():
@@ -92,14 +138,30 @@ def main():
     st.sidebar.header("⚙️ Configuration")
 
     # Server settings
-    host = st.sidebar.text_input("Host", value="0.0.0.0", help="Use 0.0.0.0 to allow external connections")
-    port = st.sidebar.number_input("Port", min_value=1024, max_value=65535, value=8000)
+    host = st.sidebar.text_input("Host", value=DEFAULT_HOST, help="Use 0.0.0.0 to allow external connections")
+    port = st.sidebar.number_input("Port", min_value=1024, max_value=65535, value=DEFAULT_PORT)
 
     # SSL settings
     use_ssl = st.sidebar.checkbox("Enable HTTPS", value=True, help="Required for webcam access")
 
+    # Custom SSL certificates (for trusted HTTPS)
+    st.sidebar.subheader("SSL Certificates")
+    ssl_certfile = st.sidebar.text_input(
+        "SSL Certificate Path",
+        value=SSL_CERTFILE or "",
+        help="Path to fullchain.pem (leave empty for self-signed)"
+    )
+    ssl_keyfile = st.sidebar.text_input(
+        "SSL Key Path",
+        value=SSL_KEYFILE or "",
+        help="Path to privkey.pem (leave empty for self-signed)"
+    )
+    # Convert empty strings to None
+    ssl_certfile = ssl_certfile if ssl_certfile else None
+    ssl_keyfile = ssl_keyfile if ssl_keyfile else None
+
     # Output directory
-    output_dir = st.sidebar.text_input("Output Directory", value="data/raw/web_hci")
+    output_dir = st.sidebar.text_input("Output Directory", value=DEFAULT_OUTPUT_DIR)
 
     # Feature toggles
     st.sidebar.subheader("Features")
@@ -121,6 +183,40 @@ def main():
         st.session_state.server = None
     if 'server_port' not in st.session_state:
         st.session_state.server_port = None
+    if 'auto_started' not in st.session_state:
+        st.session_state.auto_started = False
+
+    # ==========================================================================
+    # AUTO-START: Start server automatically on first load
+    # ==========================================================================
+    if AUTO_START and not st.session_state.auto_started and not st.session_state.server_running:
+        st.session_state.auto_started = True
+
+        # Find available port if default is in use
+        actual_port = port
+        if is_port_in_use(port):
+            actual_port = find_free_port(port)
+
+        try:
+            server, server_thread = start_server(
+                host=host,
+                port=actual_port,
+                output_dir=output_dir,
+                use_ssl=use_ssl,
+                enable_emotion=enable_emotion,
+                enable_l2cs=enable_l2cs,
+                debug_mode=debug_mode,
+                screen_width=screen_width,
+                screen_height=screen_height,
+                ssl_certfile=ssl_certfile,
+                ssl_keyfile=ssl_keyfile
+            )
+            st.session_state.server_running = True
+            st.session_state.server = server
+            st.session_state.server_thread = server_thread
+            st.session_state.server_port = actual_port
+        except Exception as e:
+            st.error(f"Auto-start failed: {e}")
 
     # Main content area
     col1, col2 = st.columns([2, 1])
@@ -136,7 +232,6 @@ def main():
             st.success(f"✅ Server is running on port {actual_port}")
 
             protocol = "https" if use_ssl else "http"
-            base_url = f"{protocol}://{host}:{actual_port}"
 
             # Show URLs
             st.markdown("### 🔗 Access URLs")
@@ -166,6 +261,7 @@ def main():
                 st.session_state.server = None
                 st.session_state.server_thread = None
                 st.session_state.server_port = None
+                st.session_state.auto_started = False
                 st.warning("Server stop requested. You may need to restart the Streamlit app to fully stop the server.")
                 st.rerun()
         else:
@@ -176,33 +272,20 @@ def main():
                 if is_port_in_use(port):
                     st.error(f"Port {port} is already in use. Please choose a different port.")
                 else:
-                    # Create server configuration
-                    config = ServerConfig(
-                        host=host,
-                        port=port,
-                        output_dir=output_dir,
-                        debug=debug_mode,
-                        enable_emotion_detection=enable_emotion,
-                        enable_l2cs_gaze=enable_l2cs,
-                        ssl_enabled=use_ssl,
-                        screen_width=screen_width,
-                        screen_height=screen_height
-                    )
-
                     try:
-                        # Create and start server in background thread
-                        server = WebHCICollectorServer(config)
-                        server_thread = threading.Thread(
-                            target=run_server_thread,
-                            args=(server,),
-                            daemon=True
+                        server, server_thread = start_server(
+                            host=host,
+                            port=port,
+                            output_dir=output_dir,
+                            use_ssl=use_ssl,
+                            enable_emotion=enable_emotion,
+                            enable_l2cs=enable_l2cs,
+                            debug_mode=debug_mode,
+                            screen_width=screen_width,
+                            screen_height=screen_height,
+                            ssl_certfile=ssl_certfile,
+                            ssl_keyfile=ssl_keyfile
                         )
-                        server_thread.start()
-
-                        # Wait a moment for server to start
-                        time.sleep(2)
-
-                        # Update session state
                         st.session_state.server_running = True
                         st.session_state.server = server
                         st.session_state.server_thread = server_thread
