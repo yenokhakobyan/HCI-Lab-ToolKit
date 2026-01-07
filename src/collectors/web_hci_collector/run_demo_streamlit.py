@@ -21,10 +21,9 @@ from contextlib import closing
 
 import streamlit as st
 
-# Add parent directories to path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
-
-from src.collectors.web_hci_collector.server import WebHCICollectorServer, ServerConfig
+# Import directly from the local module to avoid loading other collectors
+# (e.g., TobiiCollector which requires the Tobii SDK)
+from server import WebHCICollectorServer, ServerConfig
 
 
 def find_free_port(start_port: int = 8000, max_attempts: int = 100) -> int:
