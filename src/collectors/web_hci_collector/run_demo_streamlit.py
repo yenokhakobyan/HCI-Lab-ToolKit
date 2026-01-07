@@ -21,9 +21,40 @@ from contextlib import closing
 
 import streamlit as st
 
-# Import directly from the local module to avoid loading other collectors
-# (e.g., TobiiCollector which requires the Tobii SDK)
-from server import WebHCICollectorServer, ServerConfig
+# Setup path to allow imports without triggering parent __init__.py
+web_hci_dir = Path(__file__).parent
+sys.path.insert(0, str(web_hci_dir))
+
+# Patch the module to allow relative imports within web_hci_collector
+import importlib.util
+
+def load_module_directly(name, file_path):
+    spec = importlib.util.spec_from_file_location(name, file_path)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
+    spec.loader.exec_module(module)
+    return module
+
+# Load dependencies first
+load_module_directly("session_manager", web_hci_dir / "session_manager.py")
+load_module_directly("data_processor", web_hci_dir / "data_processor.py")
+load_module_directly("emotion_detector", web_hci_dir / "emotion_detector.py")
+load_module_directly("gaze_estimator", web_hci_dir / "gaze_estimator.py")
+
+# Now load server with patched imports
+server_path = web_hci_dir / "server.py"
+server_code = server_path.read_text()
+server_code = server_code.replace("from .session_manager", "from session_manager")
+server_code = server_code.replace("from .data_processor", "from data_processor")
+server_code = server_code.replace("from .emotion_detector", "from emotion_detector")
+server_code = server_code.replace("from .gaze_estimator", "from gaze_estimator")
+
+# Execute modified server code
+server_globals = {"__name__": "server", "__file__": str(server_path)}
+exec(compile(server_code, server_path, "exec"), server_globals)
+
+WebHCICollectorServer = server_globals["WebHCICollectorServer"]
+ServerConfig = server_globals["ServerConfig"]
 
 
 def find_free_port(start_port: int = 8000, max_attempts: int = 100) -> int:
