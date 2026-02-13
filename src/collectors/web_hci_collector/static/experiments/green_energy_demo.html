@@ -944,6 +944,17 @@
             btn.disabled = true;
             btn.style.background = '#4CAF50';
             logEvent('answer_submit', { session, ...responses[session] });
+            // Send structured answer to parent HCI collector
+            if (window.parent !== window) {
+                window.parent.postMessage({
+                    type: 'hci_answer',
+                    data: {
+                        question_id: session,
+                        answer: responses[session],
+                        timestamp: Date.now() - startTime
+                    }
+                }, '*');
+            }
         }
 
         function submitSurvey() {
@@ -952,6 +963,17 @@
                 if (el) surveyData['q' + i] = el.value;
             }
             logEvent('survey_complete', { surveyData, responses, totalTime: Date.now() - startTime });
+            // Signal experiment completion to parent HCI collector
+            if (window.parent !== window) {
+                window.parent.postMessage({
+                    type: 'hci_experiment_complete',
+                    data: {
+                        surveyData,
+                        responses,
+                        totalTime: Date.now() - startTime
+                    }
+                }, '*');
+            }
             showScreen('completion');
         }
 

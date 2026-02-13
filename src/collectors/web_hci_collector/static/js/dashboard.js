@@ -25,8 +25,15 @@ let stats = {
     mouseEvents: 0,
     keyboardEvents: 0,
     clickCount: 0,
-    totalSamples: 0
+    totalSamples: 0,
+    answerCount: 0,
+    hoverEvents: 0
 };
+
+// Session management state
+let selectedSessionId = null;
+let sessionsList = [];
+let sessionsRefreshInterval = null;
 
 // Participant view state
 let participantScreenWidth = 1920;  // Default, updated from session data
@@ -158,6 +165,10 @@ function init() {
 
         // Show waiting state
         updateDashboardWaitingState();
+
+        // Start sessions list refresh
+        refreshSessionsList();
+        sessionsRefreshInterval = setInterval(refreshSessionsList, 5000);
     }
 
     // Start stats update loop
@@ -2243,6 +2254,14 @@ function connectWebSocket() {
 function handleIncomingData(data) {
     const { type, session_id } = data;
 
+    // Filter by selected session if one is selected
+    // Allow session_status and step_transition through always (for list updates)
+    if (selectedSessionId && session_id && session_id !== selectedSessionId) {
+        if (type !== 'session_status' && type !== 'step_transition') {
+            return;
+        }
+    }
+
     // Update session ID if needed
     if (session_id && sessionId !== session_id) {
         sessionId = session_id;
@@ -2283,6 +2302,18 @@ function handleIncomingData(data) {
             break;
         case 'session':
             handleSessionEvent(data.data);
+            break;
+        case 'answer':
+            handleAnswerData(data.data, data.session_id);
+            break;
+        case 'hover':
+            handleHoverData(data.data, data.session_id);
+            break;
+        case 'session_status':
+            handleSessionStatusUpdate(data.data, data.session_id);
+            break;
+        case 'step_transition':
+            handleStepTransition(data.data, data.session_id);
             break;
     }
 }
@@ -3195,6 +3226,234 @@ function resetLoadButton() {
         </svg>
         Load Session
     `;
+}
+
+// =============================================
+// Session Management Functions
+// =============================================
+
+/**
+ * Create a new participant session
+ */
+window.createNewSession = async function() {
+    const btn = document.getElementById('create-session-btn');
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Creating...';
+    }
+
+    try {
+        const response = await fetch('/api/sessions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                experiment_config: {
+                    content_url: '/static/experiments/green_energy_demo.html',
+                    experiment_name: 'HCI Study',
+                    require_calibration: true
+                }
+            })
+        });
+
+        const result = await response.json();
+
+        if (result.session_id) {
+            const participantUrl = result.participant_url;
+
+            // Show participant link
+            const linkContainer = document.getElementById('participant-link-container');
+            const linkInput = document.getElementById('participant-link-input');
+            if (linkContainer && linkInput) {
+                linkInput.value = participantUrl;
+                linkContainer.style.display = 'block';
+            }
+
+            addLogEntry('system', `Session created: ${result.session_id}`);
+            addLogEntry('system', `Participant URL: ${participantUrl}`);
+
+            // Refresh sessions list
+            refreshSessionsList();
+
+            // Auto-select the new session
+            selectSession(result.session_id);
+        }
+    } catch (error) {
+        console.error('Error creating session:', error);
+        addLogEntry('system', `Failed to create session: ${error.message}`);
+    }
+
+    if (btn) {
+        btn.disabled = false;
+        btn.textContent = '+ New Participant Session';
+    }
+};
+
+/**
+ * Copy participant link to clipboard
+ */
+window.copyParticipantLink = function() {
+    const linkInput = document.getElementById('participant-link-input');
+    if (!linkInput) return;
+
+    navigator.clipboard.writeText(linkInput.value).then(() => {
+        const status = document.getElementById('link-copy-status');
+        if (status) {
+            status.style.display = 'block';
+            setTimeout(() => { status.style.display = 'none'; }, 2000);
+        }
+    }).catch(() => {
+        // Fallback for older browsers
+        linkInput.select();
+        document.execCommand('copy');
+    });
+};
+
+/**
+ * Refresh the sessions list from server
+ */
+async function refreshSessionsList() {
+    try {
+        const response = await fetch('/api/sessions');
+        const result = await response.json();
+
+        if (result.sessions) {
+            sessionsList = result.sessions;
+            renderSessionsList();
+        }
+    } catch (error) {
+        // Silently fail on refresh errors
+        console.debug('Sessions refresh error:', error);
+    }
+}
+
+/**
+ * Render the sessions list in the sidebar
+ */
+function renderSessionsList() {
+    const container = document.getElementById('sessions-list');
+    const countEl = document.getElementById('sessions-count');
+    if (!container) return;
+
+    if (countEl) {
+        countEl.textContent = sessionsList.length;
+    }
+
+    if (sessionsList.length === 0) {
+        container.innerHTML = '<div style="font-size: 0.7rem; color: var(--text-secondary); text-align: center; padding: 8px;">No sessions yet</div>';
+        return;
+    }
+
+    // Sort: active sessions first, then by creation time (newest first)
+    const sorted = [...sessionsList].sort((a, b) => {
+        if (a.is_active && !b.is_active) return -1;
+        if (!a.is_active && b.is_active) return 1;
+        return new Date(b.created_at) - new Date(a.created_at);
+    });
+
+    container.innerHTML = sorted.map(session => {
+        const isSelected = session.session_id === selectedSessionId;
+        const createdAt = new Date(session.created_at);
+        const timeStr = createdAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+        return `
+            <div class="session-list-item ${isSelected ? 'selected' : ''}"
+                 onclick="selectSession('${session.session_id}')">
+                <span class="session-list-id">${session.session_id}</span>
+                <span class="session-list-status ${session.status}">${session.status}</span>
+                <span class="session-list-time">${timeStr}</span>
+            </div>
+        `;
+    }).join('');
+}
+
+/**
+ * Select a session to monitor in the dashboard
+ */
+window.selectSession = function(sid) {
+    selectedSessionId = sid;
+
+    // Update visual selection
+    renderSessionsList();
+
+    // Update session ID display in footer
+    document.getElementById('session-id').textContent = sid;
+
+    // Find session info
+    const session = sessionsList.find(s => s.session_id === sid);
+    if (session) {
+        addLogEntry('system', `Monitoring session: ${sid} (${session.status})`);
+
+        // Update URL display
+        const urlDisplay = document.getElementById('participant-url');
+        if (urlDisplay) {
+            if (session.experiment_config && session.experiment_config.content_url) {
+                urlDisplay.textContent = session.experiment_config.experiment_name || session.experiment_config.content_url;
+            } else {
+                urlDisplay.textContent = `Session: ${sid}`;
+            }
+        }
+    }
+
+    // If we also want to lock live data to this session, update sessionId
+    sessionId = sid;
+};
+
+/**
+ * Handle answer data from participant
+ */
+function handleAnswerData(data, sid) {
+    // Only process if monitoring this session or no specific selection
+    if (selectedSessionId && sid !== selectedSessionId) return;
+
+    stats.answerCount++;
+
+    const questionId = data.question_id || data.questionId || '?';
+    const answer = data.answer || data.selected_answer || '?';
+    addLogEntry('answer', `Q${questionId}: ${answer}`);
+
+    // Record to timeline
+    if (startTime) {
+        const time = Date.now() - startTime;
+        timelineData.events.push({ time, type: 'answer', data });
+        addTimelineMarker(time, 'click'); // Reuse click marker style
+    }
+}
+
+/**
+ * Handle hover data from participant
+ */
+function handleHoverData(data, sid) {
+    if (selectedSessionId && sid !== selectedSessionId) return;
+
+    stats.hoverEvents++;
+
+    if (data.event === 'enter') {
+        addLogEntry('hover', `Hover: ${data.aoi || data.element || 'element'}`);
+    }
+}
+
+/**
+ * Handle session status updates broadcast from server
+ */
+function handleSessionStatusUpdate(data, sid) {
+    const newStatus = data.status || data.new_status;
+    addLogEntry('session_status', `Session ${sid}: ${newStatus}`);
+
+    // Refresh the sessions list to reflect the change
+    refreshSessionsList();
+}
+
+/**
+ * Handle step transition events from participant
+ */
+function handleStepTransition(data, sid) {
+    if (selectedSessionId && sid !== selectedSessionId) return;
+
+    const step = data.step || data.to || '?';
+    addLogEntry('system', `Participant step: ${step}`);
+
+    // Refresh sessions list to update status
+    refreshSessionsList();
 }
 
 // Initialize on page load

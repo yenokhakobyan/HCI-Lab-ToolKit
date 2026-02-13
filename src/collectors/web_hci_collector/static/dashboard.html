@@ -80,13 +80,38 @@
                 </div>
             </div>
 
-            <!-- Controls -->
+            <!-- Session Management -->
             <div class="panel">
-                <div class="panel-title">Controls</div>
+                <div class="panel-title">Session Management</div>
                 <div style="display: flex; flex-direction: column; gap: 8px;">
-                    <button class="btn btn-primary" id="start-btn" onclick="startCollection()">Start Collection</button>
-                    <button class="btn btn-secondary" id="calibrate-btn" onclick="window.open('/calibration', '_blank')">Calibrate Gaze</button>
-                    <button class="btn btn-secondary" id="export-btn" onclick="exportData()">Export Data</button>
+                    <button class="btn btn-primary" id="create-session-btn" onclick="createNewSession()">+ New Participant Session</button>
+                    <div id="participant-link-container" style="display: none;">
+                        <label style="font-size: 0.65rem; color: var(--text-secondary); text-transform: uppercase;">Participant Link</label>
+                        <div style="display: flex; gap: 4px; margin-top: 4px;">
+                            <input type="text" id="participant-link-input" readonly class="participant-link-input">
+                            <button class="btn btn-secondary" onclick="copyParticipantLink()" title="Copy link" style="padding: 6px 8px; flex-shrink: 0;">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/>
+                                </svg>
+                            </button>
+                        </div>
+                        <div id="link-copy-status" style="font-size: 0.65rem; color: var(--success); display: none; margin-top: 2px;">Copied!</div>
+                    </div>
+                    <div style="display: flex; gap: 6px;">
+                        <button class="btn btn-secondary" id="start-btn" onclick="startCollection()" style="flex: 1;">Start Collection</button>
+                        <button class="btn btn-secondary" id="export-btn" onclick="exportData()" style="flex: 1;">Export Data</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Active Sessions -->
+            <div class="panel">
+                <div class="panel-title">
+                    Sessions
+                    <span id="sessions-count" style="font-weight: normal; color: var(--accent-light);">0</span>
+                </div>
+                <div id="sessions-list" class="sessions-list">
+                    <div style="font-size: 0.7rem; color: var(--text-secondary); text-align: center; padding: 8px;">No sessions yet</div>
                 </div>
             </div>
 
