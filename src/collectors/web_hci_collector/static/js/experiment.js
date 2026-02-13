@@ -9,14 +9,15 @@
  */
 
 // Session configuration
-const SESSION_ID = crypto.randomUUID().slice(0, 8);
+// Accept session_id from URL param ?session=xxx, fall back to random UUID
+const urlParams = new URLSearchParams(window.location.search);
+const SESSION_ID = urlParams.get('session') || crypto.randomUUID().slice(0, 8);
 // Use wss:// for HTTPS, ws:// for HTTP
 const WS_PROTOCOL = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
 const WS_URL = `${WS_PROTOCOL}//${window.location.host}/ws/collect/${SESSION_ID}`;
 
 // Content URL - can be set via URL parameter: ?content=https://example.com
 // For same-origin content (full mouse tracking), use: /static/experiments/your-file.html
-const urlParams = new URLSearchParams(window.location.search);
 const CONTENT_URL = urlParams.get('content') || '/static/experiments/green_energy_demo.html';
 
 // State

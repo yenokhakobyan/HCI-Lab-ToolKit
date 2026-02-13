@@ -24,7 +24,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, FileResponse
 import uvicorn
 
-from .session_manager import SessionManager, Session
+from .session_manager import SessionManager, Session, SessionStatus
 from .data_processor import DataProcessor
 from .emotion_detector import EmotionDetector, AsyncEmotionDetector
 from .gaze_estimator import L2CSGazeEstimator, AsyncGazeEstimator, create_gaze_estimator
@@ -72,6 +72,10 @@ class WebHCICollectorServer:
         # Initialize components
         self.session_manager = SessionManager()
         self.data_processor = DataProcessor(output_dir=self.config.output_dir)
+
+        # Start periodic data flush
+        if self.config.save_interval_seconds > 0:
+            self.data_processor.start_periodic_save(self.config.save_interval_seconds)
 
         # Initialize emotion detector
         if self.config.enable_emotion_detection:
@@ -155,13 +159,57 @@ class WebHCICollectorServer:
                 return FileResponse(html_path)
             return HTMLResponse("<h1>Dashboard</h1><p>Dashboard not found.</p>")
 
+        @self.app.get("/participate/{session_id}", response_class=HTMLResponse)
+        async def participate(session_id: str):
+            """Serve the participant page for a specific session."""
+            session = self.session_manager.get_session(session_id)
+            if not session:
+                return HTMLResponse(
+                    "<h1>Session not found</h1><p>This session ID is invalid or has expired.</p>",
+                    status_code=404,
+                )
+            if session.status == SessionStatus.COMPLETED:
+                return HTMLResponse(
+                    "<h1>Session completed</h1><p>This session has already been completed. Thank you!</p>"
+                )
+            html_path = Path(__file__).parent / "static" / "participate.html"
+            if html_path.exists():
+                return FileResponse(html_path)
+            return HTMLResponse("<h1>Participant page not found</h1>")
+
+        # --- Session API ---
+
         @self.app.get("/api/sessions")
-        async def get_sessions():
-            """Get all active sessions."""
+        async def get_sessions(active_only: bool = False):
+            """Get all sessions, optionally filtering to active ones."""
+            if active_only:
+                sessions = self.session_manager.get_active_sessions()
+            else:
+                sessions = self.session_manager.get_all_sessions()
+            return {"sessions": [s.to_dict() for s in sessions]}
+
+        @self.app.post("/api/sessions")
+        async def create_session(request: Request):
+            """Create a new participant session from the dashboard."""
+            body = await request.json()
+            participant_id = body.get("participant_id")
+            experiment_config = body.get("experiment_config", {})
+
+            session = self.session_manager.create_session_with_config(
+                participant_id=participant_id,
+                experiment_config=experiment_config,
+            )
+
+            # Derive URL from request Host header so it works across machines
+            protocol = "https" if self.config.ssl_enabled else "http"
+            host_header = request.headers.get("host", f"{self.config.host}:{self.config.port}")
+            participant_url = f"{protocol}://{host_header}/participate/{session.session_id}"
+
             return {
-                "sessions": [
-                    asdict(s) for s in self.session_manager.get_active_sessions()
-                ]
+                "session_id": session.session_id,
+                "participant_url": participant_url,
+                "status": session.status.value,
+                "created_at": session.created_at.isoformat(),
             }
 
         @self.app.get("/api/session/{session_id}")
@@ -169,8 +217,40 @@ class WebHCICollectorServer:
             """Get session details."""
             session = self.session_manager.get_session(session_id)
             if session:
-                return asdict(session)
+                return session.to_dict()
             return {"error": "Session not found"}
+
+        @self.app.get("/api/session/{session_id}/config")
+        async def get_session_config(session_id: str):
+            """Get experiment configuration for a session (used by participant page)."""
+            session = self.session_manager.get_session(session_id)
+            if not session:
+                return {"error": "Session not found"}
+            return {
+                "session_id": session.session_id,
+                "experiment_config": session.experiment_config,
+                "status": session.status.value,
+            }
+
+        @self.app.patch("/api/session/{session_id}/status")
+        async def update_session_status(session_id: str, request: Request):
+            """Update session status (state transitions)."""
+            body = await request.json()
+            new_status_str = body.get("status")
+            try:
+                new_status = SessionStatus(new_status_str)
+            except ValueError:
+                return {"success": False, "error": f"Invalid status: {new_status_str}"}
+
+            session = self.session_manager.transition_session(session_id, new_status)
+            if session:
+                # Broadcast status change to dashboard
+                await self._broadcast_to_dashboard(session_id, {
+                    "type": "session_status",
+                    "data": {"status": session.status.value, "session_id": session_id},
+                })
+                return {"success": True, "status": session.status.value}
+            return {"success": False, "error": "Invalid transition or session not found"}
 
         @self.app.post("/api/session/{session_id}/export")
         async def export_session(session_id: str, format: str = "csv"):
@@ -204,8 +284,6 @@ class WebHCICollectorServer:
         @self.app.post("/api/session/{session_id}/save-video")
         async def save_video(session_id: str):
             """Save video from request body."""
-            # Video is saved via the video chunks during collection
-            # This endpoint confirms the save location
             session_dir = Path(self.config.output_dir) / session_id
             video_path = session_dir / "recording.webm"
             return {"success": True, "filepath": str(video_path)}
@@ -255,6 +333,8 @@ class WebHCICollectorServer:
                 )
             return {"error": "Video not found"}
 
+        # --- WebSocket endpoints ---
+
         @self.app.websocket("/ws/collect/{session_id}")
         async def websocket_collect(websocket: WebSocket, session_id: str):
             """WebSocket endpoint for data collection."""
@@ -281,6 +361,13 @@ class WebHCICollectorServer:
                 print(f"[{datetime.now().strftime('%H:%M:%S')}] Client disconnected: {session_id}")
                 self.connected_clients.pop(session_id, None)
                 self.session_manager.end_session(session_id)
+                # Flush data to disk on disconnect
+                self.data_processor.flush_session_to_disk(session_id)
+                # Notify dashboard
+                await self._broadcast_to_dashboard(session_id, {
+                    "type": "session_status",
+                    "data": {"status": "abandoned", "session_id": session_id},
+                })
             except Exception as e:
                 print(f"WebSocket error: {e}")
                 self.connected_clients.pop(session_id, None)
@@ -314,6 +401,9 @@ class WebHCICollectorServer:
         timestamp = data.get("timestamp", datetime.now().timestamp() * 1000)
         payload = data.get("data", {})
 
+        # Update session counts
+        self.session_manager.update_session_counts(session_id, data_type)
+
         # Add to session data
         self.data_processor.add_data(
             session_id=session_id,
@@ -329,6 +419,27 @@ class WebHCICollectorServer:
         # Handle session end - finalize video file
         if data_type == "session" and payload.get("event") == "end":
             await self._finalize_video(session_id)
+
+        # Handle step transitions
+        if data_type == "step_transition":
+            step = payload.get("step")
+            status_map = {
+                "calibration": SessionStatus.CALIBRATING,
+                "content": SessionStatus.COLLECTING,
+                "complete": SessionStatus.COMPLETED,
+            }
+            new_status = status_map.get(step)
+            if new_status:
+                self.session_manager.transition_session(session_id, new_status)
+                await self._broadcast_to_dashboard(session_id, {
+                    "type": "session_status",
+                    "data": {"status": new_status.value, "session_id": session_id},
+                })
+
+        # Handle calibration complete
+        if data_type == "calibration_complete":
+            self.session_manager.set_calibrated(session_id, True)
+            self.session_manager.transition_session(session_id, SessionStatus.COLLECTING)
 
         # Process face mesh for emotion detection
         if data_type == "face_mesh" and self.async_emotion_detector:

@@ -4,6 +4,7 @@ Data Processor for Web HCI Collector
 Handles data storage, synchronization, and export.
 """
 
+import csv
 import json
 from datetime import datetime
 from pathlib import Path
@@ -20,12 +21,14 @@ import numpy as np
 class DataBuffer:
     """Buffer for storing session data."""
     gaze: List[Dict] = field(default_factory=list)
-    l2cs_gaze: List[Dict] = field(default_factory=list)  # L2CS server-side gaze estimation
+    l2cs_gaze: List[Dict] = field(default_factory=list)
     face_mesh: List[Dict] = field(default_factory=list)
     emotion: List[Dict] = field(default_factory=list)
     mouse: List[Dict] = field(default_factory=list)
     keyboard: List[Dict] = field(default_factory=list)
     experiment_event: List[Dict] = field(default_factory=list)
+    answer: List[Dict] = field(default_factory=list)
+    hover: List[Dict] = field(default_factory=list)
 
     def clear(self):
         self.gaze.clear()
@@ -35,6 +38,15 @@ class DataBuffer:
         self.mouse.clear()
         self.keyboard.clear()
         self.experiment_event.clear()
+        self.answer.clear()
+        self.hover.clear()
+
+
+# All data types stored in the buffer
+_DATA_TYPES = [
+    "gaze", "l2cs_gaze", "face_mesh", "emotion",
+    "mouse", "keyboard", "experiment_event", "answer", "hover",
+]
 
 
 class DataProcessor:
@@ -56,13 +68,18 @@ class DataProcessor:
         self.buffers: Dict[str, DataBuffer] = defaultdict(DataBuffer)
         self._lock = threading.Lock()
 
+        # Periodic save tracking
+        self._flush_indices: Dict[str, Dict[str, int]] = defaultdict(lambda: defaultdict(int))
+        self._save_timer: Optional[threading.Timer] = None
+        self._save_running = False
+
     def add_data(self, session_id: str, data_type: str, timestamp: float, data: Dict[str, Any]):
         """
         Add data to the buffer.
 
         Args:
             session_id: Session identifier
-            data_type: Type of data (gaze, face_mesh, emotion, mouse, keyboard)
+            data_type: Type of data (gaze, face_mesh, emotion, mouse, keyboard, answer, hover, etc.)
             timestamp: Client timestamp in milliseconds
             data: Data payload
         """
@@ -77,47 +94,21 @@ class DataProcessor:
             }
 
             # Add to appropriate buffer
-            if data_type == "gaze":
-                buffer.gaze.append(record)
-            elif data_type == "l2cs_gaze":
-                buffer.l2cs_gaze.append(record)
-            elif data_type == "face_mesh":
-                buffer.face_mesh.append(record)
-            elif data_type == "emotion":
-                buffer.emotion.append(record)
-            elif data_type == "mouse":
-                buffer.mouse.append(record)
-            elif data_type == "keyboard":
-                buffer.keyboard.append(record)
-            elif data_type == "experiment_event":
-                buffer.experiment_event.append(record)
+            buf_list = getattr(buffer, data_type, None)
+            if buf_list is not None:
+                buf_list.append(record)
 
     def get_session_data(self, session_id: str) -> Dict[str, List[Dict]]:
         """Get all data for a session."""
         with self._lock:
             buffer = self.buffers.get(session_id, DataBuffer())
-            return {
-                "gaze": list(buffer.gaze),
-                "l2cs_gaze": list(buffer.l2cs_gaze),
-                "face_mesh": list(buffer.face_mesh),
-                "emotion": list(buffer.emotion),
-                "mouse": list(buffer.mouse),
-                "keyboard": list(buffer.keyboard),
-                "experiment_event": list(buffer.experiment_event),
-            }
+            return {dt: list(getattr(buffer, dt)) for dt in _DATA_TYPES}
 
     def get_latest_data(self, session_id: str, n: int = 100) -> Dict[str, List[Dict]]:
         """Get the latest n records for each data type."""
         with self._lock:
             buffer = self.buffers.get(session_id, DataBuffer())
-            return {
-                "gaze": list(buffer.gaze[-n:]),
-                "l2cs_gaze": list(buffer.l2cs_gaze[-n:]),
-                "face_mesh": list(buffer.face_mesh[-n:]),
-                "emotion": list(buffer.emotion[-n:]),
-                "mouse": list(buffer.mouse[-n:]),
-                "keyboard": list(buffer.keyboard[-n:]),
-            }
+            return {dt: list(getattr(buffer, dt)[-n:]) for dt in _DATA_TYPES}
 
     def export_session(self, session_id: str, format: str = "csv") -> Optional[Path]:
         """
@@ -182,18 +173,11 @@ class DataProcessor:
         if not all_timestamps:
             return
 
-        # For now, just save metadata about the session
+        # Save metadata about the session
         metadata = {
             "session_id": session_id,
             "export_timestamp": timestamp,
-            "data_counts": {
-                "gaze": len(data["gaze"]),
-                "l2cs_gaze": len(data["l2cs_gaze"]),
-                "face_mesh": len(data["face_mesh"]),
-                "emotion": len(data["emotion"]),
-                "mouse": len(data["mouse"]),
-                "keyboard": len(data["keyboard"]),
-            },
+            "data_counts": {dt: len(data[dt]) for dt in _DATA_TYPES},
             "time_range": {
                 "start": min(all_timestamps) if all_timestamps else None,
                 "end": max(all_timestamps) if all_timestamps else None,
@@ -204,11 +188,112 @@ class DataProcessor:
         with open(metadata_path, "w") as f:
             json.dump(metadata, f, indent=2)
 
+    # --- Periodic auto-save ---
+
+    def start_periodic_save(self, interval_seconds: int = 30):
+        """Start a background thread that flushes buffers to disk periodically."""
+        if self._save_running:
+            return
+        self._save_running = True
+        self._schedule_save(interval_seconds)
+        print(f"Periodic data save started (every {interval_seconds}s)")
+
+    def stop_periodic_save(self):
+        """Stop the periodic save background thread."""
+        self._save_running = False
+        if self._save_timer:
+            self._save_timer.cancel()
+            self._save_timer = None
+
+    def _schedule_save(self, interval: int):
+        """Schedule the next save."""
+        if not self._save_running:
+            return
+        self._save_timer = threading.Timer(interval, self._periodic_save_tick, args=[interval])
+        self._save_timer.daemon = True
+        self._save_timer.start()
+
+    def _periodic_save_tick(self, interval: int):
+        """Execute one save tick, then reschedule."""
+        try:
+            with self._lock:
+                session_ids = list(self.buffers.keys())
+
+            for sid in session_ids:
+                self.flush_session_to_disk(sid)
+        except Exception as e:
+            print(f"Periodic save error: {e}")
+        finally:
+            self._schedule_save(interval)
+
+    def flush_session_to_disk(self, session_id: str):
+        """
+        Append new records (since last flush) to incremental CSV files on disk.
+
+        This does NOT clear the in-memory buffer — the buffer is still needed
+        for live dashboard streaming and final export.
+        """
+        session_dir = self.output_dir / session_id
+        session_dir.mkdir(parents=True, exist_ok=True)
+
+        with self._lock:
+            buffer = self.buffers.get(session_id)
+            if not buffer:
+                return
+
+            indices = self._flush_indices[session_id]
+
+            for data_type in _DATA_TYPES:
+                buf_list = getattr(buffer, data_type, [])
+                last_idx = indices[data_type]
+
+                if last_idx >= len(buf_list):
+                    continue
+
+                new_records = buf_list[last_idx:]
+                indices[data_type] = len(buf_list)
+
+                if not new_records:
+                    continue
+
+                filepath = session_dir / f"{data_type}_live.csv"
+                file_exists = filepath.exists()
+
+                try:
+                    # Flatten nested dicts for CSV (skip complex nested objects like landmarks)
+                    flat_records = []
+                    for rec in new_records:
+                        flat = {}
+                        for k, v in rec.items():
+                            if isinstance(v, (dict, list)):
+                                flat[k] = json.dumps(v)
+                            else:
+                                flat[k] = v
+                        flat_records.append(flat)
+
+                    if flat_records:
+                        fieldnames = list(flat_records[0].keys())
+                        # Collect all possible fieldnames from all records
+                        for rec in flat_records[1:]:
+                            for k in rec:
+                                if k not in fieldnames:
+                                    fieldnames.append(k)
+
+                        with open(filepath, "a", newline="") as f:
+                            writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
+                            if not file_exists:
+                                writer.writeheader()
+                            writer.writerows(flat_records)
+                except Exception as e:
+                    print(f"Flush error ({data_type} for {session_id}): {e}")
+
     def clear_session(self, session_id: str):
         """Clear all data for a session."""
         with self._lock:
             if session_id in self.buffers:
                 self.buffers[session_id].clear()
+            if session_id in self._flush_indices:
+                del self._flush_indices[session_id]
 
     def get_statistics(self, session_id: str) -> Dict[str, Any]:
         """Get statistics for a session."""
