@@ -148,9 +148,11 @@ function init() {
     // Setup canvases
     setupFaceCanvas();
     setupTrailCanvases();
+    heatmapRenderer.init();
 
     // Initialize timeline
     initTimeline();
+    initTimelineZoom();
 
     // Check if we're loading a saved session
     if (loadSessionId) {
@@ -433,6 +435,9 @@ function renderTrails() {
         }
     }
 
+    // Render heatmap overlay
+    heatmapRenderer.render();
+
     requestAnimationFrame(renderTrails);
 }
 
@@ -588,7 +593,10 @@ function updateTimelinePosition(clientX) {
     const x = clientX - rect.left;
     const ratio = Math.max(0, Math.min(1, x / rect.width));
 
-    timelinePlaybackTime = ratio * sessionDuration;
+    // Zoom-aware: convert pixel position to time
+    const visibleDuration = sessionDuration / timelineZoom;
+    timelinePlaybackTime = Math.max(0, Math.min(sessionDuration,
+        timelineScrollOffset + ratio * visibleDuration));
 
     // Update scrubber position
     updateTimelineScrubber();
@@ -606,13 +614,19 @@ function updateTimelineScrubber() {
     const currentTimeEl = document.getElementById('timeline-current-time');
 
     const currentTime = timelineMode === 'live' ? sessionDuration : timelinePlaybackTime;
-    const ratio = sessionDuration > 0 ? (currentTime / sessionDuration) * 100 : 0;
+
+    // Zoom-aware position calculation
+    const visibleDuration = sessionDuration / timelineZoom;
+    const zoomedRatio = visibleDuration > 0
+        ? ((currentTime - timelineScrollOffset) / visibleDuration) * 100
+        : 0;
+    const clampedRatio = Math.max(0, Math.min(100, zoomedRatio));
 
     if (progress) {
-        progress.style.width = `${ratio}%`;
+        progress.style.width = `${clampedRatio}%`;
     }
     if (scrubber) {
-        scrubber.style.left = `${ratio}%`;
+        scrubber.style.left = `${clampedRatio}%`;
     }
     if (currentTimeEl) {
         currentTimeEl.textContent = formatTime(currentTime);
@@ -744,6 +758,81 @@ function updateLiveButtonState() {
 }
 
 /**
+ * Playback speed control
+ */
+let playbackSpeed = 1;
+
+window.setPlaybackSpeed = function(speed, btn) {
+    playbackSpeed = speed;
+    document.querySelectorAll('.speed-btn').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    // Sync video element if present
+    if (videoElement) {
+        videoElement.playbackRate = speed;
+    }
+};
+
+/**
+ * Timeline zoom state and control
+ */
+let timelineZoom = 1;       // 1 = full view, 2 = half visible, etc.
+let timelineScrollOffset = 0; // ms offset for zoom panning
+
+function initTimelineZoom() {
+    const track = document.getElementById('timeline-track');
+    if (!track) return;
+    track.addEventListener('wheel', function(e) {
+        if (!e.ctrlKey && !e.metaKey) return;
+        e.preventDefault();
+        const oldZoom = timelineZoom;
+        if (e.deltaY < 0) {
+            timelineZoom = Math.min(16, timelineZoom * 1.5);
+        } else {
+            timelineZoom = Math.max(1, timelineZoom / 1.5);
+        }
+        // Adjust scroll offset to keep mouse position stable
+        const rect = track.getBoundingClientRect();
+        const mouseRatio = (e.clientX - rect.left) / rect.width;
+        const sessionDuration = getSessionDuration();
+        const oldVisibleDuration = sessionDuration / oldZoom;
+        const newVisibleDuration = sessionDuration / timelineZoom;
+        const mouseTimeOld = timelineScrollOffset + mouseRatio * oldVisibleDuration;
+        timelineScrollOffset = mouseTimeOld - mouseRatio * newVisibleDuration;
+        // Clamp
+        timelineScrollOffset = Math.max(0, Math.min(timelineScrollOffset, sessionDuration - newVisibleDuration));
+        if (timelineZoom <= 1.05) {
+            timelineZoom = 1;
+            timelineScrollOffset = 0;
+        }
+        // Update zoom indicator
+        const indicator = document.getElementById('timeline-zoom-indicator');
+        if (indicator) {
+            if (timelineZoom > 1.05) {
+                indicator.textContent = Math.round(timelineZoom * 10) / 10 + 'x zoom';
+                indicator.style.display = 'inline';
+            } else {
+                indicator.style.display = 'none';
+            }
+        }
+        updateTimelineScrubber();
+        renderTimelineCharts();
+    }, { passive: false });
+}
+
+function timeToPixelRatio(time, width) {
+    const sessionDuration = getSessionDuration();
+    if (sessionDuration <= 0) return 0;
+    const visibleDuration = sessionDuration / timelineZoom;
+    return ((time - timelineScrollOffset) / visibleDuration) * width;
+}
+
+function pixelToTime(px, width) {
+    const sessionDuration = getSessionDuration();
+    const visibleDuration = sessionDuration / timelineZoom;
+    return timelineScrollOffset + (px / width) * visibleDuration;
+}
+
+/**
  * Update timeline (called periodically)
  */
 function updateTimeline() {
@@ -774,7 +863,7 @@ function updateTimeline() {
 
     // Advance playback if playing
     if (timelineMode === 'playback' && timelineIsPlaying) {
-        timelinePlaybackTime += 50; // Add 50ms (update interval for smooth playback)
+        timelinePlaybackTime += 50 * playbackSpeed; // Add 50ms * speed
         if (timelinePlaybackTime >= sessionDuration) {
             // Reached end - pause at end for loaded sessions, jump to live for live sessions
             if (isLoadedSession) {
@@ -998,12 +1087,14 @@ function updateTimelineMarkers() {
     const sessionDuration = getSessionDuration();
     if (!markersContainer || sessionDuration <= 0) return;
 
+    const visibleDuration = sessionDuration / timelineZoom;
     const markers = markersContainer.querySelectorAll('.timeline-marker');
 
     markers.forEach(marker => {
         const time = parseInt(marker.dataset.time, 10);
-        const position = (time / sessionDuration) * 100;
+        const position = ((time - timelineScrollOffset) / visibleDuration) * 100;
         marker.style.left = `${position}%`;
+        marker.style.display = (position < -2 || position > 102) ? 'none' : '';
     });
 }
 
@@ -1072,17 +1163,24 @@ function renderEngagementChart(sessionDuration) {
 
     if (timelineData.engagement.length < 2) return;
 
+    const visibleStart = timelineScrollOffset;
+    const visibleDuration = sessionDuration / timelineZoom;
+    const tToX = (t) => ((t - visibleStart) / visibleDuration) * w;
+
     // Draw engagement line
     ctx.beginPath();
     ctx.strokeStyle = '#4ecca3';
     ctx.lineWidth = 2;
 
-    timelineData.engagement.forEach((point, i) => {
-        const x = (point.time / sessionDuration) * w;
+    let started = false;
+    timelineData.engagement.forEach((point) => {
+        const x = tToX(point.time);
+        if (x < -10 || x > w + 10) return;
         const y = h - (point.value * h);
 
-        if (i === 0) {
+        if (!started) {
             ctx.moveTo(x, y);
+            started = true;
         } else {
             ctx.lineTo(x, y);
         }
@@ -1091,8 +1189,10 @@ function renderEngagementChart(sessionDuration) {
     ctx.stroke();
 
     // Draw fill
-    ctx.lineTo((timelineData.engagement[timelineData.engagement.length - 1].time / sessionDuration) * w, h);
-    ctx.lineTo((timelineData.engagement[0].time / sessionDuration) * w, h);
+    const last = timelineData.engagement[timelineData.engagement.length - 1];
+    const first = timelineData.engagement[0];
+    ctx.lineTo(tToX(last.time), h);
+    ctx.lineTo(tToX(first.time), h);
     ctx.closePath();
     ctx.fillStyle = 'rgba(78, 204, 163, 0.2)';
     ctx.fill();
@@ -1115,13 +1215,19 @@ function renderGazeChart(sessionDuration) {
     ctx.fillStyle = 'rgba(15, 52, 96, 0.3)';
     ctx.fillRect(0, 0, w, h);
 
-    // Calculate gaze density in time buckets
+    // Zoom-aware visible window
+    const visibleStart = timelineScrollOffset;
+    const visibleDuration = sessionDuration / timelineZoom;
+
+    // Calculate gaze density in time buckets within visible window
     const bucketCount = Math.min(100, w);
-    const bucketWidth = sessionDuration / bucketCount;
+    const bucketWidth = visibleDuration / bucketCount;
     const buckets = new Array(bucketCount).fill(0);
 
     timelineData.gaze.forEach(point => {
-        const bucketIndex = Math.floor(point.time / bucketWidth);
+        const relTime = point.time - visibleStart;
+        if (relTime < 0 || relTime > visibleDuration) return;
+        const bucketIndex = Math.floor(relTime / bucketWidth);
         if (bucketIndex >= 0 && bucketIndex < bucketCount) {
             buckets[bucketIndex]++;
         }
@@ -1157,13 +1263,20 @@ function renderEventsChart(sessionDuration) {
     ctx.fillStyle = 'rgba(15, 52, 96, 0.3)';
     ctx.fillRect(0, 0, w, h);
 
+    // Zoom-aware visible window
+    const visibleStart = timelineScrollOffset;
+    const visibleDuration = sessionDuration / timelineZoom;
+    const tToX = (t) => ((t - visibleStart) / visibleDuration) * w;
+
     // Calculate mouse activity density in time buckets (bottom layer - subtle)
     const bucketCount = Math.min(50, w);
-    const bucketWidth = sessionDuration / bucketCount;
+    const bucketWidth = visibleDuration / bucketCount;
     const mouseBuckets = new Array(bucketCount).fill(0);
 
     timelineData.mouse.forEach(point => {
-        const bucketIndex = Math.floor(point.time / bucketWidth);
+        const relTime = point.time - visibleStart;
+        if (relTime < 0 || relTime > visibleDuration) return;
+        const bucketIndex = Math.floor(relTime / bucketWidth);
         if (bucketIndex >= 0 && bucketIndex < bucketCount) {
             mouseBuckets[bucketIndex]++;
         }
@@ -1184,7 +1297,8 @@ function renderEventsChart(sessionDuration) {
     // Draw click markers (middle layer)
     ctx.fillStyle = '#4ecca3';
     timelineData.clicks.forEach(click => {
-        const x = (click.time / sessionDuration) * w;
+        const x = tToX(click.time);
+        if (x < -5 || x > w + 5) return;
         ctx.beginPath();
         ctx.arc(x, h / 3, 4, 0, Math.PI * 2);
         ctx.fill();
@@ -1193,7 +1307,8 @@ function renderEventsChart(sessionDuration) {
     // Draw key markers (top layer)
     ctx.fillStyle = '#f39c12';
     timelineData.keys.forEach(key => {
-        const x = (key.time / sessionDuration) * w;
+        const x = tToX(key.time);
+        if (x < -5 || x > w + 5) return;
         ctx.beginPath();
         ctx.arc(x, (2 * h) / 3, 3, 0, Math.PI * 2);
         ctx.fill();
@@ -2533,6 +2648,9 @@ function handleGazeData(data) {
         gazeOverlay.style.left = `${normalizedX}px`;
         gazeOverlay.style.top = `${normalizedY}px`;
     }
+
+    // Feed heatmap
+    heatmapRenderer.addPoint(data.x / participantWindowWidth, data.y / participantWindowHeight, 1.0);
 }
 
 
@@ -2749,6 +2867,9 @@ function handleMouseData(data) {
         // Record click to timeline
         recordTimelineClick(data.x, data.y);
 
+        // Feed heatmap (clicks have higher weight)
+        heatmapRenderer.addPoint(data.x / participantWindowWidth, data.y / participantWindowHeight, 3.0);
+
         // Log click events
         addLogEntry('mouse', `Click at (${Math.round(data.x)}, ${Math.round(data.y)})`);
     }
@@ -2960,23 +3081,166 @@ async function saveTimelineData() {
 /**
  * Add entry to event log
  */
+let activeEventFilter = 'all';
+
 function addLogEntry(type, message) {
     const now = new Date();
     const timeStr = now.toLocaleTimeString();
 
     const entry = document.createElement('div');
     entry.className = 'event-item';
+    entry.setAttribute('data-type', type);
     entry.innerHTML = `
         <span class="event-time">${timeStr}</span>
         <span class="event-type ${type}">${type}</span>
         <span>${message}</span>
     `;
 
+    // Apply current filter
+    if (activeEventFilter !== 'all' && type !== activeEventFilter) {
+        entry.style.display = 'none';
+    }
+
     eventLog.insertBefore(entry, eventLog.firstChild);
 
     // Keep log size manageable
     while (eventLog.children.length > 100) {
         eventLog.removeChild(eventLog.lastChild);
+    }
+}
+
+/**
+ * Set event log filter
+ */
+window.setEventFilter = function(filter, btn) {
+    activeEventFilter = filter;
+
+    // Update button states
+    document.querySelectorAll('.event-filter-btn').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+
+    // Filter existing items
+    const items = eventLog.querySelectorAll('.event-item');
+    items.forEach(item => {
+        if (filter === 'all') {
+            item.style.display = '';
+        } else {
+            item.style.display = item.getAttribute('data-type') === filter ? '' : 'none';
+        }
+    });
+};
+
+/**
+ * Compute derived eye-tracking metrics using I-DT fixation detection
+ * Called every second from updateStats()
+ */
+let lastDerivedMetrics = { fixations: 0, meanFixDur: 0, saccades: 0, quality: -1 };
+let lastMetricsGazeCount = 0;
+
+function computeDerivedMetrics() {
+    const gazeData = timelineData.gaze;
+    if (gazeData.length < 3) return;
+
+    // Skip recomputation if no new gaze data
+    if (gazeData.length === lastMetricsGazeCount) {
+        applyDerivedMetrics(lastDerivedMetrics);
+        return;
+    }
+    lastMetricsGazeCount = gazeData.length;
+
+    // I-DT fixation detection
+    const DISPERSION_THRESHOLD = 100; // pixels
+    const MIN_DURATION = 100; // ms
+    const fixations = [];
+    let winStart = 0;
+
+    for (let winEnd = 1; winEnd < gazeData.length; winEnd++) {
+        // Compute dispersion (max - min for x and y)
+        let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+        for (let i = winStart; i <= winEnd; i++) {
+            const p = gazeData[i];
+            if (p.x < minX) minX = p.x;
+            if (p.x > maxX) maxX = p.x;
+            if (p.y < minY) minY = p.y;
+            if (p.y > maxY) maxY = p.y;
+        }
+        const dispersion = (maxX - minX) + (maxY - minY);
+
+        if (dispersion <= DISPERSION_THRESHOLD) {
+            // Window is within threshold — keep expanding
+            continue;
+        }
+
+        // Dispersion exceeded — check if accumulated window is a fixation
+        const duration = gazeData[winEnd - 1].time - gazeData[winStart].time;
+        if (duration >= MIN_DURATION) {
+            fixations.push({
+                startTime: gazeData[winStart].time,
+                endTime: gazeData[winEnd - 1].time,
+                duration: duration
+            });
+        }
+        // Move window start forward
+        winStart = winEnd;
+    }
+
+    // Check final window
+    if (gazeData.length > 1) {
+        const duration = gazeData[gazeData.length - 1].time - gazeData[winStart].time;
+        if (duration >= MIN_DURATION) {
+            let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+            for (let i = winStart; i < gazeData.length; i++) {
+                const p = gazeData[i];
+                if (p.x < minX) minX = p.x;
+                if (p.x > maxX) maxX = p.x;
+                if (p.y < minY) minY = p.y;
+                if (p.y > maxY) maxY = p.y;
+            }
+            if ((maxX - minX) + (maxY - minY) <= DISPERSION_THRESHOLD) {
+                fixations.push({
+                    startTime: gazeData[winStart].time,
+                    endTime: gazeData[gazeData.length - 1].time,
+                    duration: duration
+                });
+            }
+        }
+    }
+
+    // Compute metrics
+    const fixCount = fixations.length;
+    const meanFixDur = fixCount > 0
+        ? Math.round(fixations.reduce((s, f) => s + f.duration, 0) / fixCount)
+        : 0;
+    const saccadeCount = Math.max(0, fixCount - 1);
+
+    // Tracking quality: actual samples vs expected (~30 Hz)
+    let quality = -1;
+    const totalTimeMs = gazeData[gazeData.length - 1].time - gazeData[0].time;
+    if (totalTimeMs > 1000) {
+        const expectedSamples = (totalTimeMs / 1000) * 30;
+        quality = Math.min(100, Math.round((gazeData.length / expectedSamples) * 100));
+    }
+
+    lastDerivedMetrics = { fixations: fixCount, meanFixDur, saccades: saccadeCount, quality };
+    applyDerivedMetrics(lastDerivedMetrics);
+}
+
+function applyDerivedMetrics(m) {
+    const fixEl = document.getElementById('fixation-count');
+    const durEl = document.getElementById('mean-fixation-ms');
+    const sacEl = document.getElementById('saccade-count');
+    const qualEl = document.getElementById('tracking-quality');
+    if (fixEl) fixEl.textContent = m.fixations;
+    if (durEl) durEl.textContent = m.meanFixDur;
+    if (sacEl) sacEl.textContent = m.saccades;
+    if (qualEl) {
+        if (m.quality < 0) {
+            qualEl.textContent = '-';
+            qualEl.className = 'stat-value';
+        } else {
+            qualEl.textContent = m.quality + '%';
+            qualEl.className = 'stat-value ' + (m.quality >= 90 ? 'quality-good' : m.quality >= 70 ? 'quality-fair' : 'quality-poor');
+        }
     }
 }
 
@@ -3007,6 +3271,12 @@ function updateStats() {
     const seconds = elapsed % 60;
     document.getElementById('session-duration').textContent =
         `${minutes}:${seconds.toString().padStart(2, '0')}`;
+
+    // Update AOI panel
+    renderAoiPanel();
+
+    // Update derived eye-tracking metrics
+    computeDerivedMetrics();
 
     // Update gaze rate
     if (isLoadedSession && loadedSessionDuration > 0) {
@@ -3375,12 +3645,37 @@ function renderSessionsList() {
         const createdAt = new Date(session.created_at);
         const timeStr = createdAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
+        // Build sample info from available data
+        const sampleParts = [];
+        const gazeSamples = session.gaze_samples || session.data_counts?.gaze || 0;
+        const mouseEvents = session.mouse_events || session.data_counts?.mouse || 0;
+        const totalSamples = gazeSamples + mouseEvents;
+        if (totalSamples > 0) sampleParts.push(`${totalSamples} pts`);
+
+        // Duration
+        let durStr = '';
+        if (session.duration_ms) {
+            const sec = Math.floor(session.duration_ms / 1000);
+            durStr = `${Math.floor(sec / 60)}:${(sec % 60).toString().padStart(2, '0')}`;
+        } else if (session.ended_at && session.created_at) {
+            const sec = Math.floor((new Date(session.ended_at) - createdAt) / 1000);
+            if (sec > 0) durStr = `${Math.floor(sec / 60)}:${(sec % 60).toString().padStart(2, '0')}`;
+        }
+        if (durStr) sampleParts.push(durStr);
+
+        const infoLine = sampleParts.length > 0
+            ? `<div class="session-list-info">${sampleParts.join(' | ')}</div>`
+            : '';
+
         return `
             <div class="session-list-item ${isSelected ? 'selected' : ''}"
                  onclick="selectSession('${session.session_id}')">
-                <span class="session-list-id">${session.session_id}</span>
-                <span class="session-list-status ${session.status}">${session.status}</span>
-                <span class="session-list-time">${timeStr}</span>
+                <div class="session-list-row">
+                    <span class="session-list-id">${session.session_id}</span>
+                    <span class="session-list-status ${session.status}">${session.status}</span>
+                    <span class="session-list-time">${timeStr}</span>
+                </div>
+                ${infoLine}
             </div>
         `;
     }).join('');
@@ -3447,6 +3742,9 @@ function handleHoverData(data, sid) {
 
     stats.hoverEvents++;
 
+    // Track AOI dwell time
+    updateAoiDwell(data);
+
     if (data.event === 'enter') {
         addLogEntry('hover', `Hover: ${data.aoi || data.element || 'element'}`);
     }
@@ -3475,6 +3773,356 @@ function handleStepTransition(data, sid) {
     // Refresh sessions list to update status
     refreshSessionsList();
 }
+
+// =============================================
+// Heatmap Renderer
+// =============================================
+
+const heatmapRenderer = {
+    canvas: null,
+    ctx: null,
+    grid: null,
+    gridW: 100,
+    gridH: 75,
+    maxValue: 0,
+    enabled: false,
+
+    init() {
+        this.canvas = document.getElementById('heatmap-canvas');
+        if (!this.canvas) return;
+
+        const container = document.getElementById('participant-view-container');
+        if (container) {
+            const resize = () => {
+                this.canvas.width = container.clientWidth;
+                this.canvas.height = container.clientHeight;
+            };
+            resize();
+            window.addEventListener('resize', resize);
+        }
+
+        this.ctx = this.canvas.getContext('2d');
+        this.clear();
+    },
+
+    clear() {
+        this.grid = new Float32Array(this.gridW * this.gridH);
+        this.maxValue = 0;
+    },
+
+    addPoint(normX, normY, weight) {
+        if (!this.enabled) return;
+        const gx = Math.floor(normX * this.gridW);
+        const gy = Math.floor(normY * this.gridH);
+        if (gx < 0 || gx >= this.gridW || gy < 0 || gy >= this.gridH) return;
+
+        // Apply gaussian spread (3x3 kernel)
+        for (let dy = -1; dy <= 1; dy++) {
+            for (let dx = -1; dx <= 1; dx++) {
+                const nx = gx + dx;
+                const ny = gy + dy;
+                if (nx >= 0 && nx < this.gridW && ny >= 0 && ny < this.gridH) {
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    const falloff = dist === 0 ? 1 : 0.5;
+                    const idx = ny * this.gridW + nx;
+                    this.grid[idx] += weight * falloff;
+                    if (this.grid[idx] > this.maxValue) {
+                        this.maxValue = this.grid[idx];
+                    }
+                }
+            }
+        }
+    },
+
+    render() {
+        if (!this.ctx || !this.canvas || !this.enabled) return;
+        if (this.maxValue === 0) return;
+
+        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+
+        const cellW = this.canvas.width / this.gridW;
+        const cellH = this.canvas.height / this.gridH;
+
+        for (let y = 0; y < this.gridH; y++) {
+            for (let x = 0; x < this.gridW; x++) {
+                const val = this.grid[y * this.gridW + x];
+                if (val <= 0) continue;
+
+                const norm = val / this.maxValue;
+                const color = this._getHeatColor(norm);
+                this.ctx.fillStyle = color;
+                this.ctx.fillRect(x * cellW, y * cellH, cellW + 1, cellH + 1);
+            }
+        }
+    },
+
+    _getHeatColor(norm) {
+        // transparent -> blue -> cyan -> green -> yellow -> red
+        if (norm < 0.01) return 'transparent';
+        const alpha = Math.min(0.8, norm * 0.9 + 0.1);
+        let r, g, b;
+        if (norm < 0.25) {
+            const t = norm / 0.25;
+            r = 0; g = Math.round(t * 100); b = Math.round(150 + t * 105);
+        } else if (norm < 0.5) {
+            const t = (norm - 0.25) / 0.25;
+            r = 0; g = Math.round(100 + t * 155); b = Math.round(255 - t * 255);
+        } else if (norm < 0.75) {
+            const t = (norm - 0.5) / 0.25;
+            r = Math.round(t * 255); g = 255; b = 0;
+        } else {
+            const t = (norm - 0.75) / 0.25;
+            r = 255; g = Math.round(255 - t * 255); b = 0;
+        }
+        return `rgba(${r},${g},${b},${alpha})`;
+    },
+
+    rebuildFromTimeline(upToTime) {
+        this.clear();
+        if (!this.enabled) return;
+
+        const containerEl = document.getElementById('participant-view-container');
+        if (!containerEl) return;
+
+        for (const g of timelineData.gaze) {
+            if (g.time > upToTime) break;
+            const normX = g.x / participantWindowWidth;
+            const normY = g.y / participantWindowHeight;
+            this.addPoint(normX, normY, 1.0);
+        }
+        for (const c of timelineData.clicks) {
+            if (c.time > upToTime) break;
+            const normX = c.x / participantWindowWidth;
+            const normY = c.y / participantWindowHeight;
+            this.addPoint(normX, normY, 3.0);
+        }
+    }
+};
+
+// =============================================
+// Visualization Toolbar Controls
+// =============================================
+
+let vizMode = 'trail'; // 'trail', 'heatmap', 'both'
+
+window.setVizMode = function(mode) {
+    vizMode = mode;
+
+    // Update button states
+    document.querySelectorAll('.viz-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.mode === mode);
+    });
+
+    const heatmapCanvas = document.getElementById('heatmap-canvas');
+    const gazeTrail = document.getElementById('gaze-trail-canvas');
+    const mouseTrail = document.getElementById('mouse-trail-canvas');
+
+    if (mode === 'trail') {
+        heatmapRenderer.enabled = false;
+        if (heatmapCanvas) heatmapCanvas.style.display = 'none';
+        if (gazeTrail) gazeTrail.style.display = '';
+        if (mouseTrail) mouseTrail.style.display = '';
+    } else if (mode === 'heatmap') {
+        heatmapRenderer.enabled = true;
+        if (heatmapCanvas) heatmapCanvas.style.display = '';
+        if (gazeTrail) gazeTrail.style.display = 'none';
+        if (mouseTrail) mouseTrail.style.display = 'none';
+        // Rebuild heatmap from existing data
+        if (timelineMode === 'playback') {
+            heatmapRenderer.rebuildFromTimeline(timelinePlaybackTime);
+        }
+    } else { // both
+        heatmapRenderer.enabled = true;
+        if (heatmapCanvas) heatmapCanvas.style.display = '';
+        if (gazeTrail) gazeTrail.style.display = '';
+        if (mouseTrail) mouseTrail.style.display = '';
+        if (timelineMode === 'playback') {
+            heatmapRenderer.rebuildFromTimeline(timelinePlaybackTime);
+        }
+    }
+};
+
+window.toggleOverlayLayer = function(layer) {
+    if (layer === 'gaze') {
+        const checked = document.getElementById('show-gaze-overlay').checked;
+        const gazeOverlay = document.getElementById('gaze-point-overlay');
+        const gazeTrail = document.getElementById('gaze-trail-canvas');
+        if (gazeOverlay) gazeOverlay.style.display = checked ? '' : 'none';
+        if (gazeTrail && vizMode !== 'heatmap') gazeTrail.style.display = checked ? '' : 'none';
+    } else if (layer === 'mouse') {
+        const checked = document.getElementById('show-mouse-overlay').checked;
+        const mouseOverlay = document.getElementById('mouse-cursor-overlay');
+        const mouseTrail = document.getElementById('mouse-trail-canvas');
+        if (mouseOverlay) mouseOverlay.style.display = checked ? '' : 'none';
+        if (mouseTrail && vizMode !== 'heatmap') mouseTrail.style.display = checked ? '' : 'none';
+    } else if (layer === 'clicks') {
+        const checked = document.getElementById('show-clicks-overlay').checked;
+        const clickContainer = document.getElementById('click-ripple-container');
+        if (clickContainer) clickContainer.style.display = checked ? '' : 'none';
+    }
+};
+
+// =============================================
+// AOI Dwell Time Tracking
+// =============================================
+
+let aoiDwellMap = {};
+
+function updateAoiDwell(data) {
+    const name = data.aoi || data.element || 'unknown';
+
+    if (!aoiDwellMap[name]) {
+        aoiDwellMap[name] = { totalMs: 0, enterTime: null, visits: 0 };
+    }
+
+    if (data.event === 'enter') {
+        aoiDwellMap[name].enterTime = Date.now();
+        aoiDwellMap[name].visits++;
+    } else if (data.event === 'leave') {
+        if (data.dwell_time_ms) {
+            aoiDwellMap[name].totalMs += data.dwell_time_ms;
+        } else if (aoiDwellMap[name].enterTime) {
+            aoiDwellMap[name].totalMs += Date.now() - aoiDwellMap[name].enterTime;
+        }
+        aoiDwellMap[name].enterTime = null;
+    }
+}
+
+function renderAoiPanel() {
+    const container = document.getElementById('aoi-analysis');
+    if (!container) return;
+
+    const entries = Object.entries(aoiDwellMap).filter(([, v]) => v.totalMs > 0 || v.enterTime);
+    if (entries.length === 0) {
+        container.innerHTML = '<div class="aoi-empty">Collecting hover data...</div>';
+        return;
+    }
+
+    // Add current dwell for active hovers
+    const withCurrent = entries.map(([name, v]) => {
+        let total = v.totalMs;
+        if (v.enterTime) total += Date.now() - v.enterTime;
+        return { name, totalMs: total, visits: v.visits };
+    });
+
+    // Sort by total dwell time desc
+    withCurrent.sort((a, b) => b.totalMs - a.totalMs);
+    const maxMs = withCurrent[0].totalMs;
+
+    container.innerHTML = withCurrent.map(item => {
+        const pct = maxMs > 0 ? (item.totalMs / maxMs) * 100 : 0;
+        const timeStr = item.totalMs >= 1000
+            ? `${(item.totalMs / 1000).toFixed(1)}s`
+            : `${item.totalMs}ms`;
+
+        return `
+            <div class="aoi-bar-item">
+                <div class="aoi-bar-header">
+                    <span class="aoi-bar-name">${item.name}</span>
+                    <span class="aoi-bar-stats">${timeStr} / ${item.visits}x</span>
+                </div>
+                <div class="aoi-bar-track">
+                    <div class="aoi-bar-fill" style="width: ${pct}%"></div>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+// =============================================
+// Collapsible Panel Toggle
+// =============================================
+
+window.togglePanel = function(el) {
+    const panel = el.closest('.panel');
+    if (panel) {
+        panel.classList.toggle('collapsed');
+    }
+};
+
+// =============================================
+// Keyboard Shortcuts
+// =============================================
+
+window.toggleShortcutsOverlay = function() {
+    const overlay = document.getElementById('shortcuts-overlay');
+    if (overlay) {
+        overlay.style.display = overlay.style.display === 'none' ? 'flex' : 'none';
+    }
+};
+
+const SPEED_MAP = [0.25, 0.5, 1, 2, 4];
+
+document.addEventListener('keydown', function(e) {
+    // Skip when focus is in input or textarea
+    const tag = document.activeElement?.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+
+    // Close shortcuts overlay on Escape
+    if (e.key === 'Escape') {
+        const overlay = document.getElementById('shortcuts-overlay');
+        if (overlay && overlay.style.display !== 'none') {
+            overlay.style.display = 'none';
+            return;
+        }
+    }
+
+    switch (e.key) {
+        case ' ':
+            e.preventDefault();
+            toggleTimelinePlayback();
+            break;
+        case 'ArrowLeft':
+            e.preventDefault();
+            if (timelineMode === 'live') {
+                timelineMode = 'playback';
+                timelinePlaybackTime = getSessionDuration();
+                updateLiveButtonState();
+            }
+            timelinePlaybackTime = Math.max(0, timelinePlaybackTime - (e.shiftKey ? 5000 : 1000));
+            updateTimelineScrubber();
+            applyTimelineState();
+            break;
+        case 'ArrowRight':
+            e.preventDefault();
+            if (timelineMode === 'playback') {
+                const dur = getSessionDuration();
+                timelinePlaybackTime = Math.min(dur, timelinePlaybackTime + (e.shiftKey ? 5000 : 1000));
+                updateTimelineScrubber();
+                applyTimelineState();
+            }
+            break;
+        case 'l':
+        case 'L':
+            jumpToLive();
+            break;
+        case 'h':
+        case 'H':
+            // Toggle heatmap
+            if (typeof setVizMode === 'function') {
+                const newMode = vizMode === 'heatmap' ? 'trail' : 'heatmap';
+                setVizMode(newMode);
+                document.querySelectorAll('.viz-btn').forEach(b => {
+                    b.classList.toggle('active', b.dataset.mode === newMode);
+                });
+            }
+            break;
+        case '1': case '2': case '3': case '4': case '5': {
+            const idx = parseInt(e.key) - 1;
+            const speed = SPEED_MAP[idx];
+            const btn = document.querySelector(`.speed-btn[data-speed="${speed}"]`);
+            setPlaybackSpeed(speed, btn);
+            break;
+        }
+        case 'e':
+        case 'E':
+            if (typeof window.exportData === 'function') window.exportData();
+            break;
+        case '?':
+            toggleShortcutsOverlay();
+            break;
+    }
+});
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', init);

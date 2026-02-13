@@ -24,7 +24,7 @@
         <aside class="sidebar-left">
             <!-- Live Webcam Preview -->
             <div class="panel">
-                <div class="panel-title">Live Camera Feed</div>
+                <div class="panel-title">Live Camera Feed <span class="panel-toggle" onclick="togglePanel(this)">&#9660;</span></div>
                 <div class="video-container" style="position: relative;">
                     <video id="webcam-video" autoplay playsinline muted style="width: 100%; border-radius: 8px; transform: scaleX(-1);"></video>
                     <div id="camera-status" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: var(--text-secondary); font-size: 0.875rem;">
@@ -35,8 +35,8 @@
 
             <!-- Face Mesh Visualization -->
             <div class="panel">
-                <div class="panel-title">Face Mesh (468 landmarks)</div>
-                <div class="video-container">
+                <div class="panel-title">Face Mesh (468 landmarks) <span class="panel-toggle" onclick="togglePanel(this)">&#9660;</span></div>
+                <div class="face-mesh-container">
                     <canvas id="face-canvas"></canvas>
                 </div>
                 <div style="display: flex; justify-content: space-between; margin-top: 8px; font-size: 0.75rem; color: var(--text-secondary);">
@@ -47,7 +47,7 @@
 
             <!-- Cognitive States -->
             <div class="panel">
-                <div class="panel-title">Cognitive States</div>
+                <div class="panel-title">Cognitive States <span class="panel-toggle" onclick="togglePanel(this)">&#9660;</span></div>
                 <div class="emotion-bars">
                     <div class="emotion-bar">
                         <span class="emotion-label">Confusion</span>
@@ -82,7 +82,7 @@
 
             <!-- Session Management -->
             <div class="panel">
-                <div class="panel-title">Session Management</div>
+                <div class="panel-title">Session Management <span class="panel-toggle" onclick="togglePanel(this)">&#9660;</span></div>
                 <div style="display: flex; flex-direction: column; gap: 8px;">
                     <button class="btn btn-primary" id="create-session-btn" onclick="createNewSession()">+ New Participant Session</button>
                     <div id="participant-link-container" style="display: none;">
@@ -117,7 +117,7 @@
 
             <!-- Load Session -->
             <div class="panel">
-                <div class="panel-title">Load Session</div>
+                <div class="panel-title">Load Session <span class="panel-toggle" onclick="togglePanel(this)">&#9660;</span></div>
                 <div style="display: flex; flex-direction: column; gap: 8px;">
                     <input type="text" id="load-session-id" placeholder="Enter Session ID..."
                            style="padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--surface); color: var(--text-primary); font-size: 0.875rem;">
@@ -139,6 +139,16 @@
                 <div class="panel-title">
                     Participant View
                     <span id="participant-url" style="font-weight: normal; font-size: 0.7rem; margin-left: 10px; color: var(--text-secondary);">Waiting for session...</span>
+                </div>
+                <!-- Visualization Toolbar -->
+                <div class="viz-toolbar" id="viz-toolbar">
+                    <button class="viz-btn active" data-mode="trail" onclick="setVizMode('trail')">Trail</button>
+                    <button class="viz-btn" data-mode="heatmap" onclick="setVizMode('heatmap')">Heatmap</button>
+                    <button class="viz-btn" data-mode="both" onclick="setVizMode('both')">Both</button>
+                    <span class="viz-separator"></span>
+                    <label class="viz-toggle"><input type="checkbox" id="show-gaze-overlay" checked onchange="toggleOverlayLayer('gaze')"> Gaze</label>
+                    <label class="viz-toggle"><input type="checkbox" id="show-mouse-overlay" checked onchange="toggleOverlayLayer('mouse')"> Mouse</label>
+                    <label class="viz-toggle"><input type="checkbox" id="show-clicks-overlay" checked onchange="toggleOverlayLayer('clicks')"> Clicks</label>
                 </div>
                 <div class="participant-view-container" id="participant-view-container">
                     <!-- Iframe showing participant's page -->
@@ -162,6 +172,9 @@
 
                     <!-- Mouse trail canvas -->
                     <canvas id="mouse-trail-canvas"></canvas>
+
+                    <!-- Heatmap canvas -->
+                    <canvas id="heatmap-canvas"></canvas>
                 </div>
             </div>
 
@@ -207,6 +220,14 @@
                         <span class="timeline-time" id="timeline-current-time">0:00</span>
                         <span class="timeline-separator">/</span>
                         <span class="timeline-time" id="timeline-total-time">0:00</span>
+                        <div class="speed-control">
+                            <button class="speed-btn" data-speed="0.25" onclick="setPlaybackSpeed(0.25, this)">0.25x</button>
+                            <button class="speed-btn" data-speed="0.5" onclick="setPlaybackSpeed(0.5, this)">0.5x</button>
+                            <button class="speed-btn active" data-speed="1" onclick="setPlaybackSpeed(1, this)">1x</button>
+                            <button class="speed-btn" data-speed="2" onclick="setPlaybackSpeed(2, this)">2x</button>
+                            <button class="speed-btn" data-speed="4" onclick="setPlaybackSpeed(4, this)">4x</button>
+                        </div>
+                        <span class="timeline-zoom-indicator" id="timeline-zoom-indicator" style="display:none;">1x</span>
                     </div>
                 </div>
                 <div class="timeline-container">
@@ -269,10 +290,10 @@
                 </div>
             </div>
 
-            <!-- Gaze Position -->
+            <!-- Metrics & Position -->
             <div class="panel">
-                <div class="panel-title">Current Position</div>
-                <div class="stats-grid">
+                <div class="panel-title">Metrics & Position <span class="panel-toggle" onclick="togglePanel(this)">&#9660;</span></div>
+                <div class="stats-grid" style="grid-template-columns: 1fr 1fr 1fr 1fr;">
                     <div class="stat-item">
                         <div class="stat-value" id="gaze-x">-</div>
                         <div class="stat-label">Gaze X</div>
@@ -290,11 +311,47 @@
                         <div class="stat-label">Mouse Y</div>
                     </div>
                 </div>
+                <div class="stats-grid" style="margin-top: 6px;">
+                    <div class="stat-item">
+                        <div class="stat-value" id="fixation-count">0</div>
+                        <div class="stat-label">Fixations</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="mean-fixation-ms">0</div>
+                        <div class="stat-label">Fix Dur</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="saccade-count">0</div>
+                        <div class="stat-label">Saccades</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="tracking-quality">-</div>
+                        <div class="stat-label">Quality</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- AOI Dwell Time -->
+            <div class="panel">
+                <div class="panel-title">AOI Dwell Time <span class="panel-toggle" onclick="togglePanel(this)">&#9660;</span></div>
+                <div id="aoi-analysis" class="aoi-container">
+                    <div class="aoi-empty">Collecting hover data...</div>
+                </div>
             </div>
 
             <!-- Event Log -->
             <div class="panel" style="flex: 1;">
-                <div class="panel-title">Event Log</div>
+                <div class="panel-title">
+                    Event Log
+                    <div class="event-filter-bar">
+                        <button class="event-filter-btn active" data-filter="all" onclick="setEventFilter('all', this)">All</button>
+                        <button class="event-filter-btn" data-filter="system" onclick="setEventFilter('system', this)">Sys</button>
+                        <button class="event-filter-btn" data-filter="mouse" onclick="setEventFilter('mouse', this)">Mouse</button>
+                        <button class="event-filter-btn" data-filter="keyboard" onclick="setEventFilter('keyboard', this)">Key</button>
+                        <button class="event-filter-btn" data-filter="answer" onclick="setEventFilter('answer', this)">Ans</button>
+                        <button class="event-filter-btn" data-filter="gaze" onclick="setEventFilter('gaze', this)">Gaze</button>
+                    </div>
+                </div>
                 <div class="event-log" id="event-log">
                     <div class="event-item">
                         <span class="event-time">--:--:--</span>
@@ -315,6 +372,29 @@
                 <span style="color: var(--text-secondary);">WebGazer + MediaPipe + DenseAttNet</span>
             </div>
         </footer>
+    </div>
+
+    <!-- Keyboard shortcuts overlay -->
+    <div id="shortcuts-overlay" class="shortcuts-overlay" style="display:none;">
+        <div class="shortcuts-dialog">
+            <div class="shortcuts-title">Keyboard Shortcuts <span class="shortcuts-close" onclick="toggleShortcutsOverlay()">&times;</span></div>
+            <div class="shortcuts-grid">
+                <kbd>Space</kbd><span>Play / Pause</span>
+                <kbd>&larr;</kbd><span>Step back 1s</span>
+                <kbd>&rarr;</kbd><span>Step forward 1s</span>
+                <kbd>Shift+&larr;</kbd><span>Step back 5s</span>
+                <kbd>Shift+&rarr;</kbd><span>Step forward 5s</span>
+                <kbd>L</kbd><span>Jump to Live</span>
+                <kbd>H</kbd><span>Toggle Heatmap</span>
+                <kbd>1</kbd><span>Speed 0.25x</span>
+                <kbd>2</kbd><span>Speed 0.5x</span>
+                <kbd>3</kbd><span>Speed 1x</span>
+                <kbd>4</kbd><span>Speed 2x</span>
+                <kbd>5</kbd><span>Speed 4x</span>
+                <kbd>E</kbd><span>Export data</span>
+                <kbd>?</kbd><span>Show shortcuts</span>
+            </div>
+        </div>
     </div>
 
     <!-- Scripts -->
