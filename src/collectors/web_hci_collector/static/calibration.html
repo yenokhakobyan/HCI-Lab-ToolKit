@@ -178,10 +178,13 @@
                 webgazer.showFaceOverlay(false);
                 webgazer.showFaceFeedbackBox(false);
 
-                // Get video element for our preview
+                // Use WebGazer's own video feed for our preview instead of opening
+                // a second getUserMedia stream (which locks the camera system-wide on macOS)
+                const wgVideo = document.getElementById('webgazerVideoFeed');
                 const video = document.getElementById('webcam-video');
-                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-                video.srcObject = stream;
+                if (wgVideo && wgVideo.srcObject) {
+                    video.srcObject = wgVideo.srcObject;
+                }
 
                 document.getElementById('instruction').textContent = 'WebGazer ready. Click "Start" to begin.';
             } catch (e) {
@@ -267,15 +270,34 @@
             });
         }
 
+        function releaseCamera() {
+            // Stop WebGazer and its camera stream
+            try { webgazer.end(); } catch (e) {}
+
+            // Stop any stream on the preview video
+            const video = document.getElementById('webcam-video');
+            if (video && video.srcObject) {
+                video.srcObject.getTracks().forEach(track => track.stop());
+                video.srcObject = null;
+            }
+        }
+
         function finishCalibration() {
             // Store calibration status
             localStorage.setItem('webgazer_calibrated', 'true');
             localStorage.setItem('webgazer_calibrated_at', new Date().toISOString());
 
+            // Release camera before navigating away
+            releaseCamera();
+
             // Return to experiment or dashboard
             const returnUrl = new URLSearchParams(window.location.search).get('return') || '/';
             window.location.href = returnUrl;
         }
+
+        // Ensure camera is released if user closes/navigates away without clicking Done
+        window.addEventListener('beforeunload', releaseCamera);
+        window.addEventListener('pagehide', releaseCamera);
     </script>
 </body>
 </html>

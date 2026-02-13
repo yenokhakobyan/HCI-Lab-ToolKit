@@ -104,12 +104,23 @@ class WebHCICollectorServer:
         # Background task for emotion detection broadcasting
         self._emotion_broadcast_task = None
 
-        # Setup routes
+        # Setup routes and lifecycle
         self._setup_routes()
         self._setup_static_files()
+        self._setup_shutdown()
 
         # Output directory
         Path(self.config.output_dir).mkdir(parents=True, exist_ok=True)
+
+    def _setup_shutdown(self):
+        """Register shutdown handler to release camera and background resources."""
+        @self.app.on_event("shutdown")
+        async def shutdown():
+            if self.async_emotion_detector:
+                self.async_emotion_detector.stop()
+            if self.gaze_estimator:
+                self.gaze_estimator.stop()
+            print("Background processors stopped.")
 
     def _setup_static_files(self):
         """Mount static files directory."""

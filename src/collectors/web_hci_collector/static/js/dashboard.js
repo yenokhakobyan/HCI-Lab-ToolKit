@@ -1787,6 +1787,10 @@ async function initWebcam() {
         // Initialize MediaPipe Face Mesh for local real-time tracking
         await initLocalFaceMesh();
 
+        // Open a single getUserMedia stream for both video preview and FaceMesh.
+        // Do NOT open a second stream via MediaPipe Camera utility — dual streams
+        // corrupt the camera daemon on macOS (VDCAssistant) and lock the camera
+        // system-wide on Windows/Linux.
         const stream = await navigator.mediaDevices.getUserMedia({
             video: {
                 width: { ideal: 640 },
@@ -1803,7 +1807,8 @@ async function initWebcam() {
             }
             console.log('Dashboard webcam initialized');
 
-            // Start local face mesh processing after video is ready
+            // Start local face mesh processing using the same video element
+            // (no second Camera stream)
             startLocalFaceMesh(video);
         };
     } catch (error) {
@@ -1855,18 +1860,24 @@ function startLocalFaceMesh(videoElement) {
 
     localFaceMeshActive = true;
 
-    // Use Camera utility from MediaPipe for smooth frame processing
-    const camera = new Camera(videoElement, {
-        onFrame: async () => {
-            if (localFaceMeshActive && faceMesh) {
-                await faceMesh.send({ image: videoElement });
-            }
-        },
-        width: 640,
-        height: 480
-    });
+    // Process frames via requestAnimationFrame using the existing getUserMedia
+    // stream instead of opening a second stream via MediaPipe Camera utility.
+    let processing = false;
+    async function processFrame() {
+        if (!localFaceMeshActive || !faceMesh) return;
 
-    camera.start();
+        if (!processing && videoElement.readyState >= 2) {
+            processing = true;
+            try {
+                await faceMesh.send({ image: videoElement });
+            } catch (e) {
+                // Frame processing error, skip
+            }
+            processing = false;
+        }
+        requestAnimationFrame(processFrame);
+    }
+    requestAnimationFrame(processFrame);
     console.log('Local face mesh processing started');
 }
 
@@ -3196,6 +3207,15 @@ function resetLoadButton() {
         Load Session
     `;
 }
+
+// Ensure camera is released when page unloads or navigates away
+window.addEventListener('beforeunload', () => {
+    const video = document.getElementById('webcam-video');
+    if (video && video.srcObject) {
+        video.srcObject.getTracks().forEach(track => track.stop());
+        video.srcObject = null;
+    }
+});
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', init);

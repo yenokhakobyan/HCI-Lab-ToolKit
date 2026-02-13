@@ -186,6 +186,9 @@ async function initWebGazer() {
 
 /**
  * Initialize MediaPipe Face Mesh
+ *
+ * Reuses the webcam stream already acquired by WebGazer instead of opening
+ * a second getUserMedia stream, which can cause camera conflicts on macOS.
  */
 async function initFaceMesh() {
     try {
@@ -204,25 +207,16 @@ async function initFaceMesh() {
 
         faceMesh.onResults(onFaceMeshResults);
 
-        // Get video element and start camera (hidden)
-        const videoElement = document.getElementById('webcam-video');
+        // Reuse the video element that WebGazer already populates with a camera stream.
+        // WebGazer creates its own <video> with id "webgazerVideoFeed".
+        // We wait briefly for it to be ready, then tap into it for FaceMesh + L2CS.
+        const videoElement = await waitForWebGazerVideo();
 
-        camera = new Camera(videoElement, {
-            onFrame: async () => {
-                if (isCollecting) {
-                    await faceMesh.send({ image: videoElement });
-
-                    // Send frame to server for L2CS gaze estimation
-                    if (L2CS_ENABLED) {
-                        sendL2CSFrame(videoElement);
-                    }
-                }
-            },
-            width: 640,
-            height: 480
-        });
-
-        await camera.start();
+        if (!videoElement) {
+            console.error('Could not get WebGazer video element — falling back to separate camera');
+            await initFaceMeshWithOwnCamera();
+            return;
+        }
 
         // Initialize L2CS canvas for frame capture
         if (L2CS_ENABLED) {
@@ -233,11 +227,98 @@ async function initFaceMesh() {
             console.log('L2CS frame capture initialized');
         }
 
-        console.log('MediaPipe Face Mesh initialized');
+        // Start a processing loop that sends frames to FaceMesh + L2CS
+        // using the shared WebGazer video stream
+        startFaceMeshLoop(videoElement);
+
+        console.log('MediaPipe Face Mesh initialized (sharing WebGazer camera)');
 
     } catch (error) {
         console.error('Face Mesh initialization error:', error);
     }
+}
+
+/**
+ * Wait for WebGazer to create its video element and start streaming.
+ * Returns the video element, or null on timeout.
+ */
+function waitForWebGazerVideo(timeoutMs = 5000) {
+    return new Promise((resolve) => {
+        const start = Date.now();
+        const check = () => {
+            const video = document.getElementById('webgazerVideoFeed');
+            if (video && video.srcObject && video.readyState >= 2) {
+                resolve(video);
+                return;
+            }
+            if (Date.now() - start > timeoutMs) {
+                console.warn('Timed out waiting for WebGazer video feed');
+                resolve(null);
+                return;
+            }
+            requestAnimationFrame(check);
+        };
+        check();
+    });
+}
+
+/**
+ * Processing loop that feeds the shared WebGazer video into FaceMesh + L2CS.
+ */
+function startFaceMeshLoop(videoElement) {
+    let processing = false;
+
+    async function processFrame() {
+        if (!faceMesh) return;
+
+        if (isCollecting && !processing && videoElement.readyState >= 2) {
+            processing = true;
+            try {
+                await faceMesh.send({ image: videoElement });
+
+                if (L2CS_ENABLED) {
+                    sendL2CSFrame(videoElement);
+                }
+            } catch (e) {
+                // Frame processing error, skip
+            }
+            processing = false;
+        }
+        requestAnimationFrame(processFrame);
+    }
+    requestAnimationFrame(processFrame);
+}
+
+/**
+ * Fallback: open a separate camera if WebGazer video is unavailable.
+ */
+async function initFaceMeshWithOwnCamera() {
+    const videoElement = document.getElementById('webcam-video');
+
+    camera = new Camera(videoElement, {
+        onFrame: async () => {
+            if (isCollecting) {
+                await faceMesh.send({ image: videoElement });
+
+                if (L2CS_ENABLED) {
+                    sendL2CSFrame(videoElement);
+                }
+            }
+        },
+        width: 640,
+        height: 480
+    });
+
+    await camera.start();
+
+    if (L2CS_ENABLED) {
+        l2csCanvas = document.createElement('canvas');
+        l2csCanvas.width = 640;
+        l2csCanvas.height = 480;
+        l2csCtx = l2csCanvas.getContext('2d');
+    }
+
+    console.log('MediaPipe Face Mesh initialized (own camera — fallback)');
 }
 
 /**
@@ -837,7 +918,16 @@ window.endExperiment = async function() {
         console.error('Export error:', error);
     }
 
-    // Stop WebGazer
+    // Stop FaceMesh processing loop
+    faceMesh = null;
+
+    // Stop MediaPipe camera if using fallback
+    if (camera) {
+        camera.stop();
+        camera = null;
+    }
+
+    // Stop WebGazer (releases the shared camera stream)
     webgazer.end();
 
     // Show completion message briefly then redirect to dashboard
@@ -1077,6 +1167,38 @@ function stopScreenRecordingAsync() {
         mediaRecorder.stop();
     });
 }
+
+/**
+ * Release all camera/media resources.
+ * Called on page unload to ensure the webcam is freed.
+ */
+function releaseAllMedia() {
+    // Stop FaceMesh processing loop
+    faceMesh = null;
+
+    // Stop MediaPipe camera if using fallback
+    if (camera) {
+        try { camera.stop(); } catch (e) {}
+        camera = null;
+    }
+
+    // Stop WebGazer (releases the shared camera stream)
+    try { webgazer.end(); } catch (e) {}
+
+    // Stop screen recording stream
+    if (screenStream) {
+        screenStream.getTracks().forEach(track => track.stop());
+        screenStream = null;
+    }
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+        try { mediaRecorder.stop(); } catch (e) {}
+        mediaRecorder = null;
+    }
+}
+
+// Ensure camera is released when page unloads or navigates away
+window.addEventListener('beforeunload', releaseAllMedia);
+window.addEventListener('pagehide', releaseAllMedia);
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', init);
