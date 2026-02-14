@@ -40,7 +40,7 @@ let l2csCanvas = null;
 let l2csCtx = null;
 let lastL2CSFrameTime = 0;
 const L2CS_FRAME_INTERVAL = 100; // Send frame every 100ms (~10Hz) for L2CS processing
-const L2CS_ENABLED = true; // Enable L2CS server-side gaze estimation
+const L2CS_ENABLED = false; // L2CS server-side gaze estimation (optional, default off)
 
 // DOM Elements
 const connectionStatus = document.getElementById('connection-status');

@@ -1902,174 +1902,8 @@ function resetTimelineData() {
     jumpToLive();
 }
 
-/**
- * Initialize webcam preview and local face mesh for dashboard
- */
-async function initWebcam() {
-    const video = document.getElementById('webcam-video');
-    const cameraStatus = document.getElementById('camera-status');
-
-    try {
-        // Initialize MediaPipe Face Mesh for local real-time tracking
-        await initLocalFaceMesh();
-
-        const stream = await navigator.mediaDevices.getUserMedia({
-            video: {
-                width: { ideal: 640 },
-                height: { ideal: 480 },
-                facingMode: 'user'
-            }
-        });
-
-        video.srcObject = stream;
-        video.onloadedmetadata = () => {
-            video.play();
-            if (cameraStatus) {
-                cameraStatus.style.display = 'none';
-            }
-            console.log('Dashboard webcam initialized');
-
-            // Start local face mesh processing after video is ready
-            startLocalFaceMesh(video);
-        };
-    } catch (error) {
-        console.error('Dashboard webcam error:', error);
-        if (cameraStatus) {
-            cameraStatus.textContent = 'Camera unavailable';
-            cameraStatus.style.color = 'var(--error)';
-        }
-    }
-}
-
-/**
- * Initialize MediaPipe Face Mesh for local real-time tracking
- */
-async function initLocalFaceMesh() {
-    try {
-        faceMesh = new FaceMesh({
-            locateFile: (file) => {
-                return `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`;
-            }
-        });
-
-        faceMesh.setOptions({
-            maxNumFaces: 1,
-            refineLandmarks: true,  // Includes iris landmarks (468 + 10 = 478 total)
-            minDetectionConfidence: 0.5,
-            minTrackingConfidence: 0.5
-        });
-
-        faceMesh.onResults(onLocalFaceMeshResults);
-
-        console.log('Local MediaPipe Face Mesh initialized');
-        addLogEntry('system', 'Face mesh ready');
-
-    } catch (error) {
-        console.error('Local Face Mesh initialization error:', error);
-        addLogEntry('system', 'Face mesh init failed');
-    }
-}
-
-/**
- * Start local face mesh processing loop
- */
-function startLocalFaceMesh(videoElement) {
-    if (!faceMesh) {
-        console.warn('Face mesh not initialized');
-        return;
-    }
-
-    localFaceMeshActive = true;
-
-    // Use Camera utility from MediaPipe for smooth frame processing
-    const camera = new Camera(videoElement, {
-        onFrame: async () => {
-            if (localFaceMeshActive && faceMesh) {
-                await faceMesh.send({ image: videoElement });
-            }
-        },
-        width: 640,
-        height: 480
-    });
-
-    camera.start();
-    console.log('Local face mesh processing started');
-}
-
-/**
- * Handle local Face Mesh results - processes all 468 landmarks in real-time
- */
-function onLocalFaceMeshResults(results) {
-    if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
-        const landmarks = results.multiFaceLandmarks[0];
-
-        // Key landmark indices:
-        // 1: Nose tip, 33/133: Left eye corners, 263/362: Right eye corners
-        // 61/291: Mouth corners, 10: Forehead center, 152: Chin
-
-        const noseTip = landmarks[1];
-        const leftEyeInner = landmarks[33];
-        const leftEyeOuter = landmarks[133];
-        const rightEyeInner = landmarks[263];
-        const rightEyeOuter = landmarks[362];
-        const forehead = landmarks[10];
-        const chin = landmarks[152];
-
-        // Calculate eye centers
-        const leftEyeCenter = {
-            x: (leftEyeInner.x + leftEyeOuter.x) / 2,
-            y: (leftEyeInner.y + leftEyeOuter.y) / 2,
-            z: (leftEyeInner.z + leftEyeOuter.z) / 2
-        };
-
-        const rightEyeCenter = {
-            x: (rightEyeInner.x + rightEyeOuter.x) / 2,
-            y: (rightEyeInner.y + rightEyeOuter.y) / 2,
-            z: (rightEyeInner.z + rightEyeOuter.z) / 2
-        };
-
-        const eyeCenter = {
-            x: (leftEyeCenter.x + rightEyeCenter.x) / 2,
-            y: (leftEyeCenter.y + rightEyeCenter.y) / 2,
-            z: (leftEyeCenter.z + rightEyeCenter.z) / 2
-        };
-
-        // Calculate head pose
-        const headPose = {
-            pitch: (noseTip.y - eyeCenter.y) * 100,
-            yaw: (noseTip.x - eyeCenter.x) * 100,
-            roll: (leftEyeCenter.y - rightEyeCenter.y) * 100
-        };
-
-        // Update latestLandmarks for rendering (same format as experiment page)
-        latestLandmarks = {
-            landmarks: landmarks.map(l => ({ x: l.x, y: l.y, z: l.z })),
-            landmark_count: landmarks.length,
-            key_points: {
-                nose_tip: { x: noseTip.x, y: noseTip.y, z: noseTip.z },
-                left_eye_center: leftEyeCenter,
-                right_eye_center: rightEyeCenter,
-                eye_center: eyeCenter,
-                forehead: { x: forehead.x, y: forehead.y, z: forehead.z },
-                chin: { x: chin.x, y: chin.y, z: chin.z }
-            },
-            head_pose: headPose
-        };
-
-        // Estimate cognitive states from facial features
-        estimateCognitiveStates(landmarks, headPose);
-
-        // Update stats (local tracking)
-        stats.faceSamples++;
-        stats.totalSamples++;
-
-        // Update UI
-        document.getElementById('landmark-count').textContent = landmarks.length;
-        const pitch = headPose.pitch.toFixed(1);
-        const yaw = headPose.yaw.toFixed(1);
-        document.getElementById('head-pose').textContent = `P:${pitch} Y:${yaw}`;
-    }
-}
+// Local webcam/face mesh removed — participant's camera frames and face mesh
+// landmarks are received via WebSocket from the participant page
 
 /**
  * Estimate cognitive states from facial landmarks
@@ -2386,10 +2220,14 @@ function handleIncomingData(data) {
 
     switch (type) {
         case 'gaze':
+        case 'l2cs_gaze':
             handleGazeData(data.data);
             break;
         case 'face_mesh':
             handleFaceMeshData(data.data);
+            break;
+        case 'webcam_frame':
+            handleWebcamFrame(data.data);
             break;
         case 'emotion':
             handleEmotionData(data.data);
@@ -2934,11 +2772,6 @@ async function handleSessionEvent(data) {
         isCollecting = true;
         addLogEntry('system', 'Session started');
 
-        // Start live tracking when a session starts (if not already started)
-        if (!isLiveTrackingStarted && !isLoadedSession) {
-            startLiveTracking();
-        }
-
         // Update participant screen dimensions
         if (data.screenWidth) participantScreenWidth = data.screenWidth;
         if (data.screenHeight) participantScreenHeight = data.screenHeight;
@@ -2983,9 +2816,6 @@ async function handleSessionEvent(data) {
     } else if (data.event === 'end') {
         isCollecting = false;
         addLogEntry('system', 'Session ended');
-
-        // Stop live tracking completely
-        stopLiveTracking();
 
         // Save timeline data to server
         await saveTimelineData();
@@ -3281,71 +3111,24 @@ function updateStats() {
 }
 
 /**
- * Start data collection (from dashboard)
+ * Handle participant webcam frame (received via WebSocket)
  */
-window.startCollection = function() {
-    // Start live tracking if not already started
-    if (!isLiveTrackingStarted && !isLoadedSession) {
-        startLiveTracking();
-    }
-
-    // Open experiment page in new tab
-    window.open('/', '_blank');
-    addLogEntry('system', 'Experiment page opened');
-};
-
-/**
- * Start live tracking (webcam and face mesh)
- */
-function startLiveTracking() {
-    if (isLiveTrackingStarted) return;
-
-    isLiveTrackingStarted = true;
-    addLogEntry('system', 'Starting live tracking...');
-
-    // Initialize webcam preview
-    initWebcam();
-
-    // Update UI state
-    const startBtn = document.getElementById('start-btn');
-    if (startBtn) {
-        startBtn.textContent = 'Session Active';
-        startBtn.classList.remove('btn-primary');
-        startBtn.classList.add('btn-success');
-    }
-}
-
-/**
- * Stop live tracking
- */
-function stopLiveTracking() {
-    isLiveTrackingStarted = false;
-    localFaceMeshActive = false;
-    isCollecting = false;
-
-    // Stop webcam
-    const video = document.getElementById('webcam-video');
-    if (video && video.srcObject) {
-        video.srcObject.getTracks().forEach(track => track.stop());
-        video.srcObject = null;
-    }
-
-    // Update UI state
-    const startBtn = document.getElementById('start-btn');
-    if (startBtn) {
-        startBtn.textContent = 'Start Collection';
-        startBtn.classList.remove('btn-success');
-        startBtn.classList.add('btn-primary');
-    }
-
+function handleWebcamFrame(data) {
+    const canvas = document.getElementById('participant-webcam-canvas');
     const cameraStatus = document.getElementById('camera-status');
-    if (cameraStatus) {
-        cameraStatus.textContent = 'Session ended';
-        cameraStatus.style.display = 'block';
-        cameraStatus.style.color = 'var(--text-secondary)';
-    }
+    if (!canvas || !data.frame) return;
 
-    addLogEntry('system', 'Live tracking stopped');
+    const ctx = canvas.getContext('2d');
+    const img = new Image();
+    img.onload = function() {
+        if (canvas.width !== img.width || canvas.height !== img.height) {
+            canvas.width = img.width;
+            canvas.height = img.height;
+        }
+        ctx.drawImage(img, 0, 0);
+        if (cameraStatus) cameraStatus.style.display = 'none';
+    };
+    img.src = data.frame;
 }
 
 /**
