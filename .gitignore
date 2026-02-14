@@ -10,10 +10,7 @@ env/
 ENV/
 
 # Data files (keep structure, ignore data)
-data/raw/**/*.csv
-data/raw/**/*.json
-data/raw/**/*.edf
-data/raw/**/*.xdf
+data/raw/
 data/processed/**/*.csv
 data/processed/**/*.parquet
 data/processed/**/*.h5
