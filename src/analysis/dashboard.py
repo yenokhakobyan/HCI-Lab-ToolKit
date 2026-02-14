@@ -1448,14 +1448,15 @@ def create_facial_features_timeline(emotion_analysis: Dict) -> go.Figure:
 # Comparative Analysis Functions
 # =============================================================================
 
-def compare_sessions(sessions_data: Dict[str, Dict]) -> pd.DataFrame:
+def compare_sessions(sessions_data: Dict[str, Dict], gaze_key: str = "gaze") -> pd.DataFrame:
     """Compare metrics across multiple sessions."""
     comparison = []
 
     for session_id, data in sessions_data.items():
+        gaze = data.get(gaze_key) or data.get('gaze')
         metrics = {
             'session_id': session_id,
-            'gaze_points': len(data['gaze']) if data['gaze'] is not None else 0,
+            'gaze_points': len(gaze) if gaze is not None else 0,
             'mouse_events': len(data['mouse']) if data['mouse'] is not None else 0,
             'duration_ms': 0,
             'clicks': 0,
@@ -1468,9 +1469,9 @@ def compare_sessions(sessions_data: Dict[str, Dict]) -> pd.DataFrame:
             time_range = data['metadata'].get('time_range', {})
             metrics['duration_ms'] = time_range.get('end', 0) - time_range.get('start', 0)
 
-        if data['gaze'] is not None and not data['gaze'].empty:
-            metrics['avg_gaze_x'] = data['gaze']['x'].mean()
-            metrics['avg_gaze_y'] = data['gaze']['y'].mean()
+        if gaze is not None and not gaze.empty:
+            metrics['avg_gaze_x'] = gaze['x'].mean()
+            metrics['avg_gaze_y'] = gaze['y'].mean()
 
         if data['mouse'] is not None and not data['mouse'].empty:
             if 'event' in data['mouse'].columns:
@@ -1513,13 +1514,14 @@ def create_comparison_charts(comparison_df: pd.DataFrame) -> List[go.Figure]:
 
 
 def create_aggregate_heatmap(sessions_data: Dict[str, Dict], width: int = 1920,
-                            height: int = 1080) -> go.Figure:
+                            height: int = 1080, gaze_key: str = "gaze") -> go.Figure:
     """Create aggregate heatmap from multiple sessions."""
     all_gaze = []
 
     for session_id, data in sessions_data.items():
-        if data['gaze'] is not None and not data['gaze'].empty:
-            all_gaze.append(data['gaze'][['x', 'y']])
+        gaze = data.get(gaze_key) or data.get('gaze')
+        if gaze is not None and not gaze.empty:
+            all_gaze.append(gaze[['x', 'y']])
 
     if not all_gaze:
         return None
@@ -1621,6 +1623,94 @@ def export_to_csv(data: Dict, prefix: str = "export") -> Dict[str, str]:
             exports[f"{prefix}_{key}.csv"] = df.to_csv(index=False)
 
     return exports
+
+
+# =============================================================================
+# Gaze-on-Video Overlay
+# =============================================================================
+
+def create_gaze_on_video_frame(gaze_df: pd.DataFrame, fixations_df: pd.DataFrame,
+                                video_path: Path, timestamp_ms: float,
+                                window_ms: float = 2000) -> Optional[go.Figure]:
+    """Create a visualization of gaze data overlaid on a video frame."""
+    try:
+        import cv2
+    except ImportError:
+        return None
+
+    cap = cv2.VideoCapture(str(video_path))
+    cap.set(cv2.CAP_PROP_POS_MSEC, timestamp_ms)
+    ret, frame = cap.read()
+    vid_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    vid_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    cap.release()
+
+    if not ret or frame is None:
+        return None
+
+    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+    from PIL import Image
+    img = Image.fromarray(frame_rgb)
+
+    fig = go.Figure()
+
+    fig.add_layout_image(
+        dict(
+            source=img,
+            xref="x", yref="y",
+            x=0, y=0,
+            sizex=vid_w, sizey=vid_h,
+            sizing="stretch",
+            layer="below"
+        )
+    )
+
+    # Filter gaze data to time window
+    t_start = timestamp_ms - window_ms / 2
+    t_end = timestamp_ms + window_ms / 2
+    window_gaze = gaze_df[
+        (gaze_df['timestamp'] >= t_start) & (gaze_df['timestamp'] <= t_end)
+    ]
+
+    if not window_gaze.empty:
+        fig.add_trace(go.Scatter(
+            x=window_gaze['x'], y=window_gaze['y'],
+            mode='lines+markers',
+            line=dict(color='rgba(255, 100, 100, 0.4)', width=2),
+            marker=dict(size=6, color='rgba(255, 50, 50, 0.6)'),
+            name='Gaze Trail',
+            hoverinfo='skip'
+        ))
+
+    if fixations_df is not None and not fixations_df.empty:
+        window_fix = fixations_df[
+            (fixations_df['start_time'] >= t_start) & (fixations_df['end_time'] <= t_end)
+        ]
+        if not window_fix.empty:
+            fig.add_trace(go.Scatter(
+                x=window_fix['x'], y=window_fix['y'],
+                mode='markers',
+                marker=dict(
+                    size=window_fix['duration'] / 20 + 10,
+                    color='rgba(255, 200, 50, 0.5)',
+                    line=dict(color='rgba(255, 200, 50, 0.8)', width=2)
+                ),
+                name='Fixations',
+                text=[f"#{row['fixation_id']}: {row['duration']:.0f}ms"
+                      for _, row in window_fix.iterrows()],
+                hoverinfo='text'
+            ))
+
+    fig.update_layout(
+        xaxis=dict(range=[0, vid_w], showgrid=False, zeroline=False, visible=False),
+        yaxis=dict(range=[vid_h, 0], showgrid=False, zeroline=False, visible=False),
+        height=500,
+        margin=dict(l=0, r=0, t=30, b=0),
+        title=f"Participant Gaze Overlay ({window_ms:.0f}ms window)"
+    )
+
+    return fig
 
 
 # =============================================================================
@@ -2088,16 +2178,18 @@ def create_saccade_direction_polar(saccades_df: pd.DataFrame) -> go.Figure:
     return fig
 
 
-def display_session_stats(data: Dict):
+def display_session_stats(data: Dict, active_source: str = "WebGazer"):
     """Display session statistics."""
     col1, col2, col3, col4, col5 = st.columns(5)
 
     with col1:
         gaze_count = len(data["gaze"]) if data["gaze"] is not None else 0
-        st.metric("WebGazer Points", gaze_count)
+        wg_label = "WebGazer Points" + (" (active)" if active_source == "WebGazer" else "")
+        st.metric(wg_label, gaze_count)
     with col2:
         l2cs_count = len(data["l2cs_gaze"]) if data["l2cs_gaze"] is not None else 0
-        st.metric("L2CS Gaze Points", l2cs_count)
+        l2_label = "L2CS Gaze Points" + (" (active)" if active_source == "L2CS-Net" else "")
+        st.metric(l2_label, l2cs_count)
     with col3:
         st.metric("Mouse Events", len(data["mouse"]) if data["mouse"] is not None else 0)
     with col4:
@@ -2136,12 +2228,49 @@ def main():
     with st.spinner("Loading session data..."):
         data = load_session_data(selected_session)
 
+    # --- Global Gaze Source Selection ---
+    st.sidebar.markdown("---")
+    st.sidebar.header("Eye Tracker")
+
+    has_webgazer = data["gaze"] is not None and not data["gaze"].empty
+    has_l2cs = data["l2cs_gaze"] is not None and not data["l2cs_gaze"].empty
+
+    gaze_source_options = []
+    if has_webgazer:
+        gaze_source_options.append("WebGazer (Client-side)")
+    if has_l2cs:
+        gaze_source_options.append("L2CS-Net (Server-side)")
+
+    if gaze_source_options:
+        selected_gaze_source = st.sidebar.radio(
+            "Active Eye Tracker",
+            gaze_source_options,
+            index=0,  # WebGazer is default (listed first)
+            help="Select which gaze data source to use across all analysis tabs"
+        )
+    else:
+        selected_gaze_source = None
+
+    # Resolve active gaze DataFrame
+    if selected_gaze_source and "L2CS" in selected_gaze_source and has_l2cs:
+        active_gaze_df = data["l2cs_gaze"]
+        gaze_source_label = "L2CS-Net"
+    elif has_webgazer:
+        active_gaze_df = data["gaze"]
+        gaze_source_label = "WebGazer"
+    else:
+        active_gaze_df = None
+        gaze_source_label = "None"
+
+    if active_gaze_df is not None:
+        st.sidebar.caption(f"Active: **{gaze_source_label}** ({len(active_gaze_df)} points)")
+
     # Calculate fixations for use across tabs
-    fixations = calculate_fixations(data["gaze"]) if data["gaze"] is not None else pd.DataFrame()
+    fixations = calculate_fixations(active_gaze_df) if active_gaze_df is not None else pd.DataFrame()
 
     # Display session info
     st.header(f"Session: {selected_session}")
-    display_session_stats(data)
+    display_session_stats(data, gaze_source_label)
 
     # Tabs for different analyses
     tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs([
@@ -2174,38 +2303,44 @@ def main():
                 st.json(data["metadata"])
 
         st.subheader("Synchronized Timeline")
-        st.plotly_chart(create_timeline_chart(data), use_container_width=True)
+        timeline_data = {**data, "gaze": active_gaze_df}
+        st.plotly_chart(create_timeline_chart(timeline_data), use_container_width=True)
+
+        # Gaze-on-video overlay
+        st.subheader(f"Gaze Overlay on Video ({gaze_source_label})")
+        if data["video_path"] and data["video_path"].exists() and active_gaze_df is not None and not active_gaze_df.empty:
+            gaze_t_min = float(active_gaze_df['timestamp'].min())
+            gaze_t_max = float(active_gaze_df['timestamp'].max())
+
+            col_ov1, col_ov2 = st.columns([3, 1])
+            with col_ov1:
+                overlay_time = st.slider(
+                    "Timestamp (ms)", gaze_t_min, gaze_t_max,
+                    gaze_t_min, step=100.0, key="gaze_overlay_time"
+                )
+            with col_ov2:
+                overlay_window = st.slider(
+                    "Window (ms)", 500, 5000, 2000, key="gaze_overlay_window"
+                )
+
+            fig = create_gaze_on_video_frame(
+                active_gaze_df, fixations,
+                data["video_path"], overlay_time,
+                window_ms=overlay_window
+            )
+            if fig:
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.warning("Could not extract video frame at this timestamp.")
+        else:
+            st.info("Video recording and gaze data are both required for overlay visualization.")
 
     # Tab 2: Eye Tracking
     with tab2:
-        st.subheader("Eye Tracking Analysis")
+        st.subheader(f"Eye Tracking Analysis ({gaze_source_label})")
 
-        # Check which gaze sources are available
-        has_webgazer = data["gaze"] is not None and not data["gaze"].empty
-        has_l2cs = data["l2cs_gaze"] is not None and not data["l2cs_gaze"].empty
-
-        if has_webgazer or has_l2cs:
-            # Source selection
-            gaze_sources = []
-            if has_webgazer:
-                gaze_sources.append("WebGazer (Client-side)")
-            if has_l2cs:
-                gaze_sources.append("L2CS-Net (Server-side)")
-
-            selected_source = st.radio(
-                "Select Gaze Data Source",
-                gaze_sources,
-                horizontal=True,
-                help="WebGazer runs in browser (~60Hz), L2CS-Net runs on server with deep learning (~10Hz, more accurate)"
-            )
-
-            # Select appropriate dataframe
-            if "L2CS" in selected_source and has_l2cs:
-                gaze_df = data["l2cs_gaze"]
-                source_label = "L2CS-Net"
-            else:
-                gaze_df = data["gaze"]
-                source_label = "WebGazer"
+        if active_gaze_df is not None and not active_gaze_df.empty:
+            gaze_df = active_gaze_df
 
             min_time, max_time = gaze_df['timestamp'].min(), gaze_df['timestamp'].max()
 
@@ -2216,18 +2351,18 @@ def main():
 
             col1, col2 = st.columns(2)
             with col1:
-                st.markdown(f"### {source_label} Heatmap")
+                st.markdown(f"### {gaze_source_label} Heatmap")
                 fig = create_gaze_heatmap(gaze_df, time_start=time_range[0], time_end=time_range[1])
                 if fig:
                     st.plotly_chart(fig, use_container_width=True)
 
             with col2:
-                st.markdown(f"### {source_label} Scanpath")
+                st.markdown(f"### {gaze_source_label} Scanpath")
                 fig = create_gaze_scanpath(gaze_df)
                 if fig:
                     st.plotly_chart(fig, use_container_width=True)
 
-            st.markdown(f"### {source_label} Statistics")
+            st.markdown(f"### {gaze_source_label} Statistics")
             col1, col2, col3, col4 = st.columns(4)
             with col1:
                 st.metric("Mean X", f"{gaze_df['x'].mean():.1f}")
@@ -2318,7 +2453,7 @@ def main():
     with tab4:
         st.subheader("Fixation & Saccade Analysis")
 
-        if data["gaze"] is not None and not data["gaze"].empty:
+        if active_gaze_df is not None and not active_gaze_df.empty:
             st.markdown("### Detection Parameters")
             col1, col2, col3 = st.columns(3)
             with col1:
@@ -2332,8 +2467,8 @@ def main():
                     help="Maximum spread within a fixation. Higher = more lenient (better for webcam tracking)")
 
             # Calculate fixations and saccades
-            fixations = calculate_fixations(data["gaze"], velocity_threshold, min_duration, dispersion_threshold)
-            saccades = calculate_saccades(data["gaze"], fixations, velocity_threshold)
+            fixations = calculate_fixations(active_gaze_df, velocity_threshold, min_duration, dispersion_threshold)
+            saccades = calculate_saccades(active_gaze_df, fixations, velocity_threshold)
 
             # Summary metrics
             st.markdown("### Summary")
@@ -2355,7 +2490,7 @@ def main():
             with col5:
                 if not fixations.empty and not saccades.empty:
                     fix_time = fixations['duration'].sum()
-                    total_time = data["gaze"]['timestamp'].max() - data["gaze"]['timestamp'].min()
+                    total_time = active_gaze_df['timestamp'].max() - active_gaze_df['timestamp'].min()
                     fix_ratio = (fix_time / total_time * 100) if total_time > 0 else 0
                     st.metric("Fixation Ratio", f"{fix_ratio:.1f}%")
                 else:
@@ -2504,18 +2639,18 @@ def main():
         if st.button("Analyze AOIs"):
             # Visualization
             st.markdown("### AOI Visualization")
-            fig = create_aoi_visualization(data["gaze"], aois)
+            fig = create_aoi_visualization(active_gaze_df, aois)
             st.plotly_chart(fig, use_container_width=True)
 
             # Analysis results
             st.markdown("### AOI Metrics")
-            aoi_results = analyze_aoi(data["gaze"], data["mouse"], aois)
+            aoi_results = analyze_aoi(active_gaze_df, data["mouse"], aois)
             if not aoi_results.empty:
                 st.dataframe(aoi_results)
 
             # Transition matrix
             st.markdown("### AOI Transition Matrix")
-            transitions = create_aoi_transition_matrix(data["gaze"], aois)
+            transitions = create_aoi_transition_matrix(active_gaze_df, aois)
             if not transitions.empty:
                 fig = px.imshow(transitions, text_auto=True, title="Transitions Between AOIs")
                 st.plotly_chart(fig, use_container_width=True)
@@ -2531,7 +2666,7 @@ def main():
             AOI("Center", 320, 180, 640, 360, "green")
         ]
 
-        metrics = calculate_attention_metrics(data["gaze"], fixations, default_aois)
+        metrics = calculate_attention_metrics(active_gaze_df, fixations, default_aois)
 
         col1, col2, col3, col4 = st.columns(4)
         with col1:
@@ -2566,7 +2701,7 @@ def main():
     with tab7:
         st.subheader("Gaze-Mouse Coordination Analysis")
 
-        coordination = analyze_gaze_mouse_coordination(data["gaze"], data["mouse"])
+        coordination = analyze_gaze_mouse_coordination(active_gaze_df, data["mouse"])
 
         col1, col2, col3 = st.columns(3)
         with col1:
@@ -2598,7 +2733,7 @@ def main():
                 st.metric("Temporal Relationship", "Synchronized")
 
         st.markdown("### Position Comparison Over Time")
-        fig = create_gaze_mouse_comparison_plot(data["gaze"], data["mouse"])
+        fig = create_gaze_mouse_comparison_plot(active_gaze_df, data["mouse"])
         st.plotly_chart(fig, use_container_width=True)
 
         if coordination['lag_analysis']:
@@ -2612,7 +2747,7 @@ def main():
     with tab8:
         st.subheader("Behavioral Patterns & Emotion Analysis")
 
-        patterns = detect_behavioral_patterns(data["gaze"], data["mouse"], fixations)
+        patterns = detect_behavioral_patterns(active_gaze_df, data["mouse"], fixations)
 
         # Emotion analysis with progress indicator (can be slow for large datasets)
         with st.spinner("Analyzing facial expressions..."):
@@ -2638,7 +2773,7 @@ def main():
             st.metric("Mouse Jitter Events", patterns['pattern_summary'].get('mouse_jitter_events', 0))
 
         st.markdown("### Behavioral Patterns Map")
-        fig = create_behavioral_patterns_visualization(patterns, data["gaze"], data["mouse"])
+        fig = create_behavioral_patterns_visualization(patterns, active_gaze_df, data["mouse"])
         st.plotly_chart(fig, use_container_width=True)
 
         # === EMOTION ANALYSIS SECTION ===
@@ -2760,7 +2895,8 @@ def main():
             with st.spinner("Loading sessions..."):
                 multi_data = load_multiple_sessions(selected_sessions)
 
-            comparison = compare_sessions(multi_data)
+            gaze_key = "l2cs_gaze" if gaze_source_label == "L2CS-Net" else "gaze"
+            comparison = compare_sessions(multi_data, gaze_key=gaze_key)
             st.dataframe(comparison)
 
             charts = create_comparison_charts(comparison)
@@ -2768,7 +2904,7 @@ def main():
                 st.plotly_chart(chart, use_container_width=True)
 
             st.markdown("### Aggregate Heatmap")
-            agg_heatmap = create_aggregate_heatmap(multi_data)
+            agg_heatmap = create_aggregate_heatmap(multi_data, gaze_key=gaze_key)
             if agg_heatmap:
                 st.plotly_chart(agg_heatmap, use_container_width=True)
 
@@ -2776,9 +2912,10 @@ def main():
         st.markdown("### Export Report")
 
         if st.button("Generate Report"):
-            patterns = detect_behavioral_patterns(data["gaze"], data["mouse"], fixations)
-            attention = calculate_attention_metrics(data["gaze"], fixations)
-            report = generate_report_data(data, fixations, attention, patterns)
+            patterns = detect_behavioral_patterns(active_gaze_df, data["mouse"], fixations)
+            attention = calculate_attention_metrics(active_gaze_df, fixations)
+            report_data = {**data, "gaze": active_gaze_df}
+            report = generate_report_data(report_data, fixations, attention, patterns)
 
             st.json(report)
 

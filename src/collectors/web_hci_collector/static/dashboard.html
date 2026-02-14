@@ -146,6 +146,8 @@
                     <label class="viz-toggle"><input type="checkbox" id="show-gaze-overlay" checked onchange="toggleOverlayLayer('gaze')"> Gaze</label>
                     <label class="viz-toggle"><input type="checkbox" id="show-mouse-overlay" checked onchange="toggleOverlayLayer('mouse')"> Mouse</label>
                     <label class="viz-toggle"><input type="checkbox" id="show-clicks-overlay" checked onchange="toggleOverlayLayer('clicks')"> Clicks</label>
+                    <span class="viz-separator"></span>
+                    <span class="viz-source-badge" id="gaze-source-badge">WebGazer</span>
                 </div>
                 <div class="participant-view-container" id="participant-view-container">
                     <!-- Iframe showing participant's page -->
@@ -177,6 +179,10 @@
 
             <!-- Data Stream Stats -->
             <div class="data-streams">
+                <div class="stream-card">
+                    <div class="stream-value" id="gaze-source-label">WebGazer</div>
+                    <div class="stream-label">Eye Tracker</div>
+                </div>
                 <div class="stream-card">
                     <div class="stream-value" id="gaze-rate">0</div>
                     <div class="stream-label">Gaze Hz</div>

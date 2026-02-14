@@ -1114,6 +1114,15 @@ body {
     margin: 0 4px;
 }
 
+.viz-source-badge {
+    background: rgba(233, 69, 96, 0.2);
+    color: #e94560;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 600;
+}
+
 .viz-toggle {
     display: flex;
     align-items: center;

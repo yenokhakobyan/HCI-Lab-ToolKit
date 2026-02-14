@@ -45,6 +45,7 @@ let contentUrl = null;
 // Gaze visualization
 let gazeHistory = [];
 const GAZE_HISTORY_LENGTH = 100;
+let activeGazeSource = 'WebGazer';
 
 // Mouse tracking visualization
 let mouseHistory = [];
@@ -2220,8 +2221,10 @@ function handleIncomingData(data) {
 
     switch (type) {
         case 'gaze':
+            handleGazeData(data.data, 'WebGazer');
+            break;
         case 'l2cs_gaze':
-            handleGazeData(data.data);
+            handleGazeData(data.data, 'L2CS-Net');
             break;
         case 'face_mesh':
             handleFaceMeshData(data.data);
@@ -2436,11 +2439,20 @@ function handleNavigationEvent(data) {
 }
 
 /**
- * Handle gaze data
+ * Handle gaze data from WebGazer or L2CS-Net
  */
-function handleGazeData(data) {
+function handleGazeData(data, source = 'WebGazer') {
     stats.gazeSamples++;
     stats.totalSamples++;
+
+    // Update source indicator if changed
+    if (source !== activeGazeSource) {
+        activeGazeSource = source;
+        const badge = document.getElementById('gaze-source-badge');
+        if (badge) badge.textContent = source;
+        const label = document.getElementById('gaze-source-label');
+        if (label) label.textContent = source;
+    }
 
     // Record gaze to timeline (always record)
     recordTimelineGaze(data.x, data.y);
