@@ -1123,6 +1123,31 @@ body {
     font-weight: 600;
 }
 
+/* Calibration / Tracking Quality */
+.calibration-status {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 8px 0;
+}
+.calib-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+}
+.calib-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    background: #555;
+    transition: background 0.3s;
+}
+.calib-dot.calib-ok { background: #4ecca3; }
+.calib-dot.calib-warn { background: #e94560; }
+
 .viz-toggle {
     display: flex;
     align-items: center;

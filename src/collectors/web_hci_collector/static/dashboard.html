@@ -22,13 +22,25 @@
 
         <!-- Left Sidebar - Video and Emotions -->
         <aside class="sidebar-left">
-            <!-- Participant Camera Preview -->
+            <!-- Tracking Quality -->
             <div class="panel">
-                <div class="panel-title">Participant Camera <span class="panel-toggle" onclick="togglePanel(this)">&#9660;</span></div>
-                <div class="video-container" style="position: relative;">
-                    <canvas id="participant-webcam-canvas" style="width: 100%; border-radius: 8px; transform: scaleX(-1);"></canvas>
-                    <div id="camera-status" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: var(--text-secondary); font-size: 0.75rem;">
-                        Waiting for participant...
+                <div class="panel-title">Tracking Quality <span class="panel-toggle" onclick="togglePanel(this)">&#9660;</span></div>
+                <div class="calibration-status">
+                    <div class="calib-item">
+                        <span class="calib-dot" id="calib-face-detected"></span>
+                        <span>Face Detected</span>
+                    </div>
+                    <div class="calib-item">
+                        <span class="calib-dot" id="calib-face-centered"></span>
+                        <span>Face Centered</span>
+                    </div>
+                    <div class="calib-item">
+                        <span class="calib-dot" id="calib-face-size"></span>
+                        <span>Face Size OK</span>
+                    </div>
+                    <div class="calib-item">
+                        <span class="calib-dot" id="calib-head-pose"></span>
+                        <span>Head Straight</span>
                     </div>
                 </div>
             </div>

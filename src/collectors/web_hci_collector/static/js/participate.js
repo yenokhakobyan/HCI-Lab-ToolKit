@@ -284,10 +284,7 @@ async function startContent() {
     // Init MediaPipe + camera
     await initFaceMesh();
 
-    // Start screen recording
-    await startScreenRecording();
-
-    // Enable collection
+    // Enable collection immediately — mouse/click/gaze tracking starts now
     isCollecting = true;
     floatingControls.classList.remove('hidden');
     gazeCursor.style.display = 'block';
@@ -304,6 +301,14 @@ async function startContent() {
 
     // Listen for iframe messages
     window.addEventListener('message', handleIframeMessage);
+
+    // Start screen recording in background (non-blocking)
+    // If user cancels or it fails, mouse/click/gaze tracking still works
+    startScreenRecording().then(ok => {
+        if (!ok) {
+            console.warn('Screen recording not available — mouse/click/gaze tracking still active');
+        }
+    });
 }
 
 function handleIframeMessage(e) {
@@ -659,6 +664,8 @@ async function startScreenRecording() {
         screenStream = await navigator.mediaDevices.getDisplayMedia({
             video: { cursor: 'always', displaySurface: 'browser', frameRate: { ideal: 15, max: 30 } },
             audio: false,
+            preferCurrentTab: true,
+            selfBrowserSurface: 'include',
         });
 
         const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')

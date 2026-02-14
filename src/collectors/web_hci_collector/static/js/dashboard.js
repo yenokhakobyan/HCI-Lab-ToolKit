@@ -2229,9 +2229,7 @@ function handleIncomingData(data) {
         case 'face_mesh':
             handleFaceMeshData(data.data);
             break;
-        case 'webcam_frame':
-            handleWebcamFrame(data.data);
-            break;
+        // webcam_frame no longer displayed — using face mesh for tracking quality
         case 'emotion':
             handleEmotionData(data.data);
             break;
@@ -2445,6 +2443,11 @@ function handleGazeData(data, source = 'WebGazer') {
     stats.gazeSamples++;
     stats.totalSamples++;
 
+    // Debug: log first gaze sample for diagnostics
+    if (stats.gazeSamples === 1) {
+        console.log(`First gaze sample [${source}]: (${data.x}, ${data.y}), participant window: ${participantWindowWidth}x${participantWindowHeight}`);
+    }
+
     // Update source indicator if changed
     if (source !== activeGazeSource) {
         activeGazeSource = source;
@@ -2486,6 +2489,7 @@ function handleGazeData(data, source = 'WebGazer') {
     if (gazeOverlay) {
         gazeOverlay.style.left = `${normalizedX}px`;
         gazeOverlay.style.top = `${normalizedY}px`;
+        gazeOverlay.style.opacity = '1';
     }
 
     // Feed heatmap
@@ -2513,6 +2517,51 @@ function handleFaceMeshData(data) {
         const pitch = data.head_pose.pitch.toFixed(1);
         const yaw = data.head_pose.yaw.toFixed(1);
         document.getElementById('head-pose').textContent = `P:${pitch} Y:${yaw}`;
+    }
+
+    // Update calibration/tracking quality indicators
+    updateCalibrationStatus(data);
+}
+
+/**
+ * Update tracking quality indicators based on face mesh data
+ */
+function updateCalibrationStatus(data) {
+    const detected = data && data.landmarks && data.landmarks.length > 0;
+    setCalibDot('calib-face-detected', detected);
+
+    if (!detected) {
+        setCalibDot('calib-face-centered', false);
+        setCalibDot('calib-face-size', false);
+        setCalibDot('calib-head-pose', false);
+        return;
+    }
+
+    // Face Centered: bounding_box center should be near (0.5, 0.45)
+    const bb = data.bounding_box;
+    if (bb) {
+        const cx = (bb.min_x + bb.max_x) / 2;
+        const cy = (bb.min_y + bb.max_y) / 2;
+        const centered = Math.abs(cx - 0.5) < 0.15 && Math.abs(cy - 0.45) < 0.15;
+        setCalibDot('calib-face-centered', centered);
+
+        // Face Size: bounding box width should be 20-60% of frame
+        const faceW = bb.max_x - bb.min_x;
+        const sizeOk = faceW > 0.2 && faceW < 0.6;
+        setCalibDot('calib-face-size', sizeOk);
+    }
+
+    // Head Pose: pitch and yaw should be near zero
+    if (data.head_pose) {
+        const poseOk = Math.abs(data.head_pose.pitch) < 15 && Math.abs(data.head_pose.yaw) < 15;
+        setCalibDot('calib-head-pose', poseOk);
+    }
+}
+
+function setCalibDot(id, ok) {
+    const dot = document.getElementById(id);
+    if (dot) {
+        dot.className = 'calib-dot ' + (ok ? 'calib-ok' : 'calib-warn');
     }
 }
 
@@ -2542,6 +2591,21 @@ function renderFaceMesh() {
     const landmarks = latestLandmarks.landmarks;
     const w = faceCanvas.width;
     const h = faceCanvas.height;
+
+    // Draw ideal face position zone (target reticle)
+    faceCtx.strokeStyle = 'rgba(78, 204, 163, 0.2)';
+    faceCtx.lineWidth = 1;
+    faceCtx.setLineDash([5, 5]);
+    faceCtx.strokeRect(w * 0.2, h * 0.1, w * 0.6, h * 0.7);
+    faceCtx.setLineDash([]);
+    // Crosshair at center
+    faceCtx.strokeStyle = 'rgba(78, 204, 163, 0.15)';
+    faceCtx.beginPath();
+    faceCtx.moveTo(w * 0.5, h * 0.1);
+    faceCtx.lineTo(w * 0.5, h * 0.8);
+    faceCtx.moveTo(w * 0.2, h * 0.45);
+    faceCtx.lineTo(w * 0.8, h * 0.45);
+    faceCtx.stroke();
 
     // Draw connections (face mesh tesselation - simplified)
     // Using key face outline connections
@@ -2783,6 +2847,18 @@ async function handleSessionEvent(data) {
         startTime = Date.now();
         isCollecting = true;
         addLogEntry('system', 'Session started');
+
+        // Ensure dashboard is in live mode for new sessions
+        if (timelineMode !== 'live') {
+            jumpToLive();
+        }
+
+        // Ensure gaze overlay is visible (dimmed until first data)
+        const gazeOverlay = document.getElementById('gaze-point-overlay');
+        if (gazeOverlay) {
+            gazeOverlay.style.display = '';
+            gazeOverlay.style.opacity = '0.3';
+        }
 
         // Update participant screen dimensions
         if (data.screenWidth) participantScreenWidth = data.screenWidth;
