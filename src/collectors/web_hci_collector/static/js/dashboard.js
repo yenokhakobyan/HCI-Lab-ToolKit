@@ -58,7 +58,6 @@ let gazeTrailCtx = null;
 // Face mesh visualization
 let latestLandmarks = null;
 let faceMesh = null;
-let localFaceMeshActive = false;
 
 // Cognitive state estimation
 let cognitiveStateHistory = {
@@ -101,6 +100,13 @@ let videoElement = null;
 let videoMimeType = 'video/webm';
 let videoStartTime = 0;
 let videoDuration = 0;
+
+// Live video streaming state (MSE)
+let liveMediaSource = null;
+let liveSourceBuffer = null;
+let liveVideoQueue = [];
+let liveVideoElement = null;
+let liveVideoActive = false;
 
 // Track current URL for navigation change detection
 let currentNavigationUrl = null;
@@ -700,10 +706,18 @@ function jumpToLive() {
         navIndicator.style.display = 'none';
     }
 
-    // Hide video element and stop playback
+    // Hide playback video element and stop playback
     if (videoElement) {
         videoElement.pause();
         videoElement.style.display = 'none';
+    }
+
+    // Show live video if available and toggled on
+    if (liveVideoActive && liveVideoElement) {
+        const showLiveVideo = document.getElementById('show-live-video')?.checked;
+        if (showLiveVideo) {
+            liveVideoElement.style.display = 'block';
+        }
     }
 
     // Hide screenshot overlay and badge, restore iframe
@@ -767,10 +781,9 @@ window.setPlaybackSpeed = function(speed, btn) {
     playbackSpeed = speed;
     document.querySelectorAll('.speed-btn').forEach(b => b.classList.remove('active'));
     if (btn) btn.classList.add('active');
-    // Sync video element if present
-    if (videoElement) {
-        videoElement.playbackRate = speed;
-    }
+    // Sync video elements if present
+    if (videoElement) videoElement.playbackRate = speed;
+    if (liveVideoElement) liveVideoElement.playbackRate = speed;
 };
 
 /**
@@ -1794,16 +1807,33 @@ function updatePlaybackScreenshot(currentTime) {
             }
         }
     } else {
-        // Live mode - hide video/screenshot overlays
-        if (lastPlaybackDisplayState !== 'live') {
-            if (videoElement) {
-                videoElement.style.display = 'none';
-                videoElement.pause();
+        // Live mode - show live video if available and toggled on
+        const showLiveVideo = document.getElementById('show-live-video')?.checked;
+        const hasLiveVideo = liveVideoActive && liveVideoElement && liveSourceBuffer
+            && liveSourceBuffer.buffered && liveSourceBuffer.buffered.length > 0;
+
+        if (showLiveVideo && hasLiveVideo) {
+            if (lastPlaybackDisplayState !== 'live-video') {
+                liveVideoElement.style.display = 'block';
+                if (videoElement) { videoElement.style.display = 'none'; videoElement.pause(); }
+                screenshotOverlay.style.display = 'none';
+                playbackBadge.style.display = 'block';
+                playbackBadge.style.background = 'rgba(233, 69, 96, 0.9)';
+                playbackBadge.textContent = '● LIVE';
+                playbackBadge.classList.add('live-badge');
+                if (frame) frame.style.opacity = '0';
+                lastPlaybackDisplayState = 'live-video';
             }
-            screenshotOverlay.style.display = 'none';
-            playbackBadge.style.display = 'none';
-            if (frame) frame.style.opacity = '1';
-            lastPlaybackDisplayState = 'live';
+        } else {
+            if (lastPlaybackDisplayState !== 'live') {
+                if (liveVideoElement) liveVideoElement.style.display = 'none';
+                if (videoElement) { videoElement.style.display = 'none'; videoElement.pause(); }
+                screenshotOverlay.style.display = 'none';
+                playbackBadge.style.display = 'none';
+                playbackBadge.classList.remove('live-badge');
+                if (frame) frame.style.opacity = '1';
+                lastPlaybackDisplayState = 'live';
+            }
         }
     }
 }
@@ -1856,6 +1886,7 @@ function updatePlaybackClicks(currentTime, containerWidth, containerHeight) {
  * Reset timeline data for new session
  */
 function resetTimelineData() {
+    stopLiveVideo();
     timelineData = {
         engagement: [],
         gaze: [],
@@ -2303,6 +2334,9 @@ function handleVideoStart(data) {
     }
     videoBlob = null;
 
+    // Initialize live video streaming via MSE
+    initLiveVideo();
+
     addLogEntry('system', `Screen recording started (${data.width}x${data.height})`);
 }
 
@@ -2328,10 +2362,15 @@ function handleVideoChunk(data) {
         index: data.chunkIndex
     });
 
-    // Rebuild video blob from all chunks for playback
+    // Feed live video streaming (MSE)
+    appendLiveVideoChunk(blob);
+
+    // Rebuild video blob from all chunks for timeline playback
     rebuildVideoBlob();
 
-    console.log(`Video chunk #${data.chunkIndex + 1} received (${(data.size / 1024).toFixed(1)} KB), total: ${timelineData.videoChunks.length}`);
+    if (data.chunkIndex % 10 === 0) {
+        console.log(`Video chunk #${data.chunkIndex + 1} received (${(data.size / 1024).toFixed(1)} KB), total: ${timelineData.videoChunks.length}`);
+    }
 }
 
 /**
@@ -2341,7 +2380,10 @@ function handleVideoComplete(data) {
     console.log('Video recording complete:', data);
     videoDuration = data.duration || 0;
 
-    // Final rebuild of video blob
+    // Stop live video streaming (recording ended)
+    stopLiveVideo();
+
+    // Final rebuild of video blob for timeline playback
     rebuildVideoBlob();
 
     addLogEntry('system', `Screen recording complete (${(data.totalSize / 1024 / 1024).toFixed(2)} MB, ${timelineData.videoChunks.length} chunks)`);
@@ -2365,6 +2407,7 @@ function rebuildVideoBlob() {
         URL.revokeObjectURL(videoUrl);
     }
     videoUrl = URL.createObjectURL(videoBlob);
+    videoSourceSet = false;  // Allow ensureVideoElement to update source
 
     // Update or create video element
     ensureVideoElement();
@@ -2410,6 +2453,155 @@ function ensureVideoElement() {
 }
 
 /**
+ * Initialize MSE-based live video streaming
+ */
+function initLiveVideo() {
+    if (!('MediaSource' in window)) {
+        console.warn('MediaSource API not supported — live video unavailable');
+        return;
+    }
+
+    // Clean up any previous live video state
+    stopLiveVideo();
+
+    const container = document.getElementById('participant-view-container');
+    if (!container) return;
+
+    // Create dedicated live video element (separate from playback video)
+    if (!liveVideoElement) {
+        liveVideoElement = document.createElement('video');
+        liveVideoElement.id = 'live-video';
+        liveVideoElement.style.cssText = `
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            object-fit: contain;
+            background: #1a1a2e;
+            z-index: 91;
+            pointer-events: none;
+            display: none;
+        `;
+        liveVideoElement.muted = true;
+        liveVideoElement.autoplay = true;
+        liveVideoElement.playsInline = true;
+        container.appendChild(liveVideoElement);
+    }
+
+    liveMediaSource = new MediaSource();
+    liveVideoElement.src = URL.createObjectURL(liveMediaSource);
+
+    liveMediaSource.addEventListener('sourceopen', () => {
+        try {
+            // Try participant's codec first, fall back to vp8
+            const codecs = [
+                videoMimeType.includes('codecs') ? videoMimeType : null,
+                'video/webm;codecs=vp9',
+                'video/webm;codecs=vp8',
+            ].filter(Boolean);
+
+            let mimeForMSE = null;
+            for (const codec of codecs) {
+                if (MediaSource.isTypeSupported(codec)) {
+                    mimeForMSE = codec;
+                    break;
+                }
+            }
+
+            if (mimeForMSE) {
+                liveSourceBuffer = liveMediaSource.addSourceBuffer(mimeForMSE);
+                liveSourceBuffer.mode = 'sequence';
+                liveSourceBuffer.addEventListener('updateend', processLiveVideoQueue);
+                liveVideoActive = true;
+                console.log('Live video MSE initialized:', mimeForMSE);
+            } else {
+                console.warn('No supported MSE codec found for live video');
+            }
+        } catch (e) {
+            console.error('MSE SourceBuffer error:', e);
+        }
+    });
+}
+
+/**
+ * Append a video chunk to the live MSE stream
+ */
+function appendLiveVideoChunk(blob) {
+    if (!liveVideoActive || !liveSourceBuffer) return;
+
+    blob.arrayBuffer().then(buffer => {
+        liveVideoQueue.push(buffer);
+        processLiveVideoQueue();
+    });
+}
+
+/**
+ * Process queued video chunks for MSE SourceBuffer
+ */
+function processLiveVideoQueue() {
+    if (!liveSourceBuffer || liveSourceBuffer.updating || liveVideoQueue.length === 0) return;
+
+    const buffer = liveVideoQueue.shift();
+    try {
+        liveSourceBuffer.appendBuffer(buffer);
+    } catch (e) {
+        if (e.name === 'QuotaExceededError' && liveSourceBuffer.buffered.length > 0) {
+            // Trim old data, keep last 60 seconds
+            const removeEnd = liveSourceBuffer.buffered.end(liveSourceBuffer.buffered.length - 1) - 60;
+            if (removeEnd > liveSourceBuffer.buffered.start(0)) {
+                try { liveSourceBuffer.remove(0, removeEnd); } catch (re) { /* ignore */ }
+            }
+        } else {
+            console.error('appendBuffer error:', e);
+        }
+    }
+}
+
+/**
+ * Stop live video streaming and clean up
+ */
+function stopLiveVideo() {
+    liveVideoActive = false;
+    liveVideoQueue = [];
+
+    if (liveSourceBuffer) {
+        try {
+            if (liveMediaSource && liveMediaSource.readyState === 'open') {
+                liveMediaSource.removeSourceBuffer(liveSourceBuffer);
+            }
+        } catch (e) { /* ignore */ }
+        liveSourceBuffer = null;
+    }
+
+    if (liveMediaSource && liveMediaSource.readyState === 'open') {
+        try { liveMediaSource.endOfStream(); } catch (e) { /* ignore */ }
+    }
+    liveMediaSource = null;
+
+    if (liveVideoElement) {
+        liveVideoElement.style.display = 'none';
+        liveVideoElement.src = '';
+    }
+}
+
+/**
+ * Toggle live video display on/off
+ */
+window.toggleLiveVideo = function() {
+    const checked = document.getElementById('show-live-video')?.checked;
+    const frame = document.getElementById('participant-frame');
+
+    if (checked && liveVideoActive && liveVideoElement) {
+        liveVideoElement.style.display = 'block';
+        if (frame) frame.style.opacity = '0';
+        lastPlaybackDisplayState = null;  // Force re-evaluation
+    } else {
+        if (liveVideoElement) liveVideoElement.style.display = 'none';
+        if (frame && timelineMode === 'live') frame.style.opacity = '1';
+        lastPlaybackDisplayState = null;
+    }
+};
+
+/**
  * Handle navigation events (URL changes from participant)
  */
 function handleNavigationEvent(data) {
@@ -2443,11 +2635,6 @@ function handleGazeData(data, source = 'WebGazer') {
     stats.gazeSamples++;
     stats.totalSamples++;
 
-    // Debug: log first gaze sample for diagnostics
-    if (stats.gazeSamples === 1) {
-        console.log(`First gaze sample [${source}]: (${data.x}, ${data.y}), participant window: ${participantWindowWidth}x${participantWindowHeight}`);
-    }
-
     // Update source indicator if changed
     if (source !== activeGazeSource) {
         activeGazeSource = source;
@@ -2473,6 +2660,16 @@ function handleGazeData(data, source = 'WebGazer') {
 
     const containerWidth = container.clientWidth;
     const containerHeight = container.clientHeight;
+
+    // Guard against zero-dimension containers (not yet rendered)
+    if (containerWidth === 0 || containerHeight === 0) return;
+
+    // Debug: log first gaze sample with full diagnostics
+    if (stats.gazeSamples === 1) {
+        console.log(`First gaze sample [${source}]: raw=(${data.x.toFixed(0)}, ${data.y.toFixed(0)}), ` +
+            `participantWindow=${participantWindowWidth}x${participantWindowHeight}, ` +
+            `container=${containerWidth}x${containerHeight}`);
+    }
 
     // Normalize participant coordinates to container coordinates
     const normalizedX = (data.x / participantWindowWidth) * containerWidth;
@@ -2903,6 +3100,7 @@ async function handleSessionEvent(data) {
 
     } else if (data.event === 'end') {
         isCollecting = false;
+        stopLiveVideo();
         addLogEntry('system', 'Session ended');
 
         // Save timeline data to server
@@ -3286,7 +3484,6 @@ window.loadSessionById = async function() {
         // Stop any existing live tracking
         if (isCollecting) {
             isCollecting = false;
-            localFaceMeshActive = false;
         }
 
         // Disconnect from live WebSocket if connected
@@ -3368,15 +3565,6 @@ function resetLoadButton() {
         Load Session
     `;
 }
-
-// Ensure camera is released when page unloads or navigates away
-window.addEventListener('beforeunload', () => {
-    const video = document.getElementById('webcam-video');
-    if (video && video.srcObject) {
-        video.srcObject.getTracks().forEach(track => track.stop());
-        video.srcObject = null;
-    }
-});
 
 // =============================================
 // Session Management Functions
@@ -3911,7 +4099,7 @@ window.toggleShortcutsOverlay = function() {
     }
 };
 
-const SPEED_MAP = [0.25, 0.5, 1, 2, 4];
+const SPEED_MAP = [0.25, 0.5, 1, 2, 4, 8, 16];
 
 document.addEventListener('keydown', function(e) {
     // Skip when focus is in input or textarea
@@ -3967,7 +4155,7 @@ document.addEventListener('keydown', function(e) {
                 });
             }
             break;
-        case '1': case '2': case '3': case '4': case '5': {
+        case '1': case '2': case '3': case '4': case '5': case '6': case '7': {
             const idx = parseInt(e.key) - 1;
             const speed = SPEED_MAP[idx];
             const btn = document.querySelector(`.speed-btn[data-speed="${speed}"]`);

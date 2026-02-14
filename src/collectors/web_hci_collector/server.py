@@ -105,6 +105,9 @@ class WebHCICollectorServer:
         self.connected_clients: Dict[str, WebSocket] = {}
         self.dashboard_clients: List[WebSocket] = []
 
+        # Cache session start data so late-joining dashboards get participant dimensions
+        self.session_start_cache: Dict[str, Dict[str, Any]] = {}
+
         # Background task for emotion detection broadcasting
         self._emotion_broadcast_task = None
 
@@ -360,6 +363,7 @@ class WebHCICollectorServer:
             except WebSocketDisconnect:
                 print(f"[{datetime.now().strftime('%H:%M:%S')}] Client disconnected: {session_id}")
                 self.connected_clients.pop(session_id, None)
+                self.session_start_cache.pop(session_id, None)
                 self.session_manager.end_session(session_id)
                 # Flush data to disk on disconnect
                 self.data_processor.flush_session_to_disk(session_id)
@@ -379,6 +383,19 @@ class WebHCICollectorServer:
             self.dashboard_clients.append(websocket)
 
             print(f"[{datetime.now().strftime('%H:%M:%S')}] Dashboard client connected")
+
+            # Send cached session start data so late-joining dashboards
+            # get participant window dimensions and content URL
+            for sid, start_data in self.session_start_cache.items():
+                try:
+                    await websocket.send_json({
+                        "session_id": sid,
+                        "type": "session",
+                        "timestamp": datetime.now().timestamp() * 1000,
+                        "data": {"event": "start", **start_data}
+                    })
+                except Exception:
+                    pass
 
             try:
                 while True:
@@ -420,8 +437,13 @@ class WebHCICollectorServer:
         if data_type == "video_chunk" and payload.get("data"):
             await self._save_video_chunk(session_id, payload)
 
-        # Handle session end - finalize video file
+        # Cache session start data for late-joining dashboards
+        if data_type == "session" and payload.get("event") == "start":
+            self.session_start_cache[session_id] = payload
+
+        # Handle session end - finalize video file and clear cache
         if data_type == "session" and payload.get("event") == "end":
+            self.session_start_cache.pop(session_id, None)
             await self._finalize_video(session_id)
 
         # Handle step transitions

@@ -102,10 +102,16 @@ async function init() {
 
 // ── WebSocket ─────────────────────────────────────────────
 
+let wsClosedIntentionally = false;
+
 function connectWebSocket() {
+    if (wsClosedIntentionally) return;
     ws = new WebSocket(WS_URL);
     ws.onopen = () => console.log('WS connected');
-    ws.onclose = () => { console.log('WS disconnected'); setTimeout(connectWebSocket, 3000); };
+    ws.onclose = () => {
+        console.log('WS disconnected');
+        if (!wsClosedIntentionally) setTimeout(connectWebSocket, 3000);
+    };
     ws.onerror = (e) => console.error('WS error:', e);
 }
 
@@ -379,7 +385,35 @@ window.endExperiment = async function () {
         await fetch(`/api/session/${SESSION_ID}/export?format=csv`, { method: 'POST' });
     } catch (e) { console.error('Export error:', e); }
 
-    webgazer.end();
+    // Stop WebGazer
+    try { webgazer.end(); } catch (e) { console.error('WebGazer stop error:', e); }
+
+    // Stop MediaPipe camera
+    if (camera) {
+        try { camera.stop(); } catch (e) { console.error('Camera stop error:', e); }
+        camera = null;
+    }
+
+    // Stop face mesh
+    if (faceMesh) {
+        try { faceMesh.close(); } catch (e) { console.error('FaceMesh stop error:', e); }
+        faceMesh = null;
+    }
+
+    // Stop all webcam media tracks
+    const webcamVideo = document.getElementById('webcam-video');
+    if (webcamVideo && webcamVideo.srcObject) {
+        webcamVideo.srcObject.getTracks().forEach(track => track.stop());
+        webcamVideo.srcObject = null;
+    }
+
+    // Close WebSocket after a short delay to ensure final data is sent
+    wsClosedIntentionally = true;
+    setTimeout(() => {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.close();
+        }
+    }, 1000);
 
     document.getElementById('complete-session').textContent = `Session: ${SESSION_ID}`;
     showStep('complete');
@@ -748,6 +782,33 @@ function stopScreenRecordingAsync() {
         mediaRecorder.stop();
     });
 }
+
+// ── Cleanup on page unload / tab switch ──────────────────
+
+window.addEventListener('beforeunload', () => {
+    if (isCollecting) {
+        // Best-effort: send end signal before page unloads
+        try {
+            ws && ws.readyState === WebSocket.OPEN &&
+                ws.send(JSON.stringify({ type: 'session', timestamp: performance.now(), data: { event: 'end', saveData: true, reason: 'page_unload' } }));
+        } catch (e) { /* ignore */ }
+    }
+    // Stop all media tracks regardless of state
+    stopScreenRecording();
+    if (camera) { try { camera.stop(); } catch (e) { /* ignore */ } }
+    try { webgazer.end(); } catch (e) { /* ignore */ }
+    const v = document.getElementById('webcam-video');
+    if (v && v.srcObject) { v.srcObject.getTracks().forEach(t => t.stop()); }
+});
+
+document.addEventListener('visibilitychange', () => {
+    if (!isCollecting) return;
+    if (document.visibilityState === 'hidden') {
+        sendData('session', { event: 'visibility_hidden' });
+    } else if (document.visibilityState === 'visible') {
+        sendData('session', { event: 'visibility_visible' });
+    }
+});
 
 // ── Boot ──────────────────────────────────────────────────
 

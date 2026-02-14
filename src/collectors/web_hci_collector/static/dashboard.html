@@ -159,6 +159,8 @@
                     <label class="viz-toggle"><input type="checkbox" id="show-mouse-overlay" checked onchange="toggleOverlayLayer('mouse')"> Mouse</label>
                     <label class="viz-toggle"><input type="checkbox" id="show-clicks-overlay" checked onchange="toggleOverlayLayer('clicks')"> Clicks</label>
                     <span class="viz-separator"></span>
+                    <label class="viz-toggle"><input type="checkbox" id="show-live-video" onchange="toggleLiveVideo()"> Screen</label>
+                    <span class="viz-separator"></span>
                     <span class="viz-source-badge" id="gaze-source-badge">WebGazer</span>
                 </div>
                 <div class="participant-view-container" id="participant-view-container">
@@ -241,6 +243,8 @@
                             <button class="speed-btn active" data-speed="1" onclick="setPlaybackSpeed(1, this)">1x</button>
                             <button class="speed-btn" data-speed="2" onclick="setPlaybackSpeed(2, this)">2x</button>
                             <button class="speed-btn" data-speed="4" onclick="setPlaybackSpeed(4, this)">4x</button>
+                            <button class="speed-btn" data-speed="8" onclick="setPlaybackSpeed(8, this)">8x</button>
+                            <button class="speed-btn" data-speed="16" onclick="setPlaybackSpeed(16, this)">16x</button>
                         </div>
                         <span class="timeline-zoom-indicator" id="timeline-zoom-indicator" style="display:none;">1x</span>
                     </div>
