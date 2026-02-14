@@ -1,0 +1,11 @@
+timestamp,server_timestamp,question_id,selected_answer,response_time_ms,step,raw_event
+69157.79999995232,1771050249214.916,demo_q,C,19091,demo,"{""type"": ""answer_select"", ""ts"": 19091, ""session"": ""demo"", ""answer"": ""C""}"
+69719.69999998808,1771050249774.355,demo_q,B,19668,demo,"{""type"": ""answer_select"", ""ts"": 19668, ""session"": ""demo"", ""answer"": ""B""}"
+70060.5,1771050250119.508,demo_q,C,20009,demo,"{""type"": ""answer_select"", ""ts"": 20009, ""session"": ""demo"", ""answer"": ""C""}"
+70605.19999998808,1771050250658.618,demo_q,A,20550,demo,"{""type"": ""answer_select"", ""ts"": 20550, ""session"": ""demo"", ""answer"": ""A""}"
+90661.89999997616,1771050270718.058,demo_q,A,40574,demo,"{""type"": ""answer_submit"", ""ts"": 40575, ""session"": ""demo"", ""answer"": ""A"", ""timestamp"": 40574}",
+40575,1771050270718.389,demo,,,,,"{""answer"": ""A"", ""timestamp"": 40574}"
+91662.39999997616,1771050271715.759,demo_q,C,41608,demo,"{""type"": ""answer_select"", ""ts"": 41608, ""session"": ""demo"", ""answer"": ""C""}",
+95512.09999996424,1771050275603.164,1_q,C,45458,1,"{""type"": ""answer_select"", ""ts"": 45458, ""session"": 1, ""answer"": ""C""}",
+96239.09999996424,1771050276294.061,1_q,C,46187,1,"{""type"": ""answer_submit"", ""ts"": 46187, ""session"": 1, ""answer"": ""C"", ""timestamp"": 46187}",
+46187,1771050276294.11,1,,,,,"{""answer"": ""C"", ""timestamp"": 46187}"

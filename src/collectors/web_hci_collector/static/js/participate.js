@@ -37,7 +37,13 @@ let l2csCanvas = null;
 let l2csCtx = null;
 let lastL2CSFrameTime = 0;
 const L2CS_FRAME_INTERVAL = 100;
-const L2CS_ENABLED = true;
+const L2CS_ENABLED = false;
+
+// Webcam frame streaming to dashboard
+let webcamFrameCanvas = null;
+let webcamFrameCtx = null;
+let lastWebcamFrameTime = 0;
+const WEBCAM_FRAME_INTERVAL = 200; // ~5Hz for dashboard preview
 
 // Calibration
 const CAL_POINTS = [
@@ -420,11 +426,17 @@ async function initFaceMesh() {
                 if (isCollecting) {
                     await faceMesh.send({ image: videoEl });
                     if (L2CS_ENABLED) sendL2CSFrame(videoEl);
+                    sendWebcamFrame(videoEl);
                 }
             },
             width: 640, height: 480,
         });
         await camera.start();
+
+        // Init webcam frame canvas for dashboard preview
+        webcamFrameCanvas = document.createElement('canvas');
+        webcamFrameCanvas.width = 320; webcamFrameCanvas.height = 240;
+        webcamFrameCtx = webcamFrameCanvas.getContext('2d');
 
         if (L2CS_ENABLED) {
             l2csCanvas = document.createElement('canvas');
@@ -502,6 +514,21 @@ function sendL2CSFrame(videoEl) {
             height: l2csCanvas.height,
             screen_width: window.screen.width,
             screen_height: window.screen.height,
+        });
+    } catch (e) { /* ignore */ }
+}
+
+// ── Webcam Frame Streaming to Dashboard ───────────────────
+
+function sendWebcamFrame(videoEl) {
+    const now = performance.now();
+    if (now - lastWebcamFrameTime < WEBCAM_FRAME_INTERVAL) return;
+    lastWebcamFrameTime = now;
+    if (!webcamFrameCanvas || !webcamFrameCtx || !videoEl) return;
+    try {
+        webcamFrameCtx.drawImage(videoEl, 0, 0, webcamFrameCanvas.width, webcamFrameCanvas.height);
+        sendData('webcam_frame', {
+            frame: webcamFrameCanvas.toDataURL('image/jpeg', 0.5),
         });
     } catch (e) { /* ignore */ }
 }

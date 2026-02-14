@@ -37,7 +37,7 @@ class ServerConfig:
     port: int = 8000
     output_dir: str = "data/raw/web_hci"
     enable_emotion_detection: bool = True
-    enable_l2cs_gaze: bool = True  # Enable L2CS-Net server-side gaze estimation
+    enable_l2cs_gaze: bool = False  # L2CS-Net server-side gaze estimation (optional)
     save_interval_seconds: int = 30
     debug: bool = False
     # SSL/HTTPS settings for WebGazer (requires HTTPS for webcam access)
@@ -403,6 +403,10 @@ class WebHCICollectorServer:
 
         # Update session counts
         self.session_manager.update_session_counts(session_id, data_type)
+
+        # Skip storing webcam preview frames (display-only, not research data)
+        if data_type == "webcam_frame":
+            return
 
         # Add to session data
         self.data_processor.add_data(

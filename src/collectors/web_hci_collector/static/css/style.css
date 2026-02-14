@@ -29,10 +29,10 @@ body {
 /* Dashboard Layout */
 .dashboard {
     display: grid;
-    grid-template-columns: 260px 1fr 220px;
+    grid-template-columns: 210px 1fr 190px;
     grid-template-rows: auto 1fr auto;
-    gap: 10px;
-    padding: 10px;
+    gap: 6px;
+    padding: 6px;
     height: 100vh;
     max-height: 100vh;
     overflow: hidden;
@@ -43,13 +43,13 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 8px 16px;
+    padding: 4px 12px;
     background: var(--bg-secondary);
-    border-radius: 8px;
+    border-radius: 6px;
 }
 
 .header h1 {
-    font-size: 1.1rem;
+    font-size: 0.95rem;
     font-weight: 600;
 }
 
@@ -95,19 +95,19 @@ body {
 /* Panels */
 .panel {
     background: var(--bg-secondary);
-    border-radius: 8px;
-    padding: 10px;
+    border-radius: 6px;
+    padding: 8px;
     overflow: hidden;
 }
 
 .panel-title {
-    font-size: 0.75rem;
+    font-size: 0.7rem;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.5px;
     color: var(--text-secondary);
-    margin-bottom: 8px;
-    padding-bottom: 6px;
+    margin-bottom: 6px;
+    padding-bottom: 4px;
     border-bottom: 1px solid rgba(255,255,255,0.1);
     display: flex;
     align-items: center;
@@ -150,9 +150,9 @@ body {
 .sidebar-left {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 6px;
     overflow-y: auto;
-    max-height: calc(100vh - 80px);
+    max-height: calc(100vh - 60px);
 }
 
 .video-container {
@@ -162,7 +162,7 @@ body {
     background: #000;
     border-radius: 6px;
     overflow: hidden;
-    max-height: 150px;
+    max-height: 120px;
 }
 
 .face-mesh-container {
@@ -172,8 +172,8 @@ body {
     background: #000;
     border-radius: 6px;
     overflow: hidden;
-    min-height: 200px;
-    max-height: 280px;
+    min-height: 140px;
+    max-height: 180px;
 }
 
 #webcam-video {
@@ -204,7 +204,7 @@ body {
 .emotion-bars {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 5px;
 }
 
 .emotion-bar {
@@ -249,9 +249,9 @@ body {
 .main-content {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 6px;
     overflow: hidden;
-    max-height: calc(100vh - 80px);
+    max-height: calc(100vh - 50px);
 }
 
 .gaze-display {
@@ -294,7 +294,7 @@ body {
 }
 
 .stream-value {
-    font-size: 1.1rem;
+    font-size: 0.9rem;
     font-weight: 700;
     color: var(--accent-light);
 }
@@ -309,9 +309,9 @@ body {
 .sidebar-right {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 6px;
     overflow-y: auto;
-    max-height: calc(100vh - 80px);
+    max-height: calc(100vh - 60px);
 }
 
 .stats-grid {
@@ -323,12 +323,12 @@ body {
 .stat-item {
     background: var(--bg-card);
     border-radius: 6px;
-    padding: 8px;
+    padding: 5px;
     text-align: center;
 }
 
 .stat-value {
-    font-size: 1rem;
+    font-size: 0.85rem;
     font-weight: 700;
 }
 
@@ -341,7 +341,7 @@ body {
 /* Event Log */
 .event-log {
     flex: 1;
-    max-height: 200px;
+    max-height: 150px;
     overflow-y: auto;
 }
 
@@ -375,18 +375,18 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 6px 16px;
+    padding: 3px 10px;
     background: var(--bg-secondary);
-    border-radius: 8px;
-    font-size: 0.75rem;
+    border-radius: 6px;
+    font-size: 0.65rem;
 }
 
 /* Buttons */
 .btn {
-    padding: 8px 14px;
+    padding: 6px 12px;
     border: none;
     border-radius: 6px;
-    font-size: 0.75rem;
+    font-size: 0.7rem;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.2s;
@@ -543,7 +543,7 @@ body {
     background: var(--bg-card);
     border-radius: 6px;
     overflow: hidden;
-    min-height: 350px;
+    min-height: 250px;
 }
 
 .participant-frame {
@@ -673,7 +673,7 @@ body {
 .data-streams {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
-    gap: 12px;
+    gap: 6px;
 }
 
 /* Timeline Panel */
@@ -887,7 +887,7 @@ body {
 .timeline-charts {
     display: flex;
     gap: 4px;
-    height: 60px;
+    height: 45px;
     width: 100%;
     min-width: 0;
 }
@@ -920,8 +920,8 @@ body {
 .timeline-legend {
     display: flex;
     justify-content: center;
-    gap: 12px;
-    font-size: 0.6rem;
+    gap: 8px;
+    font-size: 0.55rem;
     color: var(--text-secondary);
 }
 
@@ -978,7 +978,7 @@ body {
 
 /* Sessions List */
 .sessions-list {
-    max-height: 200px;
+    max-height: 150px;
     overflow-y: auto;
     display: flex;
     flex-direction: column;
@@ -1145,7 +1145,7 @@ body {
 
 /* AOI Dwell Time Panel */
 .aoi-container {
-    max-height: 180px;
+    max-height: 140px;
     overflow-y: auto;
 }
 

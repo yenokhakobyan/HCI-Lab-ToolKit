@@ -22,13 +22,13 @@
 
         <!-- Left Sidebar - Video and Emotions -->
         <aside class="sidebar-left">
-            <!-- Live Webcam Preview -->
+            <!-- Participant Camera Preview -->
             <div class="panel">
-                <div class="panel-title">Live Camera Feed <span class="panel-toggle" onclick="togglePanel(this)">&#9660;</span></div>
+                <div class="panel-title">Participant Camera <span class="panel-toggle" onclick="togglePanel(this)">&#9660;</span></div>
                 <div class="video-container" style="position: relative;">
-                    <video id="webcam-video" autoplay playsinline muted style="width: 100%; border-radius: 8px; transform: scaleX(-1);"></video>
-                    <div id="camera-status" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: var(--text-secondary); font-size: 0.875rem;">
-                        Initializing camera...
+                    <canvas id="participant-webcam-canvas" style="width: 100%; border-radius: 8px; transform: scaleX(-1);"></canvas>
+                    <div id="camera-status" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: var(--text-secondary); font-size: 0.75rem;">
+                        Waiting for participant...
                     </div>
                 </div>
             </div>
@@ -97,10 +97,7 @@
                         </div>
                         <div id="link-copy-status" style="font-size: 0.65rem; color: var(--success); display: none; margin-top: 2px;">Copied!</div>
                     </div>
-                    <div style="display: flex; gap: 6px;">
-                        <button class="btn btn-secondary" id="start-btn" onclick="startCollection()" style="flex: 1;">Start Collection</button>
-                        <button class="btn btn-secondary" id="export-btn" onclick="exportData()" style="flex: 1;">Export Data</button>
-                    </div>
+                    <button class="btn btn-secondary" id="export-btn" onclick="exportData()">Export Data</button>
                 </div>
             </div>
 
