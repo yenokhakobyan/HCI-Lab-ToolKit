@@ -47,9 +47,9 @@ const WEBCAM_FRAME_INTERVAL = 200; // ~5Hz for dashboard preview
 
 // Calibration
 const CAL_POINTS = [
-    { x: 10, y: 10 }, { x: 50, y: 10 }, { x: 90, y: 10 },
+    { x: 10, y: 15 }, { x: 50, y: 15 }, { x: 90, y: 15 },
     { x: 10, y: 50 }, { x: 50, y: 50 }, { x: 90, y: 50 },
-    { x: 10, y: 90 }, { x: 50, y: 90 }, { x: 90, y: 90 },
+    { x: 10, y: 85 }, { x: 50, y: 85 }, { x: 90, y: 85 },
 ];
 const CLICKS_PER_POINT = 5;
 let calCurrentPoint = 0;
@@ -160,9 +160,9 @@ function updateProgressBar(step) {
         }
     });
 
-    // Hide progress bar during content step (fullscreen)
+    // Hide progress bar during calibration (avoid overlap) and content (fullscreen)
     const bar = document.getElementById('step-progress');
-    bar.classList.toggle('hidden', step === 'content');
+    bar.classList.toggle('hidden', step === 'calibration' || step === 'content');
 }
 
 // ── Step 1: Welcome → Begin ───────────────────────────────
@@ -227,8 +227,20 @@ function handleCalClick(idx) {
     if (idx !== calCurrentPoint) return;
     calCurrentClicks++;
 
-    // Visual feedback
+    // Send calibration click data to server
     const pt = calPointElements[idx];
+    const rect = pt.getBoundingClientRect();
+    sendData('calibration_click', {
+        point_index: idx,
+        click_number: calCurrentClicks,
+        total_clicks: CLICKS_PER_POINT,
+        target_pct: CAL_POINTS[idx],
+        target_px: { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 },
+        screen_width: window.innerWidth,
+        screen_height: window.innerHeight,
+    });
+
+    // Visual feedback
     pt.style.transform = 'translate(-50%, -50%) scale(0.8)';
     setTimeout(() => { pt.style.transform = 'translate(-50%, -50%) scale(1)'; }, 100);
 
@@ -275,6 +287,19 @@ async function startContent() {
     const contentUrl = experimentConfig.content_url || '/static/experiments/green_energy_demo.html';
     console.log('Loading content:', contentUrl);
 
+    // Enable collection immediately so gaze/mouse data is captured during setup
+    isCollecting = true;
+    floatingControls.classList.remove('hidden');
+    gazeCursor.style.display = 'block';
+
+    // Check WebGazer fallback 5s after collection starts (not during calibration)
+    setTimeout(() => {
+        if (!webgazerGazeReceived && isCollecting) {
+            console.warn('WebGazer produced no gaze data after 5s of collection — enabling mouse-based gaze fallback');
+            enableMouseGazeFallback();
+        }
+    }, 5000);
+
     contentFrame.src = contentUrl;
 
     // Wait for iframe load
@@ -286,14 +311,6 @@ async function startContent() {
             resolve();
         };
     });
-
-    // Init MediaPipe + camera
-    await initFaceMesh();
-
-    // Enable collection immediately — mouse/click/gaze tracking starts now
-    isCollecting = true;
-    floatingControls.classList.remove('hidden');
-    gazeCursor.style.display = 'block';
 
     sendData('session', {
         event: 'start',
@@ -308,8 +325,10 @@ async function startContent() {
     // Listen for iframe messages
     window.addEventListener('message', handleIframeMessage);
 
+    // Init MediaPipe + camera in background (non-blocking)
+    initFaceMesh().catch(e => console.error('FaceMesh init error:', e));
+
     // Start screen recording in background (non-blocking)
-    // If user cancels or it fails, mouse/click/gaze tracking still works
     startScreenRecording().then(ok => {
         if (!ok) {
             console.warn('Screen recording not available — mouse/click/gaze tracking still active');
@@ -449,15 +468,6 @@ async function initWebGazer() {
         webgazer.showFaceFeedbackBox(false);
         webgazerActive = true;
         console.log('WebGazer initialized');
-
-        // After 5 seconds, check if we actually got any gaze data
-        // If not, WebGazer may have failed silently (no camera, HTTP, etc.)
-        setTimeout(() => {
-            if (!webgazerGazeReceived && isCollecting) {
-                console.warn('WebGazer produced no gaze data after 5s — enabling mouse-based gaze fallback');
-                enableMouseGazeFallback();
-            }
-        }, 5000);
     } catch (e) {
         console.error('WebGazer init error:', e);
         console.warn('Enabling mouse-based gaze fallback due to WebGazer failure');

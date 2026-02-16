@@ -85,6 +85,7 @@
             justify-content: center;
             opacity: 0;
             pointer-events: none;
+            z-index: 10;
         }
         .calibration-point.active {
             opacity: 1;
@@ -104,11 +105,12 @@
         }
         .cal-ui {
             position: absolute;
-            bottom: 40px;
+            bottom: 12px;
             left: 50%;
             transform: translateX(-50%);
             text-align: center;
-            z-index: 10;
+            z-index: 5;
+            pointer-events: none;
         }
         .cal-progress { display: flex; gap: 6px; justify-content: center; margin-bottom: 16px; }
         .cal-dot { width: 10px; height: 10px; border-radius: 50%; background: rgba(255,255,255,0.15); }

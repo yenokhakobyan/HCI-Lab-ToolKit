@@ -29,6 +29,7 @@ class DataBuffer:
     experiment_event: List[Dict] = field(default_factory=list)
     answer: List[Dict] = field(default_factory=list)
     hover: List[Dict] = field(default_factory=list)
+    calibration_click: List[Dict] = field(default_factory=list)
 
     def clear(self):
         self.gaze.clear()
@@ -40,12 +41,14 @@ class DataBuffer:
         self.experiment_event.clear()
         self.answer.clear()
         self.hover.clear()
+        self.calibration_click.clear()
 
 
 # All data types stored in the buffer
 _DATA_TYPES = [
     "gaze", "l2cs_gaze", "face_mesh", "emotion",
     "mouse", "keyboard", "experiment_event", "answer", "hover",
+    "calibration_click",
 ]
 
 
