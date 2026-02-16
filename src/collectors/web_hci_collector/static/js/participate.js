@@ -495,21 +495,14 @@ async function initWebGazer() {
     }
 
     try {
-        // Log available WebGazer methods to diagnose API mismatch
-        const methods = ['setRegression', 'saveDataAcrossSessions', 'setGazeListener', 'begin',
-                         'showVideoPreview', 'showPredictionPoints', 'showFaceOverlay', 'showFaceFeedbackBox'];
-        const available = methods.filter(m => typeof webgazer[m] === 'function');
-        const missing = methods.filter(m => typeof webgazer[m] !== 'function');
-        console.log('[WebGazer] Available methods:', available.join(', '));
-        if (missing.length) console.warn('[WebGazer] Missing methods:', missing.join(', '));
+        // WebGazer uses MediaPipe FaceMesh internally. Its default faceMeshSolutionPath
+        // is './mediapipe/face_mesh' (relative), which 404s on our server.
+        // Point it to the CDN where the assets are actually hosted.
+        webgazer.params.faceMeshSolutionPath = 'https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/';
+        console.log('[WebGazer] Set faceMeshSolutionPath to CDN');
 
-        // Step-by-step init with error isolation
-        try { webgazer.setRegression('ridge'); console.log('[WebGazer] setRegression OK'); }
-        catch (e) { console.warn('[WebGazer] setRegression failed:', e.message, '— using default'); }
-
-        try { webgazer.saveDataAcrossSessions(false); console.log('[WebGazer] saveDataAcrossSessions OK'); }
-        catch (e) { console.warn('[WebGazer] saveDataAcrossSessions failed:', e.message); }
-
+        webgazer.setRegression('ridge');
+        webgazer.saveDataAcrossSessions(false);
         webgazer.setGazeListener((data, timestamp) => {
             if (data) {
                 if (!webgazerGazeReceived) {
@@ -523,9 +516,8 @@ async function initWebGazer() {
                 }
             }
         });
-        console.log('[WebGazer] setGazeListener OK');
 
-        console.log('[WebGazer] Calling begin() — requesting camera...');
+        console.log('[WebGazer] Calling begin()...');
         await webgazer.begin();
         console.log('[WebGazer] begin() resolved');
 
@@ -547,8 +539,6 @@ async function initWebGazer() {
     } catch (e) {
         webgazerFailReason = `${e.name}: ${e.message}`;
         console.error('[WebGazer] Init failed:', webgazerFailReason);
-        // Log the full stack trace to find where the error originates
-        console.error('[WebGazer] Stack:', e.stack);
     }
 }
 
