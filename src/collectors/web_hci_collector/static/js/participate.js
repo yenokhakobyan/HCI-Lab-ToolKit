@@ -480,100 +480,61 @@ let lastMouseY = 0;
 let webgazerFailReason = '';
 
 async function initWebGazer() {
-    // Check secure context first
-    console.log('[WebGazer] Protocol:', window.location.protocol, 'Hostname:', window.location.hostname, 'Secure context:', window.isSecureContext);
+    console.log('[WebGazer] Secure context:', window.isSecureContext, '| Protocol:', window.location.protocol, '| Host:', window.location.hostname);
 
     if (!window.isSecureContext) {
         webgazerFailReason = 'Not a secure context (need HTTPS on localhost)';
         console.error('[WebGazer]', webgazerFailReason);
-        enableMouseGazeFallback();
         return;
     }
 
-    // Check if webgazer global exists (CDN might have failed)
     if (typeof webgazer === 'undefined') {
-        webgazerFailReason = 'WebGazer script failed to load from CDN';
+        webgazerFailReason = 'WebGazer script not loaded (CDN issue?)';
         console.error('[WebGazer]', webgazerFailReason);
-        enableMouseGazeFallback();
         return;
     }
 
     try {
-        // First test camera access directly to get a clear error
-        console.log('[WebGazer] Testing camera access...');
-        let testStream;
-        try {
-            testStream = await navigator.mediaDevices.getUserMedia({ video: true });
-            console.log('[WebGazer] Camera access granted:', testStream.getVideoTracks()[0]?.label);
-            // Stop test stream immediately — WebGazer will open its own
-            testStream.getTracks().forEach(t => t.stop());
-        } catch (camErr) {
-            webgazerFailReason = `Camera access failed: ${camErr.name} — ${camErr.message}`;
-            console.error('[WebGazer]', webgazerFailReason);
-            enableMouseGazeFallback();
-            return;
-        }
-
-        console.log('[WebGazer] Calling webgazer.begin()...');
-        await webgazer
-            .setRegression('ridge')
-            .setGazeListener((data, timestamp) => {
-                if (data) {
-                    if (!webgazerGazeReceived) {
-                        console.log('[WebGazer] First gaze prediction received!', { x: Math.round(data.x), y: Math.round(data.y) });
-                    }
-                    webgazerGazeReceived = true;
-                    if (isCollecting) {
-                        gazeCursor.style.left = `${data.x}px`;
-                        gazeCursor.style.top = `${data.y}px`;
-                        sendData('gaze', { x: data.x, y: data.y, timestamp, source: 'webgazer' });
-                    }
+        // Configure WebGazer with separate calls (avoid chaining issues with minified build)
+        console.log('[WebGazer] Configuring...');
+        webgazer.setRegression('ridge');
+        webgazer.saveDataAcrossSessions(false);
+        webgazer.setGazeListener((data, timestamp) => {
+            if (data) {
+                if (!webgazerGazeReceived) {
+                    console.log('[WebGazer] First gaze prediction!', Math.round(data.x), Math.round(data.y));
                 }
-            })
-            .saveDataAcrossSessions(false)
-            .begin();
+                webgazerGazeReceived = true;
+                if (isCollecting) {
+                    gazeCursor.style.left = `${data.x}px`;
+                    gazeCursor.style.top = `${data.y}px`;
+                    sendData('gaze', { x: data.x, y: data.y, timestamp, source: 'webgazer' });
+                }
+            }
+        });
 
-        console.log('[WebGazer] begin() resolved successfully');
+        console.log('[WebGazer] Calling begin() — requesting camera...');
+        await webgazer.begin();
+        console.log('[WebGazer] begin() resolved');
 
         webgazer.showVideoPreview(false);
         webgazer.showPredictionPoints(false);
         webgazer.showFaceOverlay(false);
         webgazer.showFaceFeedbackBox(false);
 
-        // Verify WebGazer's video element was created and camera is streaming
+        // begin() internally awaits loadeddata, so video should be ready
         const wgVideo = document.getElementById('webgazerVideoFeed');
-        if (wgVideo) {
-            console.log('[WebGazer] Video element found. readyState:', wgVideo.readyState, 'srcObject:', !!wgVideo.srcObject);
-            // Since begin() awaits init() which waits for loadeddata, video should already be ready
-            // But give it a short buffer just in case
-            const videoReady = await new Promise((resolve) => {
-                if (wgVideo.readyState >= 2 && wgVideo.srcObject) { resolve(true); return; }
-                const check = setInterval(() => {
-                    if (wgVideo.readyState >= 2 && wgVideo.srcObject) {
-                        clearInterval(check);
-                        resolve(true);
-                    }
-                }, 200);
-                setTimeout(() => { clearInterval(check); resolve(false); }, 3000);
-            });
-            if (videoReady) {
-                webgazerActive = true;
-                const tracks = wgVideo.srcObject.getVideoTracks();
-                console.log('[WebGazer] Camera confirmed:', tracks[0]?.label || 'unknown camera');
-            } else {
-                webgazerFailReason = `Video not streaming (readyState: ${wgVideo.readyState}, srcObject: ${!!wgVideo.srcObject})`;
-                console.warn('[WebGazer]', webgazerFailReason);
-                webgazerActive = false;
-            }
+        if (wgVideo && wgVideo.srcObject) {
+            webgazerActive = true;
+            const tracks = wgVideo.srcObject.getVideoTracks();
+            console.log('[WebGazer] Camera active:', tracks[0]?.label || 'unknown');
         } else {
-            webgazerFailReason = 'WebGazer did not create video element';
+            webgazerFailReason = 'Video element missing after begin()';
             console.warn('[WebGazer]', webgazerFailReason);
-            webgazerActive = false;
         }
     } catch (e) {
         webgazerFailReason = `${e.name}: ${e.message}`;
-        console.error('[WebGazer] Init error:', webgazerFailReason);
-        enableMouseGazeFallback();
+        console.error('[WebGazer] Init failed:', webgazerFailReason);
     }
 }
 
