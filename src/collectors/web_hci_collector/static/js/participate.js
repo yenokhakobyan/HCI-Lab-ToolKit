@@ -431,11 +431,13 @@ async function initWebGazer() {
     try {
         await webgazer
             .setGazeListener((data, timestamp) => {
-                if (data && isCollecting) {
+                if (data) {
                     webgazerGazeReceived = true;
-                    gazeCursor.style.left = `${data.x}px`;
-                    gazeCursor.style.top = `${data.y}px`;
-                    sendData('gaze', { x: data.x, y: data.y, timestamp, source: 'webgazer' });
+                    if (isCollecting) {
+                        gazeCursor.style.left = `${data.x}px`;
+                        gazeCursor.style.top = `${data.y}px`;
+                        sendData('gaze', { x: data.x, y: data.y, timestamp, source: 'webgazer' });
+                    }
                 }
             })
             .saveDataAcrossSessions(true)
