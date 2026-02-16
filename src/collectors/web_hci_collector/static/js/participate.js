@@ -495,10 +495,21 @@ async function initWebGazer() {
     }
 
     try {
-        // Configure WebGazer with separate calls (avoid chaining issues with minified build)
-        console.log('[WebGazer] Configuring...');
-        webgazer.setRegression('ridge');
-        webgazer.saveDataAcrossSessions(false);
+        // Log available WebGazer methods to diagnose API mismatch
+        const methods = ['setRegression', 'saveDataAcrossSessions', 'setGazeListener', 'begin',
+                         'showVideoPreview', 'showPredictionPoints', 'showFaceOverlay', 'showFaceFeedbackBox'];
+        const available = methods.filter(m => typeof webgazer[m] === 'function');
+        const missing = methods.filter(m => typeof webgazer[m] !== 'function');
+        console.log('[WebGazer] Available methods:', available.join(', '));
+        if (missing.length) console.warn('[WebGazer] Missing methods:', missing.join(', '));
+
+        // Step-by-step init with error isolation
+        try { webgazer.setRegression('ridge'); console.log('[WebGazer] setRegression OK'); }
+        catch (e) { console.warn('[WebGazer] setRegression failed:', e.message, '— using default'); }
+
+        try { webgazer.saveDataAcrossSessions(false); console.log('[WebGazer] saveDataAcrossSessions OK'); }
+        catch (e) { console.warn('[WebGazer] saveDataAcrossSessions failed:', e.message); }
+
         webgazer.setGazeListener((data, timestamp) => {
             if (data) {
                 if (!webgazerGazeReceived) {
@@ -512,6 +523,7 @@ async function initWebGazer() {
                 }
             }
         });
+        console.log('[WebGazer] setGazeListener OK');
 
         console.log('[WebGazer] Calling begin() — requesting camera...');
         await webgazer.begin();
@@ -535,6 +547,8 @@ async function initWebGazer() {
     } catch (e) {
         webgazerFailReason = `${e.name}: ${e.message}`;
         console.error('[WebGazer] Init failed:', webgazerFailReason);
+        // Log the full stack trace to find where the error originates
+        console.error('[WebGazer] Stack:', e.stack);
     }
 }
 
