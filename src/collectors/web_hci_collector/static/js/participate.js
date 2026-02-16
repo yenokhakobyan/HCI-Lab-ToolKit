@@ -292,13 +292,19 @@ async function startContent() {
     floatingControls.classList.remove('hidden');
     gazeCursor.style.display = 'block';
 
-    // Check WebGazer fallback 5s after collection starts (not during calibration)
-    setTimeout(() => {
-        if (!webgazerGazeReceived && isCollecting) {
-            console.warn('WebGazer produced no gaze data after 5s of collection — enabling mouse-based gaze fallback');
-            enableMouseGazeFallback();
-        }
-    }, 5000);
+    // If WebGazer never activated (camera blocked, init failed), enable fallback immediately
+    if (!webgazerActive) {
+        console.warn('WebGazer was not active — enabling mouse fallback immediately');
+        enableMouseGazeFallback();
+    } else {
+        // Check WebGazer fallback 5s after collection starts (not during calibration)
+        setTimeout(() => {
+            if (!webgazerGazeReceived && isCollecting) {
+                console.warn('WebGazer produced no gaze data after 5s of collection — enabling mouse-based gaze fallback');
+                enableMouseGazeFallback();
+            }
+        }, 5000);
+    }
 
     contentFrame.src = contentUrl;
 
@@ -451,7 +457,11 @@ let lastMouseY = 0;
 
 async function initWebGazer() {
     try {
+        // Clear stale calibration data to force fresh calibration each session
+        webgazer.clearData();
+
         await webgazer
+            .setRegression('ridge')
             .setGazeListener((data, timestamp) => {
                 if (data) {
                     webgazerGazeReceived = true;
@@ -462,15 +472,39 @@ async function initWebGazer() {
                     }
                 }
             })
-            .saveDataAcrossSessions(true)
+            .saveDataAcrossSessions(false)
             .begin();
 
         webgazer.showVideoPreview(false);
         webgazer.showPredictionPoints(false);
         webgazer.showFaceOverlay(false);
         webgazer.showFaceFeedbackBox(false);
-        webgazerActive = true;
-        console.log('WebGazer initialized');
+
+        // Verify WebGazer's video element was created and camera is streaming
+        const wgVideo = document.getElementById('webgazerVideoFeed');
+        if (wgVideo) {
+            // Wait up to 5s for the video stream to actually start
+            const videoReady = await new Promise((resolve) => {
+                if (wgVideo.readyState >= 2 && wgVideo.srcObject) { resolve(true); return; }
+                const check = setInterval(() => {
+                    if (wgVideo.readyState >= 2 && wgVideo.srcObject) {
+                        clearInterval(check);
+                        resolve(true);
+                    }
+                }, 200);
+                setTimeout(() => { clearInterval(check); resolve(false); }, 5000);
+            });
+            if (videoReady) {
+                webgazerActive = true;
+                console.log('WebGazer initialized — camera stream confirmed');
+            } else {
+                console.warn('WebGazer video element exists but camera not streaming');
+                webgazerActive = false;
+            }
+        } else {
+            console.warn('WebGazer did not create video element — camera may be blocked');
+            webgazerActive = false;
+        }
     } catch (e) {
         console.error('WebGazer init error:', e);
         console.warn('Enabling mouse-based gaze fallback due to WebGazer failure');
@@ -525,10 +559,28 @@ async function initFaceMesh() {
 
         // Reuse WebGazer's video element instead of opening a second camera stream.
         // MediaPipe Camera calls getUserMedia which conflicts with WebGazer's stream.
-        const videoEl = document.getElementById('webgazerVideoFeed');
+        // Wait up to 3s for WebGazer to create its video element (may not exist yet if .begin() is slow).
+        let videoEl = document.getElementById('webgazerVideoFeed');
         if (!videoEl) {
-            console.warn('WebGazer video element not found — falling back to separate camera');
-            await initFaceMeshFallback();
+            videoEl = await new Promise((resolve) => {
+                let attempts = 0;
+                const check = setInterval(() => {
+                    const el = document.getElementById('webgazerVideoFeed');
+                    if (el) { clearInterval(check); resolve(el); }
+                    if (++attempts > 30) { clearInterval(check); resolve(null); } // 3s timeout
+                }, 100);
+            });
+        }
+
+        if (!videoEl || !webgazerActive) {
+            // WebGazer failed or didn't create a video — only use separate camera if
+            // WebGazer is NOT active (to avoid stealing its camera stream)
+            if (!webgazerActive) {
+                console.warn('WebGazer not active — using separate camera for FaceMesh');
+                await initFaceMeshFallback();
+            } else {
+                console.warn('WebGazer video not found but marked active — skipping FaceMesh to avoid camera conflict');
+            }
             return;
         }
 
