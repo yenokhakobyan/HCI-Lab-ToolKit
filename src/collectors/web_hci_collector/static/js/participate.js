@@ -93,8 +93,25 @@ async function init() {
     // Connect WebSocket
     connectWebSocket();
 
+    // Show webcam status on welcome card
+    const beginBtn = document.getElementById('begin-btn');
+    if (beginBtn) {
+        beginBtn.disabled = true;
+        beginBtn.textContent = 'Initializing webcam...';
+    }
+
     // Pre-init WebGazer
     await initWebGazer();
+
+    // Update button with webcam status
+    if (beginBtn) {
+        beginBtn.disabled = false;
+        if (webgazerActive) {
+            beginBtn.textContent = 'Begin Study';
+        } else {
+            beginBtn.textContent = 'Begin Study (no webcam — mouse fallback)';
+        }
+    }
 
     // Build calibration UI
     buildCalibrationUI();
@@ -456,14 +473,24 @@ let lastMouseX = 0;
 let lastMouseY = 0;
 
 async function initWebGazer() {
-    try {
-        // Clear stale calibration data to force fresh calibration each session
-        webgazer.clearData();
+    // Check secure context first
+    console.log('[WebGazer] Protocol:', window.location.protocol, 'Hostname:', window.location.hostname, 'Secure context:', window.isSecureContext);
 
+    if (!window.isSecureContext) {
+        console.error('[WebGazer] Not a secure context — camera access will be blocked');
+        enableMouseGazeFallback();
+        return;
+    }
+
+    try {
+        console.log('[WebGazer] Calling webgazer.begin()...');
         await webgazer
             .setRegression('ridge')
             .setGazeListener((data, timestamp) => {
                 if (data) {
+                    if (!webgazerGazeReceived) {
+                        console.log('[WebGazer] First gaze prediction received!', { x: Math.round(data.x), y: Math.round(data.y) });
+                    }
                     webgazerGazeReceived = true;
                     if (isCollecting) {
                         gazeCursor.style.left = `${data.x}px`;
@@ -475,6 +502,8 @@ async function initWebGazer() {
             .saveDataAcrossSessions(false)
             .begin();
 
+        console.log('[WebGazer] begin() resolved successfully');
+
         webgazer.showVideoPreview(false);
         webgazer.showPredictionPoints(false);
         webgazer.showFaceOverlay(false);
@@ -483,6 +512,7 @@ async function initWebGazer() {
         // Verify WebGazer's video element was created and camera is streaming
         const wgVideo = document.getElementById('webgazerVideoFeed');
         if (wgVideo) {
+            console.log('[WebGazer] Video element found. readyState:', wgVideo.readyState, 'srcObject:', !!wgVideo.srcObject);
             // Wait up to 5s for the video stream to actually start
             const videoReady = await new Promise((resolve) => {
                 if (wgVideo.readyState >= 2 && wgVideo.srcObject) { resolve(true); return; }
@@ -496,18 +526,25 @@ async function initWebGazer() {
             });
             if (videoReady) {
                 webgazerActive = true;
-                console.log('WebGazer initialized — camera stream confirmed');
+                const tracks = wgVideo.srcObject.getVideoTracks();
+                console.log('[WebGazer] Camera confirmed:', tracks[0]?.label || 'unknown camera', 'readyState:', wgVideo.readyState);
             } else {
-                console.warn('WebGazer video element exists but camera not streaming');
+                console.warn('[WebGazer] Video element exists but camera not streaming. readyState:', wgVideo.readyState, 'srcObject:', !!wgVideo.srcObject);
                 webgazerActive = false;
             }
         } else {
-            console.warn('WebGazer did not create video element — camera may be blocked');
+            console.warn('[WebGazer] Video element not found in DOM');
             webgazerActive = false;
         }
     } catch (e) {
-        console.error('WebGazer init error:', e);
-        console.warn('Enabling mouse-based gaze fallback due to WebGazer failure');
+        console.error('[WebGazer] Init error:', e.name, e.message);
+        if (e.name === 'NotAllowedError') {
+            console.warn('[WebGazer] Camera permission denied by user or browser');
+        } else if (e.name === 'NotFoundError') {
+            console.warn('[WebGazer] No camera found on device');
+        } else if (e.name === 'NotReadableError') {
+            console.warn('[WebGazer] Camera is in use by another application');
+        }
         enableMouseGazeFallback();
     }
 }
@@ -981,8 +1018,15 @@ document.addEventListener('visibilitychange', () => {
 
 // ── Boot ──────────────────────────────────────────────────
 
-document.addEventListener('DOMContentLoaded', () => {
+function boot() {
     setupMouseTracking();
     setupKeyboardTracking();
     init();
-});
+}
+
+// Module scripts are deferred, so DOMContentLoaded may have already fired
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', boot);
+} else {
+    boot();
+}
