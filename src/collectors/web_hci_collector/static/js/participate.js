@@ -526,6 +526,10 @@ async function initWebGazer() {
         webgazer.showFaceOverlay(false);
         webgazer.showFaceFeedbackBox(false);
 
+        // Also hide WebGazer's gaze dot directly (showPredictionPoints may not catch it)
+        const wgGazeDot = document.getElementById('webgazerGazeDot');
+        if (wgGazeDot) wgGazeDot.style.display = 'none';
+
         // begin() internally awaits loadeddata, so video should be ready
         const wgVideo = document.getElementById('webgazerVideoFeed');
         if (wgVideo && wgVideo.srcObject) {
