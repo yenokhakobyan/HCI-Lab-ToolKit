@@ -109,7 +109,12 @@ async function init() {
         if (webgazerActive) {
             beginBtn.textContent = 'Begin Study';
         } else {
-            beginBtn.textContent = 'Begin Study (no webcam — mouse fallback)';
+            beginBtn.textContent = 'Begin Study (mouse fallback)';
+            // Show reason below the button
+            const reason = document.createElement('p');
+            reason.style.cssText = 'color: var(--error); font-size: 0.75rem; margin-top: 8px;';
+            reason.textContent = `Webcam: ${webgazerFailReason || 'unknown error'}`;
+            beginBtn.parentElement.appendChild(reason);
         }
     }
 
@@ -472,17 +477,43 @@ let mouseGazeFallbackActive = false;
 let lastMouseX = 0;
 let lastMouseY = 0;
 
+let webgazerFailReason = '';
+
 async function initWebGazer() {
     // Check secure context first
     console.log('[WebGazer] Protocol:', window.location.protocol, 'Hostname:', window.location.hostname, 'Secure context:', window.isSecureContext);
 
     if (!window.isSecureContext) {
-        console.error('[WebGazer] Not a secure context — camera access will be blocked');
+        webgazerFailReason = 'Not a secure context (need HTTPS on localhost)';
+        console.error('[WebGazer]', webgazerFailReason);
+        enableMouseGazeFallback();
+        return;
+    }
+
+    // Check if webgazer global exists (CDN might have failed)
+    if (typeof webgazer === 'undefined') {
+        webgazerFailReason = 'WebGazer script failed to load from CDN';
+        console.error('[WebGazer]', webgazerFailReason);
         enableMouseGazeFallback();
         return;
     }
 
     try {
+        // First test camera access directly to get a clear error
+        console.log('[WebGazer] Testing camera access...');
+        let testStream;
+        try {
+            testStream = await navigator.mediaDevices.getUserMedia({ video: true });
+            console.log('[WebGazer] Camera access granted:', testStream.getVideoTracks()[0]?.label);
+            // Stop test stream immediately — WebGazer will open its own
+            testStream.getTracks().forEach(t => t.stop());
+        } catch (camErr) {
+            webgazerFailReason = `Camera access failed: ${camErr.name} — ${camErr.message}`;
+            console.error('[WebGazer]', webgazerFailReason);
+            enableMouseGazeFallback();
+            return;
+        }
+
         console.log('[WebGazer] Calling webgazer.begin()...');
         await webgazer
             .setRegression('ridge')
@@ -513,7 +544,8 @@ async function initWebGazer() {
         const wgVideo = document.getElementById('webgazerVideoFeed');
         if (wgVideo) {
             console.log('[WebGazer] Video element found. readyState:', wgVideo.readyState, 'srcObject:', !!wgVideo.srcObject);
-            // Wait up to 5s for the video stream to actually start
+            // Since begin() awaits init() which waits for loadeddata, video should already be ready
+            // But give it a short buffer just in case
             const videoReady = await new Promise((resolve) => {
                 if (wgVideo.readyState >= 2 && wgVideo.srcObject) { resolve(true); return; }
                 const check = setInterval(() => {
@@ -522,29 +554,25 @@ async function initWebGazer() {
                         resolve(true);
                     }
                 }, 200);
-                setTimeout(() => { clearInterval(check); resolve(false); }, 5000);
+                setTimeout(() => { clearInterval(check); resolve(false); }, 3000);
             });
             if (videoReady) {
                 webgazerActive = true;
                 const tracks = wgVideo.srcObject.getVideoTracks();
-                console.log('[WebGazer] Camera confirmed:', tracks[0]?.label || 'unknown camera', 'readyState:', wgVideo.readyState);
+                console.log('[WebGazer] Camera confirmed:', tracks[0]?.label || 'unknown camera');
             } else {
-                console.warn('[WebGazer] Video element exists but camera not streaming. readyState:', wgVideo.readyState, 'srcObject:', !!wgVideo.srcObject);
+                webgazerFailReason = `Video not streaming (readyState: ${wgVideo.readyState}, srcObject: ${!!wgVideo.srcObject})`;
+                console.warn('[WebGazer]', webgazerFailReason);
                 webgazerActive = false;
             }
         } else {
-            console.warn('[WebGazer] Video element not found in DOM');
+            webgazerFailReason = 'WebGazer did not create video element';
+            console.warn('[WebGazer]', webgazerFailReason);
             webgazerActive = false;
         }
     } catch (e) {
-        console.error('[WebGazer] Init error:', e.name, e.message);
-        if (e.name === 'NotAllowedError') {
-            console.warn('[WebGazer] Camera permission denied by user or browser');
-        } else if (e.name === 'NotFoundError') {
-            console.warn('[WebGazer] No camera found on device');
-        } else if (e.name === 'NotReadableError') {
-            console.warn('[WebGazer] Camera is in use by another application');
-        }
+        webgazerFailReason = `${e.name}: ${e.message}`;
+        console.error('[WebGazer] Init error:', webgazerFailReason);
         enableMouseGazeFallback();
     }
 }
