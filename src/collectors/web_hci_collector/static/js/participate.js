@@ -407,7 +407,10 @@ window.endExperiment = async function () {
     // Stop WebGazer
     try { webgazer.end(); } catch (e) { console.error('WebGazer stop error:', e); }
 
-    // Stop MediaPipe camera
+    // Stop FaceMesh loop
+    faceMeshLoopRunning = false;
+
+    // Stop MediaPipe camera (only used in fallback mode)
     if (camera) {
         try { camera.stop(); } catch (e) { console.error('Camera stop error:', e); }
         camera = null;
@@ -505,6 +508,8 @@ function enableMouseGazeFallback() {
 
 // ── MediaPipe Face Mesh ───────────────────────────────────
 
+let faceMeshLoopRunning = false;
+
 async function initFaceMesh() {
     try {
         faceMesh = new FaceMesh({
@@ -518,6 +523,59 @@ async function initFaceMesh() {
         });
         faceMesh.onResults(onFaceMeshResults);
 
+        // Reuse WebGazer's video element instead of opening a second camera stream.
+        // MediaPipe Camera calls getUserMedia which conflicts with WebGazer's stream.
+        const videoEl = document.getElementById('webgazerVideoFeed');
+        if (!videoEl) {
+            console.warn('WebGazer video element not found — falling back to separate camera');
+            await initFaceMeshFallback();
+            return;
+        }
+
+        // Wait for WebGazer's video to be ready
+        await new Promise((resolve) => {
+            if (videoEl.readyState >= 2) { resolve(); return; }
+            videoEl.addEventListener('loadeddata', resolve, { once: true });
+            setTimeout(resolve, 5000); // 5s timeout
+        });
+
+        // Init webcam frame canvas for dashboard preview
+        webcamFrameCanvas = document.createElement('canvas');
+        webcamFrameCanvas.width = 320; webcamFrameCanvas.height = 240;
+        webcamFrameCtx = webcamFrameCanvas.getContext('2d');
+
+        if (L2CS_ENABLED) {
+            l2csCanvas = document.createElement('canvas');
+            l2csCanvas.width = 640; l2csCanvas.height = 480;
+            l2csCtx = l2csCanvas.getContext('2d');
+        }
+
+        // Use requestAnimationFrame loop to feed WebGazer's video to FaceMesh
+        faceMeshLoopRunning = true;
+        async function faceMeshLoop() {
+            if (!faceMeshLoopRunning || !faceMesh) return;
+            if (isCollecting && videoEl.readyState >= 2) {
+                try {
+                    await faceMesh.send({ image: videoEl });
+                    if (L2CS_ENABLED) sendL2CSFrame(videoEl);
+                    sendWebcamFrame(videoEl);
+                } catch (e) { /* ignore frame errors */ }
+            }
+            requestAnimationFrame(faceMeshLoop);
+        }
+        requestAnimationFrame(faceMeshLoop);
+
+        console.log('Face Mesh initialized (sharing WebGazer camera)');
+    } catch (e) {
+        console.error('Face Mesh init error:', e);
+    }
+}
+
+/**
+ * Fallback: use separate camera if WebGazer video is unavailable
+ */
+async function initFaceMeshFallback() {
+    try {
         const videoEl = document.getElementById('webcam-video');
         camera = new Camera(videoEl, {
             onFrame: async () => {
@@ -531,7 +589,6 @@ async function initFaceMesh() {
         });
         await camera.start();
 
-        // Init webcam frame canvas for dashboard preview
         webcamFrameCanvas = document.createElement('canvas');
         webcamFrameCanvas.width = 320; webcamFrameCanvas.height = 240;
         webcamFrameCtx = webcamFrameCanvas.getContext('2d');
@@ -541,9 +598,9 @@ async function initFaceMesh() {
             l2csCanvas.width = 640; l2csCanvas.height = 480;
             l2csCtx = l2csCanvas.getContext('2d');
         }
-        console.log('Face Mesh initialized');
+        console.log('Face Mesh initialized (separate camera fallback)');
     } catch (e) {
-        console.error('Face Mesh init error:', e);
+        console.error('Face Mesh fallback init error:', e);
     }
 }
 
@@ -853,6 +910,7 @@ window.addEventListener('beforeunload', () => {
         } catch (e) { /* ignore */ }
     }
     // Stop all media tracks regardless of state
+    faceMeshLoopRunning = false;
     stopScreenRecording();
     if (camera) { try { camera.stop(); } catch (e) { /* ignore */ } }
     try { webgazer.end(); } catch (e) { /* ignore */ }
