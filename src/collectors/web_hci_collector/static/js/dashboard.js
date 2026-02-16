@@ -47,6 +47,12 @@ let gazeHistory = [];
 const GAZE_HISTORY_LENGTH = 100;
 let activeGazeSource = 'WebGazer';
 
+// Gaze fixation detection
+let gazeFixationBuffer = [];  // Recent gaze samples for fixation detection
+const FIXATION_RADIUS = 50;   // pixels — max spread for a fixation
+const FIXATION_DURATION = 300; // ms — minimum dwell time to count as fixation
+let lastFixationTime = 0;
+
 // Mouse tracking visualization
 let mouseHistory = [];
 const MOUSE_HISTORY_LENGTH = 50;
@@ -423,22 +429,31 @@ function renderTrails() {
         }
     }
 
-    // Render gaze trail (heatmap style)
+    // Render gaze trail (connected lines + dots, like mouse trail)
     if (gazeTrailCtx && gazeTrailCanvas) {
-        // Fade existing trail
-        gazeTrailCtx.fillStyle = 'rgba(15, 52, 96, 0.05)';
-        gazeTrailCtx.fillRect(0, 0, gazeTrailCanvas.width, gazeTrailCanvas.height);
+        gazeTrailCtx.clearRect(0, 0, gazeTrailCanvas.width, gazeTrailCanvas.height);
 
-        // Draw recent gaze points as heatmap
-        for (let i = Math.max(0, gazeHistory.length - 30); i < gazeHistory.length; i++) {
-            const point = gazeHistory[i];
-            const age = (gazeHistory.length - i) / 30;
-            const alpha = (1 - age) * 0.3;
+        if (gazeHistory.length > 1) {
+            // Draw connected line segments with increasing opacity and width
+            for (let i = 1; i < gazeHistory.length; i++) {
+                const alpha = i / gazeHistory.length;
+                gazeTrailCtx.beginPath();
+                gazeTrailCtx.moveTo(gazeHistory[i - 1].x, gazeHistory[i - 1].y);
+                gazeTrailCtx.lineTo(gazeHistory[i].x, gazeHistory[i].y);
+                gazeTrailCtx.strokeStyle = `rgba(233, 69, 96, ${alpha * 0.7})`;
+                gazeTrailCtx.lineWidth = 2 + alpha * 3;
+                gazeTrailCtx.lineCap = 'round';
+                gazeTrailCtx.stroke();
+            }
 
-            gazeTrailCtx.beginPath();
-            gazeTrailCtx.arc(point.x, point.y, 15 + (1 - age) * 10, 0, Math.PI * 2);
-            gazeTrailCtx.fillStyle = `rgba(233, 69, 96, ${alpha})`;
-            gazeTrailCtx.fill();
+            // Draw dots at each position
+            for (let i = 0; i < gazeHistory.length; i++) {
+                const alpha = (i + 1) / gazeHistory.length;
+                gazeTrailCtx.beginPath();
+                gazeTrailCtx.arc(gazeHistory[i].x, gazeHistory[i].y, 2 + alpha * 3, 0, Math.PI * 2);
+                gazeTrailCtx.fillStyle = `rgba(233, 69, 96, ${alpha * 0.8})`;
+                gazeTrailCtx.fill();
+            }
         }
     }
 
@@ -2252,7 +2267,7 @@ function handleIncomingData(data) {
 
     switch (type) {
         case 'gaze':
-            handleGazeData(data.data, 'WebGazer');
+            handleGazeData(data.data, data.data?.source === 'mouse_fallback' ? 'Mouse (fallback)' : 'WebGazer');
             break;
         case 'l2cs_gaze':
             handleGazeData(data.data, 'L2CS-Net');
@@ -2691,6 +2706,79 @@ function handleGazeData(data, source = 'WebGazer') {
 
     // Feed heatmap
     heatmapRenderer.addPoint(data.x / participantWindowWidth, data.y / participantWindowHeight, 1.0);
+
+    // Detect gaze fixations (dwells) and create timeline markers + visual feedback
+    detectGazeFixation(data.x, data.y, normalizedX, normalizedY);
+}
+
+/**
+ * Detect gaze fixation — when gaze stays within a small radius for a minimum duration
+ */
+function detectGazeFixation(rawX, rawY, normX, normY) {
+    const now = Date.now();
+    gazeFixationBuffer.push({ x: rawX, y: rawY, normX, normY, time: now });
+
+    // Remove samples older than the fixation window
+    while (gazeFixationBuffer.length > 0 && now - gazeFixationBuffer[0].time > FIXATION_DURATION * 2) {
+        gazeFixationBuffer.shift();
+    }
+
+    // Check if recent samples within FIXATION_DURATION form a tight cluster
+    const recentSamples = gazeFixationBuffer.filter(s => now - s.time <= FIXATION_DURATION);
+    if (recentSamples.length < 5) return; // Need enough samples
+
+    const avgX = recentSamples.reduce((s, p) => s + p.x, 0) / recentSamples.length;
+    const avgY = recentSamples.reduce((s, p) => s + p.y, 0) / recentSamples.length;
+
+    const maxDist = Math.max(...recentSamples.map(p =>
+        Math.sqrt((p.x - avgX) ** 2 + (p.y - avgY) ** 2)
+    ));
+
+    if (maxDist < FIXATION_RADIUS && now - lastFixationTime > FIXATION_DURATION) {
+        lastFixationTime = now;
+
+        // Record fixation as timeline marker
+        if (startTime) {
+            const time = now - startTime;
+            addTimelineMarker(time, 'gaze_fixation');
+        }
+
+        // Visual feedback: fixation ring (like click ripple but for gaze)
+        if (timelineMode === 'live') {
+            const avgNormX = recentSamples.reduce((s, p) => s + p.normX, 0) / recentSamples.length;
+            const avgNormY = recentSamples.reduce((s, p) => s + p.normY, 0) / recentSamples.length;
+            createGazeFixationRing(avgNormX, avgNormY);
+        }
+
+        addLogEntry('gaze', `Fixation at (${Math.round(avgX)}, ${Math.round(avgY)})`);
+
+        // Higher heatmap weight for fixations
+        heatmapRenderer.addPoint(avgX / participantWindowWidth, avgY / participantWindowHeight, 2.0);
+    }
+}
+
+/**
+ * Create a gaze fixation ring animation (similar to click ripple)
+ */
+function createGazeFixationRing(x, y) {
+    const container = document.getElementById('click-ripple-container');
+    if (!container) return;
+
+    const ring = document.createElement('div');
+    ring.style.cssText = `
+        position: absolute;
+        left: ${x}px;
+        top: ${y}px;
+        width: 30px;
+        height: 30px;
+        border: 2px solid rgba(233, 69, 96, 0.8);
+        border-radius: 50%;
+        transform: translate(-50%, -50%) scale(1);
+        animation: gazeFixationPulse 800ms ease-out forwards;
+        pointer-events: none;
+    `;
+    container.appendChild(ring);
+    setTimeout(() => ring.remove(), 800);
 }
 
 

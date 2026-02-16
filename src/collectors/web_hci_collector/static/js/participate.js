@@ -421,14 +421,21 @@ window.endExperiment = async function () {
 
 // ── WebGazer ──────────────────────────────────────────────
 
+let webgazerActive = false;
+let webgazerGazeReceived = false;
+let mouseGazeFallbackActive = false;
+let lastMouseX = 0;
+let lastMouseY = 0;
+
 async function initWebGazer() {
     try {
         await webgazer
             .setGazeListener((data, timestamp) => {
                 if (data && isCollecting) {
+                    webgazerGazeReceived = true;
                     gazeCursor.style.left = `${data.x}px`;
                     gazeCursor.style.top = `${data.y}px`;
-                    sendData('gaze', { x: data.x, y: data.y, timestamp });
+                    sendData('gaze', { x: data.x, y: data.y, timestamp, source: 'webgazer' });
                 }
             })
             .saveDataAcrossSessions(true)
@@ -438,10 +445,50 @@ async function initWebGazer() {
         webgazer.showPredictionPoints(false);
         webgazer.showFaceOverlay(false);
         webgazer.showFaceFeedbackBox(false);
+        webgazerActive = true;
         console.log('WebGazer initialized');
+
+        // After 5 seconds, check if we actually got any gaze data
+        // If not, WebGazer may have failed silently (no camera, HTTP, etc.)
+        setTimeout(() => {
+            if (!webgazerGazeReceived && isCollecting) {
+                console.warn('WebGazer produced no gaze data after 5s — enabling mouse-based gaze fallback');
+                enableMouseGazeFallback();
+            }
+        }, 5000);
     } catch (e) {
         console.error('WebGazer init error:', e);
+        console.warn('Enabling mouse-based gaze fallback due to WebGazer failure');
+        enableMouseGazeFallback();
     }
+}
+
+/**
+ * Fallback: use mouse position as gaze data when WebGazer is unavailable
+ * (e.g., HTTP mode, camera denied, or WebGazer fails silently)
+ */
+function enableMouseGazeFallback() {
+    if (mouseGazeFallbackActive) return;
+    mouseGazeFallbackActive = true;
+
+    let lastFallbackSend = 0;
+    const FALLBACK_INTERVAL = 33; // ~30Hz to match WebGazer rate
+
+    document.addEventListener('mousemove', (e) => {
+        lastMouseX = e.clientX;
+        lastMouseY = e.clientY;
+
+        if (!isCollecting) return;
+        const now = performance.now();
+        if (now - lastFallbackSend < FALLBACK_INTERVAL) return;
+        lastFallbackSend = now;
+
+        gazeCursor.style.left = `${e.clientX}px`;
+        gazeCursor.style.top = `${e.clientY}px`;
+        sendData('gaze', { x: e.clientX, y: e.clientY, timestamp: now, source: 'mouse_fallback' });
+    }, true);
+
+    console.log('Mouse-based gaze fallback active — gaze will track mouse position');
 }
 
 // ── MediaPipe Face Mesh ───────────────────────────────────

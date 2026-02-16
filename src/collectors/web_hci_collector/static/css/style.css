@@ -642,6 +642,22 @@ body {
     }
 }
 
+/* Gaze fixation pulse animation */
+@keyframes gazeFixationPulse {
+    0% {
+        width: 20px;
+        height: 20px;
+        opacity: 0.9;
+        border-width: 2px;
+    }
+    100% {
+        width: 60px;
+        height: 60px;
+        opacity: 0;
+        border-width: 1px;
+    }
+}
+
 /* Trail canvases */
 #gaze-trail-canvas,
 #mouse-trail-canvas {
@@ -881,6 +897,12 @@ body {
     width: 4px;
     border-radius: 2px;
     opacity: 0.9;
+}
+
+.timeline-marker.gaze_fixation {
+    background: var(--error);
+    opacity: 0.6;
+    width: 2px;
 }
 
 /* Timeline Mini Charts */
