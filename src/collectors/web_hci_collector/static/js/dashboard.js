@@ -357,10 +357,17 @@ async function loadSavedSession(sessionIdToLoad) {
             }
         }
 
-        // Ensure we have a valid duration (default to 1 minute if nothing found)
+        // Check server-side session metadata for duration (saved even without dashboard)
+        if (result.files.session && result.files.session.duration_ms) {
+            if (!loadedSessionDuration || loadedSessionDuration <= 0) {
+                loadedSessionDuration = result.files.session.duration_ms;
+            }
+        }
+
+        // Fallback: use a minimal default only if absolutely no duration source exists
         if (!loadedSessionDuration || !isFinite(loadedSessionDuration) || loadedSessionDuration <= 0) {
-            loadedSessionDuration = 60000; // 1 minute default
-            addLogEntry('system', 'Warning: Could not determine session duration, using default');
+            loadedSessionDuration = 10000; // 10 second minimal fallback
+            addLogEntry('system', 'Warning: Could not determine session duration, waiting for video metadata');
         }
 
         // Load video if available
@@ -371,9 +378,11 @@ async function loadSavedSession(sessionIdToLoad) {
                 // Add event listeners for video loading
                 videoElement.onloadedmetadata = () => {
                     addLogEntry('system', `Video ready: ${Math.round(videoElement.duration)}s`);
-                    // Update loaded session duration if we got it from video
+                    // Update loaded session duration from video (most authoritative source)
                     if (videoElement.duration && videoElement.duration > 0) {
                         loadedSessionDuration = videoElement.duration * 1000; // Convert to ms
+                        // Refresh timeline display with correct duration
+                        updateTimeline();
                     }
                 };
                 videoElement.onerror = (e) => {
@@ -678,7 +687,7 @@ function getSessionDuration() {
         if (loadedSessionDuration && isFinite(loadedSessionDuration) && loadedSessionDuration > 0) {
             return loadedSessionDuration;
         }
-        return 60000; // Default 1 minute if not set
+        return 10000; // Minimal fallback, will be updated when video loads
     }
     if (startTime) return Date.now() - startTime;
     return sessionEndDuration || 0;
@@ -3348,7 +3357,7 @@ async function saveTimelineData() {
                 participantWindowHeight: participantWindowHeight,
                 participantScreenWidth: participantScreenWidth,
                 participantScreenHeight: participantScreenHeight,
-                duration: startTime ? Date.now() - startTime : (sessionEndDuration || 0),
+                duration: sessionEndDuration || (startTime ? Date.now() - startTime : 0),
                 videoOffset: videoOffset,
                 savedAt: new Date().toISOString()
             }

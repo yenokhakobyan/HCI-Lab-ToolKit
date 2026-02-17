@@ -114,6 +114,9 @@ class WebHCICollectorServer:
         # Cache session start data so late-joining dashboards get participant dimensions
         self.session_start_cache: Dict[str, Dict[str, Any]] = {}
 
+        # Track actual session start times for duration calculation
+        self.session_start_times: Dict[str, datetime] = {}
+
         # Background task for emotion detection broadcasting
         self._emotion_broadcast_task = None
 
@@ -290,6 +293,28 @@ class WebHCICollectorServer:
                 print(f"Error saving timeline: {e}")
                 return {"success": False, "error": str(e)}
 
+        @self.app.post("/api/session/{session_id}/disconnect")
+        async def session_disconnect(session_id: str):
+            """Beacon endpoint for reliable participant disconnect notification.
+
+            Called via navigator.sendBeacon() from the participant page during
+            beforeunload/pagehide, ensuring the server knows the session ended
+            even if the WebSocket message was lost.
+            """
+            session = self.session_manager.get_session(session_id)
+            if session and session.status not in (
+                SessionStatus.COMPLETED, SessionStatus.ABANDONED
+            ):
+                self.session_manager.end_session(session_id)
+                self.data_processor.flush_session_to_disk(session_id)
+                await self._finalize_video(session_id)
+                await self._save_session_metadata(session_id)
+                await self._broadcast_to_dashboard(session_id, {
+                    "type": "session_status",
+                    "data": {"status": "abandoned", "session_id": session_id},
+                })
+            return {"success": True}
+
         @self.app.post("/api/session/{session_id}/save-video")
         async def save_video(session_id: str):
             """Save video from request body."""
@@ -373,6 +398,9 @@ class WebHCICollectorServer:
                 self.session_manager.end_session(session_id)
                 # Flush data to disk on disconnect
                 self.data_processor.flush_session_to_disk(session_id)
+                # Finalize video and save session metadata with duration
+                await self._finalize_video(session_id)
+                await self._save_session_metadata(session_id)
                 # Notify dashboard
                 await self._broadcast_to_dashboard(session_id, {
                     "type": "session_status",
@@ -446,11 +474,13 @@ class WebHCICollectorServer:
         # Cache session start data for late-joining dashboards
         if data_type == "session" and payload.get("event") == "start":
             self.session_start_cache[session_id] = payload
+            self.session_start_times[session_id] = datetime.now()
 
-        # Handle session end - finalize video file and clear cache
+        # Handle session end - finalize video file, save metadata, and clear cache
         if data_type == "session" and payload.get("event") == "end":
             self.session_start_cache.pop(session_id, None)
             await self._finalize_video(session_id)
+            await self._save_session_metadata(session_id)
 
         # Handle step transitions
         if data_type == "step_transition":
@@ -571,6 +601,40 @@ class WebHCICollectorServer:
         if video_path.exists():
             size_mb = video_path.stat().st_size / (1024 * 1024)
             print(f"[{datetime.now().strftime('%H:%M:%S')}] Video finalized for session {session_id}: {size_mb:.2f} MB")
+
+    async def _save_session_metadata(self, session_id: str):
+        """Save session metadata (duration, status) to disk for later retrieval."""
+        session = self.session_manager.get_session(session_id)
+        if not session:
+            return
+
+        session_dir = Path(self.config.output_dir) / session_id
+        session_dir.mkdir(parents=True, exist_ok=True)
+
+        # Use tracked start time if available, otherwise fall back to session created_at
+        start_time = self.session_start_times.get(session_id, session.created_at)
+        end_time = session.ended_at or datetime.now()
+
+        duration_ms = int((end_time - start_time).total_seconds() * 1000)
+
+        metadata = {
+            "session_id": session_id,
+            "status": session.status.value,
+            "started_at": start_time.isoformat(),
+            "ended_at": end_time.isoformat(),
+            "duration_ms": max(duration_ms, 0),
+        }
+
+        meta_path = session_dir / "session_metadata.json"
+        try:
+            with open(meta_path, 'w') as f:
+                json.dump(metadata, f, indent=2)
+            print(f"[{datetime.now().strftime('%H:%M:%S')}] Session metadata saved for {session_id}: {duration_ms}ms")
+        except Exception as e:
+            print(f"Error saving session metadata: {e}")
+
+        # Clean up start time cache
+        self.session_start_times.pop(session_id, None)
 
     async def _broadcast_to_dashboard(self, session_id: str, data: Dict[str, Any]):
         """Broadcast data to all connected dashboard clients."""
