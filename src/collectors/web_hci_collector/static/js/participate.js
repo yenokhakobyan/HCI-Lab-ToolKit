@@ -45,10 +45,14 @@ let webcamFrameCtx = null;
 let lastWebcamFrameTime = 0;
 const WEBCAM_FRAME_INTERVAL = 200; // ~5Hz for dashboard preview
 
-// Gaze smoothing (EMA)
-const GAZE_SMOOTHING_ALPHA = 0.3; // lower = smoother but more lag
+// Adaptive gaze smoothing (velocity-dependent EMA)
+const GAZE_ALPHA_MIN = 0.15;  // smooth during fixations
+const GAZE_ALPHA_MAX = 0.6;   // responsive during saccades
+const GAZE_SACCADE_THRESHOLD = 80; // px movement that counts as saccade
 let smoothedGazeX = null;
 let smoothedGazeY = null;
+let lastRawGazeX = null;
+let lastRawGazeY = null;
 
 // Validation gaze buffer (rolling window for accuracy measurement)
 let validationGazeBuffer = [];
@@ -67,7 +71,7 @@ const CAL_POINTS = [
     { x: 10, y: 50 }, { x: 50, y: 50 }, { x: 90, y: 50 },
     { x: 10, y: 85 }, { x: 50, y: 85 }, { x: 90, y: 85 },
 ];
-const CLICKS_PER_POINT = 3;
+const CLICKS_PER_POINT = 5;
 let calCurrentPoint = 0;
 let calCurrentClicks = 0;
 let calPointElements = [];
@@ -270,15 +274,26 @@ function handleCalClick(idx) {
     // Send calibration click data to server
     const pt = calPointElements[idx];
     const rect = pt.getBoundingClientRect();
+    const targetX = rect.left + rect.width / 2;
+    const targetY = rect.top + rect.height / 2;
     sendData('calibration_click', {
         point_index: idx,
         click_number: calCurrentClicks,
         total_clicks: CLICKS_PER_POINT,
         target_pct: CAL_POINTS[idx],
-        target_px: { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 },
+        target_px: { x: targetX, y: targetY },
         screen_width: window.innerWidth,
         screen_height: window.innerHeight,
     });
+
+    // Explicitly train WebGazer: tell it the user is looking at this screen position
+    if (typeof webgazer !== 'undefined' && webgazerActive) {
+        try {
+            webgazer.recordScreenPosition(targetX, targetY, 'click');
+        } catch (e) {
+            // recordScreenPosition may not be available in all WebGazer versions
+        }
+    }
 
     // Visual feedback
     pt.style.transform = 'translate(-50%, -50%) scale(0.8)';
@@ -366,6 +381,8 @@ function restartCalibration() {
     validationGazeBuffer = [];
     smoothedGazeX = null;
     smoothedGazeY = null;
+    lastRawGazeX = null;
+    lastRawGazeY = null;
     startCalibration();
 }
 
@@ -378,8 +395,11 @@ async function runCalibrationValidation() {
         { x: 25, y: 25 },   // top-left quadrant
         { x: 50, y: 50 },   // center
         { x: 75, y: 75 },   // bottom-right quadrant
+        { x: 75, y: 25 },   // top-right quadrant
+        { x: 25, y: 75 },   // bottom-left quadrant
     ];
-    const DWELL_TIME = 1500; // ms per target
+    const SETTLE_TIME = 500;  // ms to let gaze settle on new target
+    const DWELL_TIME = 1200;  // ms to collect gaze samples after settling
     const results = [];
 
     // Hide calibration dots during validation
@@ -403,7 +423,11 @@ async function runCalibrationValidation() {
         target.style.top = `${pt.y}%`;
         target.style.opacity = '1';
 
-        // Clear gaze buffer and collect for DWELL_TIME
+        // Let gaze settle on new target position before measuring
+        validationGazeBuffer = [];
+        await new Promise(r => setTimeout(r, SETTLE_TIME));
+
+        // Now clear buffer and collect fresh samples for measurement
         validationGazeBuffer = [];
         await new Promise(r => setTimeout(r, DWELL_TIME));
 
@@ -413,13 +437,14 @@ async function runCalibrationValidation() {
             y: (pt.y / 100) * window.innerHeight,
         };
 
-        // Compute average offset from gaze samples
+        // Compute median offset (more robust to outliers than mean)
         if (validationGazeBuffer.length > 0) {
             const offsets = validationGazeBuffer.map(g =>
                 Math.sqrt((g.x - targetPx.x) ** 2 + (g.y - targetPx.y) ** 2)
             );
-            const avgOffset = offsets.reduce((a, b) => a + b, 0) / offsets.length;
-            results.push({ point: pt, targetPx, samples: validationGazeBuffer.length, avgOffset });
+            offsets.sort((a, b) => a - b);
+            const medianOffset = offsets[Math.floor(offsets.length / 2)];
+            results.push({ point: pt, targetPx, samples: validationGazeBuffer.length, avgOffset: medianOffset });
         } else {
             results.push({ point: pt, targetPx, samples: 0, avgOffset: Infinity });
         }
@@ -434,8 +459,8 @@ async function runCalibrationValidation() {
         : Infinity;
 
     let quality;
-    if (avgOffset < 150) quality = 'good';
-    else if (avgOffset < 250) quality = 'fair';
+    if (avgOffset < 200) quality = 'good';
+    else if (avgOffset < 350) quality = 'fair';
     else quality = 'poor';
 
     const validationData = { quality, avgOffset, points: results, timestamp: performance.now() };
@@ -653,14 +678,24 @@ async function initWebGazer() {
                 webgazerGazeReceived = true;
                 collectValidationGaze(data.x, data.y);
 
-                // Apply EMA smoothing
+                // Adaptive EMA smoothing: responsive during saccades, smooth during fixations
                 if (smoothedGazeX === null) {
                     smoothedGazeX = data.x;
                     smoothedGazeY = data.y;
                 } else {
-                    smoothedGazeX = GAZE_SMOOTHING_ALPHA * data.x + (1 - GAZE_SMOOTHING_ALPHA) * smoothedGazeX;
-                    smoothedGazeY = GAZE_SMOOTHING_ALPHA * data.y + (1 - GAZE_SMOOTHING_ALPHA) * smoothedGazeY;
+                    let alpha = GAZE_ALPHA_MIN;
+                    if (lastRawGazeX !== null) {
+                        const dx = data.x - lastRawGazeX;
+                        const dy = data.y - lastRawGazeY;
+                        const velocity = Math.sqrt(dx * dx + dy * dy);
+                        const t = Math.min(velocity / GAZE_SACCADE_THRESHOLD, 1);
+                        alpha = GAZE_ALPHA_MIN + t * (GAZE_ALPHA_MAX - GAZE_ALPHA_MIN);
+                    }
+                    smoothedGazeX = alpha * data.x + (1 - alpha) * smoothedGazeX;
+                    smoothedGazeY = alpha * data.y + (1 - alpha) * smoothedGazeY;
                 }
+                lastRawGazeX = data.x;
+                lastRawGazeY = data.y;
 
                 if (isCollecting) {
                     gazeCursor.style.left = `${smoothedGazeX}px`;
