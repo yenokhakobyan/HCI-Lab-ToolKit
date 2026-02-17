@@ -155,6 +155,61 @@ let isLiveTrackingStarted = false;
 let loadedSessionDuration = 0; // Duration in ms for loaded sessions
 
 /**
+ * Get the currently active (visible) video element, if any.
+ * Returns null when in iframe-only mode (no video on screen).
+ */
+function getActiveVideoElement() {
+    if (videoElement && videoElement.style.display !== 'none') return videoElement;
+    if (typeof liveVideoElement !== 'undefined' && liveVideoElement && liveVideoElement.style.display !== 'none') return liveVideoElement;
+    return null;
+}
+
+/**
+ * Map participant raw coordinates to container pixel coordinates,
+ * accounting for object-fit:contain letterboxing when a video is visible.
+ *
+ * @param {number} rawX - Participant X coordinate (CSS viewport pixels)
+ * @param {number} rawY - Participant Y coordinate (CSS viewport pixels)
+ * @returns {{ x: number, y: number } | null}
+ */
+function mapCoordinates(rawX, rawY) {
+    const container = document.getElementById('participant-view-container');
+    if (!container) return null;
+
+    const cW = container.clientWidth;
+    const cH = container.clientHeight;
+    if (cW === 0 || cH === 0) return null;
+
+    const activeVideo = getActiveVideoElement();
+    if (activeVideo && activeVideo.videoWidth > 0 && activeVideo.videoHeight > 0) {
+        // Video is visible — compute its rendered area within the container
+        // (replicating the browser's object-fit:contain algorithm)
+        const videoAR = activeVideo.videoWidth / activeVideo.videoHeight;
+        const containerAR = cW / cH;
+
+        let rW, rH, oX, oY;
+        if (videoAR > containerAR) {
+            // Video wider than container → bars top & bottom
+            rW = cW; rH = cW / videoAR; oX = 0; oY = (cH - rH) / 2;
+        } else {
+            // Video taller than container → bars left & right
+            rH = cH; rW = cH * videoAR; oX = (cW - rW) / 2; oY = 0;
+        }
+
+        return {
+            x: oX + (rawX / participantWindowWidth) * rW,
+            y: oY + (rawY / participantWindowHeight) * rH
+        };
+    }
+
+    // No video visible (iframe-only mode): use full-container mapping
+    return {
+        x: (rawX / participantWindowWidth) * cW,
+        y: (rawY / participantWindowHeight) * cH
+    };
+}
+
+/**
  * Initialize the dashboard
  */
 function init() {
@@ -1457,11 +1512,6 @@ function applyTimelineState() {
     if (timelineMode === 'live') return; // In live mode, data flows naturally
 
     const time = timelinePlaybackTime;
-    const container = document.getElementById('participant-view-container');
-    if (!container) return;
-
-    const containerWidth = container.clientWidth;
-    const containerHeight = container.clientHeight;
 
     // Apply face mesh data
     const faceMeshData = findDataAtTime(timelineData.faceMesh, time);
@@ -1500,43 +1550,41 @@ function applyTimelineState() {
     // Apply gaze position with interpolation for smooth movement
     const gazeData = findInterpolatedPositionAtTime(timelineData.gaze, time);
     if (gazeData) {
-        const normalizedX = (gazeData.x / participantWindowWidth) * containerWidth;
-        const normalizedY = (gazeData.y / participantWindowHeight) * containerHeight;
-
-        const gazeOverlay = document.getElementById('gaze-point-overlay');
-        if (gazeOverlay) {
-            gazeOverlay.style.left = `${normalizedX}px`;
-            gazeOverlay.style.top = `${normalizedY}px`;
+        const gazeMapped = mapCoordinates(gazeData.x, gazeData.y);
+        if (gazeMapped) {
+            const gazeOverlay = document.getElementById('gaze-point-overlay');
+            if (gazeOverlay) {
+                gazeOverlay.style.left = `${gazeMapped.x}px`;
+                gazeOverlay.style.top = `${gazeMapped.y}px`;
+            }
         }
-
         document.getElementById('gaze-x').textContent = Math.round(gazeData.x);
         document.getElementById('gaze-y').textContent = Math.round(gazeData.y);
     }
 
     // Build gaze history from timeline data for trail visualization
-    updatePlaybackGazeHistory(time, containerWidth, containerHeight);
+    updatePlaybackGazeHistory(time);
 
     // Apply mouse position with interpolation for smooth movement
     const mouseData = findInterpolatedPositionAtTime(timelineData.mouse, time);
     if (mouseData) {
-        const normalizedX = (mouseData.x / participantWindowWidth) * containerWidth;
-        const normalizedY = (mouseData.y / participantWindowHeight) * containerHeight;
-
-        const mouseCursor = document.getElementById('mouse-cursor-overlay');
-        if (mouseCursor) {
-            mouseCursor.style.left = `${normalizedX}px`;
-            mouseCursor.style.top = `${normalizedY}px`;
+        const mouseMapped = mapCoordinates(mouseData.x, mouseData.y);
+        if (mouseMapped) {
+            const mouseCursor = document.getElementById('mouse-cursor-overlay');
+            if (mouseCursor) {
+                mouseCursor.style.left = `${mouseMapped.x}px`;
+                mouseCursor.style.top = `${mouseMapped.y}px`;
+            }
         }
-
         document.getElementById('mouse-x').textContent = Math.round(mouseData.x);
         document.getElementById('mouse-y').textContent = Math.round(mouseData.y);
     }
 
     // Build mouse history from timeline data for trail visualization
-    updatePlaybackMouseHistory(time, containerWidth, containerHeight);
+    updatePlaybackMouseHistory(time);
 
     // Show clicks that happened recently relative to current playback time
-    updatePlaybackClicks(time, containerWidth, containerHeight);
+    updatePlaybackClicks(time);
 
     // Apply scroll position to participant view
     updatePlaybackScroll(time);
@@ -1551,34 +1599,34 @@ function applyTimelineState() {
 /**
  * Update gaze history for playback mode (for trail visualization)
  */
-function updatePlaybackGazeHistory(currentTime, containerWidth, containerHeight) {
+function updatePlaybackGazeHistory(currentTime) {
     // Get gaze data from the last 2 seconds relative to current playback time
     const windowStart = Math.max(0, currentTime - 2000);
 
     gazeHistory = timelineData.gaze
         .filter(g => g.time >= windowStart && g.time <= currentTime)
-        .map(g => ({
-            x: (g.x / participantWindowWidth) * containerWidth,
-            y: (g.y / participantWindowHeight) * containerHeight,
-            time: g.time
-        }))
+        .map(g => {
+            const m = mapCoordinates(g.x, g.y);
+            return m ? { x: m.x, y: m.y, time: g.time } : null;
+        })
+        .filter(Boolean)
         .slice(-GAZE_HISTORY_LENGTH);
 }
 
 /**
  * Update mouse history for playback mode (for trail visualization)
  */
-function updatePlaybackMouseHistory(currentTime, containerWidth, containerHeight) {
+function updatePlaybackMouseHistory(currentTime) {
     // Get mouse data from the last 2 seconds relative to current playback time (longer for better visibility)
     const windowStart = Math.max(0, currentTime - 2000);
 
     mouseHistory = timelineData.mouse
         .filter(m => m.time >= windowStart && m.time <= currentTime)
-        .map(m => ({
-            x: (m.x / participantWindowWidth) * containerWidth,
-            y: (m.y / participantWindowHeight) * containerHeight,
-            time: m.time
-        }))
+        .map(m => {
+            const mapped = mapCoordinates(m.x, m.y);
+            return mapped ? { x: mapped.x, y: mapped.y, time: m.time } : null;
+        })
+        .filter(Boolean)
         .slice(-MOUSE_HISTORY_LENGTH);
 }
 
@@ -1872,7 +1920,7 @@ function updatePlaybackScreenshot(currentTime) {
 /**
  * Show click markers during playback
  */
-function updatePlaybackClicks(currentTime, containerWidth, containerHeight) {
+function updatePlaybackClicks(currentTime) {
     const clickContainer = document.getElementById('click-ripple-container');
     if (!clickContainer) return;
 
@@ -1885,8 +1933,10 @@ function updatePlaybackClicks(currentTime, containerWidth, containerHeight) {
     const recentClicks = timelineData.clicks.filter(c => c.time >= windowStart && c.time <= currentTime);
 
     recentClicks.forEach(click => {
-        const normalizedX = (click.x / participantWindowWidth) * containerWidth;
-        const normalizedY = (click.y / participantWindowHeight) * containerHeight;
+        const clickMapped = mapCoordinates(click.x, click.y);
+        if (!clickMapped) return;
+        const normalizedX = clickMapped.x;
+        const normalizedY = clickMapped.y;
 
         // Calculate opacity based on age (newer = more opaque)
         const age = currentTime - click.time;
@@ -2689,26 +2739,19 @@ function handleGazeData(data, source = 'WebGazer') {
     document.getElementById('gaze-x').textContent = Math.round(data.x);
     document.getElementById('gaze-y').textContent = Math.round(data.y);
 
-    // Get participant view container dimensions
-    const container = document.getElementById('participant-view-container');
-    if (!container) return;
-
-    const containerWidth = container.clientWidth;
-    const containerHeight = container.clientHeight;
-
-    // Guard against zero-dimension containers (not yet rendered)
-    if (containerWidth === 0 || containerHeight === 0) return;
+    // Map participant coordinates to container coordinates (accounts for letterboxing)
+    const mapped = mapCoordinates(data.x, data.y);
+    if (!mapped) return;
+    const normalizedX = mapped.x;
+    const normalizedY = mapped.y;
 
     // Debug: log first gaze sample with full diagnostics
     if (stats.gazeSamples === 1) {
+        const container = document.getElementById('participant-view-container');
         console.log(`First gaze sample [${source}]: raw=(${data.x.toFixed(0)}, ${data.y.toFixed(0)}), ` +
             `participantWindow=${participantWindowWidth}x${participantWindowHeight}, ` +
-            `container=${containerWidth}x${containerHeight}`);
+            `container=${container ? container.clientWidth : '?'}x${container ? container.clientHeight : '?'}`);
     }
-
-    // Normalize participant coordinates to container coordinates
-    const normalizedX = (data.x / participantWindowWidth) * containerWidth;
-    const normalizedY = (data.y / participantWindowHeight) * containerHeight;
 
     // Add to history for trail visualization
     gazeHistory.push({ x: normalizedX, y: normalizedY, time: Date.now() });
@@ -2724,8 +2767,11 @@ function handleGazeData(data, source = 'WebGazer') {
         gazeOverlay.style.opacity = '1';
     }
 
-    // Feed heatmap
-    heatmapRenderer.addPoint(data.x / participantWindowWidth, data.y / participantWindowHeight, 1.0);
+    // Feed heatmap (normalized to [0,1] relative to container)
+    const container = document.getElementById('participant-view-container');
+    if (container && container.clientWidth > 0 && container.clientHeight > 0) {
+        heatmapRenderer.addPoint(normalizedX / container.clientWidth, normalizedY / container.clientHeight, 1.0);
+    }
 
     // Detect gaze fixations (dwells) and create timeline markers + visual feedback
     detectGazeFixation(data.x, data.y, normalizedX, normalizedY);
@@ -2772,8 +2818,14 @@ function detectGazeFixation(rawX, rawY, normX, normY) {
 
         addLogEntry('gaze', `Fixation at (${Math.round(avgX)}, ${Math.round(avgY)})`);
 
-        // Higher heatmap weight for fixations
-        heatmapRenderer.addPoint(avgX / participantWindowWidth, avgY / participantWindowHeight, 2.0);
+        // Higher heatmap weight for fixations (use mapped coordinates)
+        const fixMapped = mapCoordinates(avgX, avgY);
+        if (fixMapped) {
+            const cEl = document.getElementById('participant-view-container');
+            if (cEl && cEl.clientWidth > 0) {
+                heatmapRenderer.addPoint(fixMapped.x / cEl.clientWidth, fixMapped.y / cEl.clientHeight, 2.0);
+            }
+        }
     }
 }
 
@@ -3046,16 +3098,8 @@ function handleMouseData(data) {
     stats.mouseEvents++;
     stats.totalSamples++;
 
-    // Get participant view container dimensions
-    const container = document.getElementById('participant-view-container');
-    if (!container) return;
-
-    const containerWidth = container.clientWidth;
-    const containerHeight = container.clientHeight;
-
-    // Normalize participant coordinates to container coordinates
-    const normalizedX = (data.x / participantWindowWidth) * containerWidth;
-    const normalizedY = (data.y / participantWindowHeight) * containerHeight;
+    // Map participant coordinates to container coordinates (accounts for letterboxing)
+    const mapped = mapCoordinates(data.x, data.y);
 
     // Handle mouse move events
     if (data.event === 'move') {
@@ -3063,7 +3107,7 @@ function handleMouseData(data) {
         recordTimelineMouse(data.x, data.y);
 
         // Only update live visualization if in live mode
-        if (timelineMode === 'live') {
+        if (timelineMode === 'live' && mapped) {
             // Update mouse position display
             document.getElementById('mouse-x').textContent = Math.round(data.x);
             document.getElementById('mouse-y').textContent = Math.round(data.y);
@@ -3071,12 +3115,12 @@ function handleMouseData(data) {
             // Update mouse cursor overlay position
             const mouseCursor = document.getElementById('mouse-cursor-overlay');
             if (mouseCursor) {
-                mouseCursor.style.left = `${normalizedX}px`;
-                mouseCursor.style.top = `${normalizedY}px`;
+                mouseCursor.style.left = `${mapped.x}px`;
+                mouseCursor.style.top = `${mapped.y}px`;
             }
 
             // Add to mouse history for trail
-            mouseHistory.push({ x: normalizedX, y: normalizedY, time: Date.now() });
+            mouseHistory.push({ x: mapped.x, y: mapped.y, time: Date.now() });
             if (mouseHistory.length > MOUSE_HISTORY_LENGTH) {
                 mouseHistory.shift();
             }
@@ -3089,15 +3133,20 @@ function handleMouseData(data) {
         document.getElementById('click-count').textContent = stats.clickCount;
 
         // Create click ripple effect (only in live mode)
-        if (timelineMode === 'live') {
-            createClickRipple(normalizedX, normalizedY);
+        if (timelineMode === 'live' && mapped) {
+            createClickRipple(mapped.x, mapped.y);
         }
 
         // Record click to timeline
         recordTimelineClick(data.x, data.y);
 
-        // Feed heatmap (clicks have higher weight)
-        heatmapRenderer.addPoint(data.x / participantWindowWidth, data.y / participantWindowHeight, 3.0);
+        // Feed heatmap (clicks have higher weight, use mapped coordinates)
+        if (mapped) {
+            const cEl = document.getElementById('participant-view-container');
+            if (cEl && cEl.clientWidth > 0) {
+                heatmapRenderer.addPoint(mapped.x / cEl.clientWidth, mapped.y / cEl.clientHeight, 3.0);
+            }
+        }
 
         // Log click events
         addLogEntry('mouse', `Click at (${Math.round(data.x)}, ${Math.round(data.y)})`);
@@ -4106,18 +4155,19 @@ const heatmapRenderer = {
 
         const containerEl = document.getElementById('participant-view-container');
         if (!containerEl) return;
+        const cW = containerEl.clientWidth;
+        const cH = containerEl.clientHeight;
+        if (cW === 0 || cH === 0) return;
 
         for (const g of timelineData.gaze) {
             if (g.time > upToTime) break;
-            const normX = g.x / participantWindowWidth;
-            const normY = g.y / participantWindowHeight;
-            this.addPoint(normX, normY, 1.0);
+            const m = mapCoordinates(g.x, g.y);
+            if (m) this.addPoint(m.x / cW, m.y / cH, 1.0);
         }
         for (const c of timelineData.clicks) {
             if (c.time > upToTime) break;
-            const normX = c.x / participantWindowWidth;
-            const normY = c.y / participantWindowHeight;
-            this.addPoint(normX, normY, 3.0);
+            const m = mapCoordinates(c.x, c.y);
+            if (m) this.addPoint(m.x / cW, m.y / cH, 3.0);
         }
     }
 };
