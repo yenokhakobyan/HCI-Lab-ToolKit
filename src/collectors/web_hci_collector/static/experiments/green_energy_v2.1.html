@@ -71,14 +71,14 @@
         }
         .progress-bar { display: flex; gap: clamp(4px, 0.5vw, 8px); align-items: center; flex-shrink: 0; }
         .progress-step {
-            width: clamp(24px, 2.5vw, 36px);
-            height: clamp(24px, 2.5vw, 36px);
+            width: clamp(18px, 2vw, 28px);
+            height: clamp(18px, 2vw, 28px);
             border-radius: 50%;
             background: rgba(255,255,255,0.2);
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: clamp(10px, 1.1vw, 15px);
+            font-size: clamp(8px, 0.9vw, 12px);
             font-weight: 600;
             transition: all 0.3s;
         }
@@ -1080,6 +1080,12 @@
             <div class="progress-step" id="prog4">4</div>
             <div class="progress-step" id="prog5">5</div>
             <div class="progress-step" id="prog6">6</div>
+            <div class="progress-step" id="prog7">7</div>
+            <div class="progress-step" id="prog8">8</div>
+            <div class="progress-step" id="prog9">9</div>
+            <div class="progress-step" id="prog10">10</div>
+            <div class="progress-step" id="prog11">11</div>
+            <div class="progress-step" id="prog12">12</div>
         </div>
     </header>
 
@@ -1096,6 +1102,12 @@
                         <div class="tutorial-header">
                             <span class="tutorial-header-title">🌱 Green Energy Study</span>
                             <div class="tutorial-progress">
+                                <div class="tutorial-progress-dot"></div>
+                                <div class="tutorial-progress-dot"></div>
+                                <div class="tutorial-progress-dot"></div>
+                                <div class="tutorial-progress-dot"></div>
+                                <div class="tutorial-progress-dot"></div>
+                                <div class="tutorial-progress-dot"></div>
                                 <div class="tutorial-progress-dot"></div>
                                 <div class="tutorial-progress-dot"></div>
                                 <div class="tutorial-progress-dot"></div>
@@ -1753,7 +1765,7 @@
         </div>
     </section>
 
-    <!-- Refocus to Survey -->
+    <!-- Refocus 6 -->
     <section class="screen" id="refocus6">
         <div class="refocus-screen">
             <div class="refocus-card">
@@ -1764,6 +1776,578 @@
                         <div class="timer-inner" id="timerNum6">5</div>
                     </div>
                     <div class="focus-dot"></div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- QUESTION 7: Monthly Electricity Cost -->
+    <section class="screen" id="q7" data-title="Monthly Electricity Cost 💡">
+        <div class="session-screen">
+            <div class="content-grid">
+                <div class="panel" data-aoi="q7-text">
+                    <div class="text-content">
+                        <h3>How Your Electricity Bill Is Calculated</h3>
+                        <p>Your monthly electricity bill is determined by multiplying the total energy you consume (in kWh) by the <strong>utility rate</strong> — the price your electricity provider charges per kilowatt-hour.</p>
+
+                        <h4>Utility Rates by Region</h4>
+                        <p>Electricity prices vary significantly across the United States depending on local energy sources and demand:</p>
+                        <ul>
+                            <li><strong>California:</strong> $0.25/kWh — among the highest rates nationwide</li>
+                            <li><strong>Texas:</strong> $0.12/kWh — lower rates due to deregulated market</li>
+                            <li><strong>New York:</strong> $0.20/kWh — high demand, moderate rates</li>
+                        </ul>
+
+                        <h4>Calculating Your Monthly Bill</h4>
+                        <p>To find your monthly cost, multiply your <strong>daily energy usage</strong> by <strong>30 days</strong>, then by your <strong>utility rate</strong>.</p>
+
+                        <div class="formula-box">
+                            <div class="formula">Monthly Bill = Daily kWh × 30 × Rate per kWh</div>
+                            <div class="example">Example: 30 kWh/day × 30 days × $0.12 = $108/month</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel" data-aoi="q7-visual">
+                    <div class="infographic">
+                        <div class="visual-card">
+                            <div class="visual-title">💵 Utility Rates by State</div>
+                            <div class="meter-row">
+                                <div class="meter"><div class="meter-bar-container"><div class="meter-bar" style="height: 100%; background: linear-gradient(to top, #E53935, #EF5350);">$0.25</div></div><span class="meter-label">California</span></div>
+                                <div class="meter"><div class="meter-bar-container"><div class="meter-bar" style="height: 80%; background: linear-gradient(to top, #FFC107, #FFEB3B);">$0.20</div></div><span class="meter-label">New York</span></div>
+                                <div class="meter"><div class="meter-bar-container"><div class="meter-bar" style="height: 48%; background: linear-gradient(to top, #4CAF50, #8BC34A);">$0.12</div></div><span class="meter-label">Texas</span></div>
+                            </div>
+                        </div>
+                        <div class="visual-card">
+                            <div class="visual-title">🔢 Monthly Bill Formula</div>
+                            <div class="flow-diagram">
+                                <div class="flow-step"><div class="flow-icon" style="background: linear-gradient(135deg, #BBDEFB, #64B5F6);">⚡</div><span class="flow-text">Daily kWh</span></div>
+                                <span class="flow-arrow">×</span>
+                                <div class="flow-step"><div class="flow-icon" style="background: linear-gradient(135deg, #F3E5F5, #CE93D8);">30</div><span class="flow-text">Days</span></div>
+                                <span class="flow-arrow">×</span>
+                                <div class="flow-step"><div class="flow-icon" style="background: linear-gradient(135deg, #C8E6C9, #81C784);">💲</div><span class="flow-text">Rate</span></div>
+                                <span class="flow-arrow">=</span>
+                                <div class="flow-step"><div class="flow-icon" style="background: linear-gradient(135deg, #FFECB3, #FFD54F);">💰</div><span class="flow-text">Bill</span></div>
+                            </div>
+                        </div>
+                        <div class="visual-card">
+                            <div class="visual-title">📊 Monthly Bill (30 kWh/day usage)</div>
+                            <div class="progress-bars">
+                                <div class="progress-item"><span class="progress-icon">🌴</span><div class="progress-info"><div class="progress-label">California (30 × 30 × $0.25)</div><div class="progress-track"><div class="progress-fill" style="width: 100%; background: linear-gradient(to right, #E53935, #EF5350);">$225</div></div></div></div>
+                                <div class="progress-item"><span class="progress-icon">🗽</span><div class="progress-info"><div class="progress-label">New York (30 × 30 × $0.20)</div><div class="progress-track"><div class="progress-fill" style="width: 80%; background: linear-gradient(to right, #FFA726, #FFB74D);">$180</div></div></div></div>
+                                <div class="progress-item"><span class="progress-icon">🤠</span><div class="progress-info"><div class="progress-label">Texas (30 × 30 × $0.12)</div><div class="progress-track"><div class="progress-fill" style="width: 48%; background: linear-gradient(to right, #4CAF50, #81C784);">$108</div></div></div></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel question-panel" data-aoi="q7-question">
+                    <div class="case-scenario">
+                        <h4>🏠 The Rivera Family</h4>
+                        <p>The Riveras live in <strong>New York</strong> and use about <strong>25 kWh per day</strong>. They want to estimate their monthly electricity bill.</p>
+                        <div class="case-data">
+                            <div class="case-data-row"><span>Location:</span><span class="case-data-value">New York</span></div>
+                            <div class="case-data-row"><span>Daily Usage:</span><span class="case-data-value">25 kWh</span></div>
+                        </div>
+                    </div>
+                    <div class="question-box">
+                        <p class="question-text">What is their estimated monthly electricity bill?</p>
+                    </div>
+                    <div class="answer-options">
+                        <div class="answer-option" data-answer="A" onclick="selectAnswer(this, 7)"><span class="option-letter">A</span><span class="option-text"><strong>$120</strong></span></div>
+                        <div class="answer-option" data-answer="B" onclick="selectAnswer(this, 7)"><span class="option-letter">B</span><span class="option-text"><strong>$150</strong></span></div>
+                        <div class="answer-option" data-answer="C" onclick="selectAnswer(this, 7)"><span class="option-letter">C</span><span class="option-text"><strong>$175</strong></span></div>
+                        <div class="answer-option" data-answer="D" onclick="selectAnswer(this, 7)"><span class="option-letter">D</span><span class="option-text"><strong>$200</strong></span></div>
+                    </div>
+                    <button class="submit-btn" id="submit7" disabled onclick="submitAnswer(7)">Submit Answer</button>
+                    <button class="calc-toggle-btn" onclick="toggleCalc(7)">🧮 Calculator</button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Refocus 7 -->
+    <section class="screen" id="refocus7">
+        <div class="refocus-screen">
+            <div class="refocus-card">
+                <h2 class="refocus-title">Brief Pause</h2>
+                <p class="refocus-text">Please focus on the dot below. The next question will begin automatically.</p>
+                <div class="refocus-timer">
+                    <div class="timer-circle" id="timer7" style="--progress: 100;">
+                        <div class="timer-inner" id="timerNum7">5</div>
+                    </div>
+                    <div class="focus-dot"></div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- QUESTION 8: Annual Energy Output -->
+    <section class="screen" id="q8" data-title="Annual Solar Output ☀️">
+        <div class="session-screen">
+            <div class="content-grid">
+                <div class="panel" data-aoi="q8-text">
+                    <div class="text-content">
+                        <h3>Estimating Annual Solar Energy Production</h3>
+                        <p>While daily output fluctuates with weather and seasons, solar professionals estimate <strong>annual production</strong> by multiplying daily output by <strong>365 days</strong> and applying a <strong>performance factor</strong> that accounts for real-world losses.</p>
+
+                        <h4>Performance Factors</h4>
+                        <p>Real-world conditions reduce output below the theoretical maximum. Common performance factors:</p>
+                        <ul>
+                            <li><strong>Optimal Tilt & Clean Panels:</strong> 85% performance factor</li>
+                            <li><strong>Flat Roof / Moderate Shading:</strong> 75% performance factor</li>
+                            <li><strong>Heavy Shading / Old Panels:</strong> 65% performance factor</li>
+                        </ul>
+
+                        <div class="formula-box">
+                            <div class="formula">Annual kWh = Daily kWh × 365 × Performance Factor</div>
+                            <div class="example">Example: 30 kWh/day × 365 × 0.85 = 9,308 kWh/year</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel" data-aoi="q8-visual">
+                    <div class="infographic">
+                        <div class="visual-card">
+                            <div class="visual-title">⚙️ Performance Factor Levels</div>
+                            <div class="compare-blocks">
+                                <div class="compare-block highlight"><div class="compare-block-icon">☀️</div><div class="compare-block-title">Optimal</div><div class="compare-block-value">85%</div><div class="compare-block-sub">Clean & tilted</div></div>
+                                <div class="compare-block"><div class="compare-block-icon">🏠</div><div class="compare-block-title">Moderate</div><div class="compare-block-value">75%</div><div class="compare-block-sub">Flat roof</div></div>
+                                <div class="compare-block"><div class="compare-block-icon">🌥️</div><div class="compare-block-title">Low</div><div class="compare-block-value">65%</div><div class="compare-block-sub">Heavy shade</div></div>
+                            </div>
+                        </div>
+                        <div class="visual-card">
+                            <div class="visual-title">🔢 Annual Output Formula</div>
+                            <div class="flow-diagram">
+                                <div class="flow-step"><div class="flow-icon" style="background: linear-gradient(135deg, #BBDEFB, #64B5F6);">⚡</div><span class="flow-text">Daily kWh</span></div>
+                                <span class="flow-arrow">×</span>
+                                <div class="flow-step"><div class="flow-icon" style="background: linear-gradient(135deg, #FFECB3, #FFD54F);">365</div><span class="flow-text">Days</span></div>
+                                <span class="flow-arrow">×</span>
+                                <div class="flow-step"><div class="flow-icon" style="background: linear-gradient(135deg, #C8E6C9, #81C784);">%</div><span class="flow-text">Factor</span></div>
+                                <span class="flow-arrow">=</span>
+                                <div class="flow-step"><div class="flow-icon" style="background: linear-gradient(135deg, #F3E5F5, #CE93D8);">📅</div><span class="flow-text">kWh/yr</span></div>
+                            </div>
+                        </div>
+                        <div class="visual-card">
+                            <div class="visual-title">📊 Annual Output (30 kWh/day base)</div>
+                            <div class="progress-bars">
+                                <div class="progress-item"><span class="progress-icon">☀️</span><div class="progress-info"><div class="progress-label">Optimal (30 × 365 × 85%)</div><div class="progress-track"><div class="progress-fill" style="width: 100%; background: linear-gradient(to right, #4CAF50, #81C784);">9,308</div></div></div></div>
+                                <div class="progress-item"><span class="progress-icon">🏠</span><div class="progress-info"><div class="progress-label">Moderate (30 × 365 × 75%)</div><div class="progress-track"><div class="progress-fill" style="width: 88%; background: linear-gradient(to right, #FFA726, #FFB74D);">8,213</div></div></div></div>
+                                <div class="progress-item"><span class="progress-icon">🌥️</span><div class="progress-info"><div class="progress-label">Low (30 × 365 × 65%)</div><div class="progress-track"><div class="progress-fill" style="width: 76%; background: linear-gradient(to right, #EF5350, #EF9A9A);">7,118</div></div></div></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel question-panel" data-aoi="q8-question">
+                    <div class="case-scenario">
+                        <h4>🏠 The Patel Family</h4>
+                        <p>The Patels have a solar system that produces <strong>28 kWh per day</strong>. Their panels have optimal tilt but their roof gets some afternoon shading, giving them a <strong>75% performance factor</strong>.</p>
+                        <div class="case-data">
+                            <div class="case-data-row"><span>Daily Output:</span><span class="case-data-value">28 kWh</span></div>
+                            <div class="case-data-row"><span>Performance Factor:</span><span class="case-data-value">75%</span></div>
+                        </div>
+                    </div>
+                    <div class="question-box">
+                        <p class="question-text">What is their estimated annual energy production?</p>
+                    </div>
+                    <div class="answer-options">
+                        <div class="answer-option" data-answer="A" onclick="selectAnswer(this, 8)"><span class="option-letter">A</span><span class="option-text"><strong>6,570 kWh/year</strong></span></div>
+                        <div class="answer-option" data-answer="B" onclick="selectAnswer(this, 8)"><span class="option-letter">B</span><span class="option-text"><strong>7,665 kWh/year</strong></span></div>
+                        <div class="answer-option" data-answer="C" onclick="selectAnswer(this, 8)"><span class="option-letter">C</span><span class="option-text"><strong>8,694 kWh/year</strong></span></div>
+                        <div class="answer-option" data-answer="D" onclick="selectAnswer(this, 8)"><span class="option-letter">D</span><span class="option-text"><strong>10,220 kWh/year</strong></span></div>
+                    </div>
+                    <button class="submit-btn" id="submit8" disabled onclick="submitAnswer(8)">Submit Answer</button>
+                    <button class="calc-toggle-btn" onclick="toggleCalc(8)">🧮 Calculator</button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Refocus 8 -->
+    <section class="screen" id="refocus8">
+        <div class="refocus-screen">
+            <div class="refocus-card">
+                <h2 class="refocus-title">Brief Pause</h2>
+                <p class="refocus-text">Please focus on the dot below. The next question will begin automatically.</p>
+                <div class="refocus-timer">
+                    <div class="timer-circle" id="timer8" style="--progress: 100;">
+                        <div class="timer-inner" id="timerNum8">5</div>
+                    </div>
+                    <div class="focus-dot"></div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- QUESTION 9: Payback Period -->
+    <section class="screen" id="q9" data-title="Solar Payback Period 📅">
+        <div class="session-screen">
+            <div class="content-grid">
+                <div class="panel" data-aoi="q9-text">
+                    <div class="text-content">
+                        <h3>How Long Until Solar Pays for Itself?</h3>
+                        <p>The <strong>payback period</strong> is the number of years it takes for cumulative energy savings to equal your initial investment. After this point, your solar system generates pure savings.</p>
+
+                        <h4>Calculating Annual Savings</h4>
+                        <p>Your annual electricity savings depend on how much energy your solar system produces and your local utility rate:</p>
+                        <ul>
+                            <li><strong>High-rate area ($0.25/kWh):</strong> 8,000 kWh/year saves <strong>$2,000/year</strong></li>
+                            <li><strong>Mid-rate area ($0.15/kWh):</strong> 8,000 kWh/year saves <strong>$1,200/year</strong></li>
+                            <li><strong>Low-rate area ($0.10/kWh):</strong> 8,000 kWh/year saves <strong>$800/year</strong></li>
+                        </ul>
+
+                        <div class="formula-box">
+                            <div class="formula">Payback Years = Net System Cost ÷ Annual Savings</div>
+                            <div class="example">Example: $12,600 ÷ $2,000/yr = 6.3 years</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel" data-aoi="q9-visual">
+                    <div class="infographic">
+                        <div class="visual-card">
+                            <div class="visual-title">💵 Annual Savings by Rate</div>
+                            <div class="meter-row">
+                                <div class="meter"><div class="meter-bar-container"><div class="meter-bar" style="height: 100%; background: linear-gradient(to top, #4CAF50, #81C784);">$2,000</div></div><span class="meter-label">High Rate</span></div>
+                                <div class="meter"><div class="meter-bar-container"><div class="meter-bar" style="height: 60%; background: linear-gradient(to top, #FFC107, #FFEB3B);">$1,200</div></div><span class="meter-label">Mid Rate</span></div>
+                                <div class="meter"><div class="meter-bar-container"><div class="meter-bar" style="height: 40%; background: linear-gradient(to top, #FF5722, #FF8A65);">$800</div></div><span class="meter-label">Low Rate</span></div>
+                            </div>
+                        </div>
+                        <div class="visual-card">
+                            <div class="visual-title">🔢 Payback Formula</div>
+                            <div class="flow-diagram">
+                                <div class="flow-step"><div class="flow-icon" style="background: linear-gradient(135deg, #FFCDD2, #EF9A9A);">💵</div><span class="flow-text">Net Cost</span></div>
+                                <span class="flow-arrow">÷</span>
+                                <div class="flow-step"><div class="flow-icon" style="background: linear-gradient(135deg, #C8E6C9, #81C784);">💰</div><span class="flow-text">Savings/yr</span></div>
+                                <span class="flow-arrow">=</span>
+                                <div class="flow-step"><div class="flow-icon" style="background: linear-gradient(135deg, #BBDEFB, #64B5F6);">📅</div><span class="flow-text">Years</span></div>
+                            </div>
+                        </div>
+                        <div class="visual-card">
+                            <div class="visual-title">📊 Payback Period ($12,600 system)</div>
+                            <div class="progress-bars">
+                                <div class="progress-item"><span class="progress-icon">⚡</span><div class="progress-info"><div class="progress-label">High Rate ($12,600 ÷ $2,000)</div><div class="progress-track"><div class="progress-fill" style="width: 40%; background: linear-gradient(to right, #4CAF50, #81C784);">6.3 yrs</div></div></div></div>
+                                <div class="progress-item"><span class="progress-icon">⚡</span><div class="progress-info"><div class="progress-label">Mid Rate ($12,600 ÷ $1,200)</div><div class="progress-track"><div class="progress-fill" style="width: 66%; background: linear-gradient(to right, #FFA726, #FFB74D);">10.5 yrs</div></div></div></div>
+                                <div class="progress-item"><span class="progress-icon">⚡</span><div class="progress-info"><div class="progress-label">Low Rate ($12,600 ÷ $800)</div><div class="progress-track"><div class="progress-fill" style="width: 100%; background: linear-gradient(to right, #EF5350, #EF9A9A);">15.8 yrs</div></div></div></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel question-panel" data-aoi="q9-question">
+                    <div class="case-scenario">
+                        <h4>🏠 The Kim Family</h4>
+                        <p>The Kims installed a solar system with a <strong>net cost of $10,500</strong> (after tax credit). Their system produces enough energy to save them <strong>$1,500 per year</strong> on electricity bills.</p>
+                        <div class="case-data">
+                            <div class="case-data-row"><span>Net Cost:</span><span class="case-data-value">$10,500</span></div>
+                            <div class="case-data-row"><span>Annual Savings:</span><span class="case-data-value">$1,500/year</span></div>
+                        </div>
+                    </div>
+                    <div class="question-box">
+                        <p class="question-text">How many years until their solar system pays for itself?</p>
+                    </div>
+                    <div class="answer-options">
+                        <div class="answer-option" data-answer="A" onclick="selectAnswer(this, 9)"><span class="option-letter">A</span><span class="option-text"><strong>5 years</strong></span></div>
+                        <div class="answer-option" data-answer="B" onclick="selectAnswer(this, 9)"><span class="option-letter">B</span><span class="option-text"><strong>7 years</strong></span></div>
+                        <div class="answer-option" data-answer="C" onclick="selectAnswer(this, 9)"><span class="option-letter">C</span><span class="option-text"><strong>8.5 years</strong></span></div>
+                        <div class="answer-option" data-answer="D" onclick="selectAnswer(this, 9)"><span class="option-letter">D</span><span class="option-text"><strong>10 years</strong></span></div>
+                    </div>
+                    <button class="submit-btn" id="submit9" disabled onclick="submitAnswer(9)">Submit Answer</button>
+                    <button class="calc-toggle-btn" onclick="toggleCalc(9)">🧮 Calculator</button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Refocus 9 -->
+    <section class="screen" id="refocus9">
+        <div class="refocus-screen">
+            <div class="refocus-card">
+                <h2 class="refocus-title">Brief Pause</h2>
+                <p class="refocus-text">Please focus on the dot below. The next question will begin automatically.</p>
+                <div class="refocus-timer">
+                    <div class="timer-circle" id="timer9" style="--progress: 100;">
+                        <div class="timer-inner" id="timerNum9">5</div>
+                    </div>
+                    <div class="focus-dot"></div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- QUESTION 10: Grid vs Off-Grid Cost -->
+    <section class="screen" id="q10" data-title="Grid-Tied vs Off-Grid 🔌">
+        <div class="session-screen">
+            <div class="content-grid">
+                <div class="panel" data-aoi="q10-text">
+                    <div class="text-content">
+                        <h3>Grid-Tied vs Off-Grid Solar Systems</h3>
+                        <p>When designing a solar system, homeowners must choose between staying <strong>connected to the grid</strong> or going <strong>completely off-grid</strong>. Each approach has different costs and trade-offs.</p>
+
+                        <h4>Grid-Tied Systems</h4>
+                        <p>A grid-tied system uses the utility grid as backup. Excess solar power is exported to the grid for bill credits (<strong>net metering</strong>). No battery is required.</p>
+                        <ul>
+                            <li><strong>Net cost after tax credit:</strong> $12,600</li>
+                            <li><strong>Monthly savings:</strong> $150 (electricity offset)</li>
+                            <li><strong>Reliability:</strong> Grid serves as backup; power out during grid outages</li>
+                        </ul>
+
+                        <h4>Off-Grid Systems</h4>
+                        <p>Off-grid systems need batteries to store all energy. This significantly increases cost but provides complete energy independence.</p>
+                        <ul>
+                            <li><strong>Net cost after tax credit:</strong> $29,400 (panels + battery bank)</li>
+                            <li><strong>Monthly savings:</strong> $200 (no utility bill at all)</li>
+                            <li><strong>Reliability:</strong> Fully independent; works during outages</li>
+                        </ul>
+
+                        <div class="highlight-box">
+                            <strong>Key Insight:</strong> Off-grid costs more upfront but eliminates your electricity bill entirely. Grid-tied is cheaper initially but you still pay for some grid electricity.
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel" data-aoi="q10-visual">
+                    <div class="infographic">
+                        <div class="visual-card">
+                            <div class="visual-title">💰 Upfront Cost Comparison</div>
+                            <div class="compare-blocks">
+                                <div class="compare-block highlight"><div class="compare-block-icon">🔌</div><div class="compare-block-title">Grid-Tied</div><div class="compare-block-value">$12,600</div><div class="compare-block-sub">Panels only</div></div>
+                                <div class="compare-block"><div class="compare-block-icon">🏝️</div><div class="compare-block-title">Off-Grid</div><div class="compare-block-value">$29,400</div><div class="compare-block-sub">Panels + batteries</div></div>
+                            </div>
+                        </div>
+                        <div class="visual-card">
+                            <div class="visual-title">📊 Monthly Savings</div>
+                            <div class="progress-bars">
+                                <div class="progress-item"><span class="progress-icon">🔌</span><div class="progress-info"><div class="progress-label">Grid-Tied Monthly Savings</div><div class="progress-track"><div class="progress-fill" style="width: 75%; background: linear-gradient(to right, #4CAF50, #81C784);">$150/mo</div></div></div></div>
+                                <div class="progress-item"><span class="progress-icon">🏝️</span><div class="progress-info"><div class="progress-label">Off-Grid Monthly Savings</div><div class="progress-track"><div class="progress-fill" style="width: 100%; background: linear-gradient(to right, #29B6F6, #4FC3F7);">$200/mo</div></div></div></div>
+                            </div>
+                        </div>
+                        <div class="visual-card">
+                            <div class="visual-title">⚡ Feature Comparison</div>
+                            <div class="icon-stats">
+                                <div class="icon-stat"><div class="icon-stat-icon">🔌</div><div class="icon-stat-value">Grid</div><div class="icon-stat-label">Needs grid access</div></div>
+                                <div class="icon-stat"><div class="icon-stat-icon">🏝️</div><div class="icon-stat-value">Off</div><div class="icon-stat-label">Fully independent</div></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel question-panel" data-aoi="q10-question">
+                    <div class="case-scenario">
+                        <h4>🏠 The Davis Family</h4>
+                        <p>The Davis family has <strong>$15,000 in savings</strong> and wants to maximize their 10-year total savings. They experience <strong>frequent power outages</strong> in their area.</p>
+                        <div class="case-data">
+                            <div class="case-data-row"><span>Available Budget:</span><span class="case-data-value">$15,000</span></div>
+                            <div class="case-data-row"><span>Power Outages:</span><span class="case-data-value">Frequent</span></div>
+                            <div class="case-data-row"><span>Priority:</span><span class="case-data-value">Max 10-yr savings</span></div>
+                        </div>
+                    </div>
+                    <div class="question-box">
+                        <p class="question-text">Which system should the Davis family choose?</p>
+                    </div>
+                    <div class="answer-options">
+                        <div class="answer-option" data-answer="A" onclick="selectAnswer(this, 10)"><span class="option-letter">A</span><span class="option-text"><strong>Grid-Tied</strong> — affordable &amp; good savings</span></div>
+                        <div class="answer-option" data-answer="B" onclick="selectAnswer(this, 10)"><span class="option-letter">B</span><span class="option-text"><strong>Off-Grid</strong> — outage protection</span></div>
+                        <div class="answer-option" data-answer="C" onclick="selectAnswer(this, 10)"><span class="option-letter">C</span><span class="option-text"><strong>Either</strong> — both fit their budget</span></div>
+                        <div class="answer-option" data-answer="D" onclick="selectAnswer(this, 10)"><span class="option-letter">D</span><span class="option-text"><strong>Neither</strong> — both are too expensive</span></div>
+                    </div>
+                    <button class="submit-btn" id="submit10" disabled onclick="submitAnswer(10)">Submit Answer</button>
+                    <button class="calc-toggle-btn" onclick="toggleCalc(10)">🧮 Calculator</button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Refocus 10 -->
+    <section class="screen" id="refocus10">
+        <div class="refocus-screen">
+            <div class="refocus-card">
+                <h2 class="refocus-title">Brief Pause</h2>
+                <p class="refocus-text">Please focus on the dot below. The next question will begin automatically.</p>
+                <div class="refocus-timer">
+                    <div class="timer-circle" id="timer10" style="--progress: 100;">
+                        <div class="timer-inner" id="timerNum10">5</div>
+                    </div>
+                    <div class="focus-dot"></div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- QUESTION 11: Inverter Selection -->
+    <section class="screen" id="q11" data-title="Inverter Selection ⚙️">
+        <div class="session-screen">
+            <div class="content-grid">
+                <div class="panel" data-aoi="q11-text">
+                    <div class="text-content">
+                        <h3>Choosing the Right Solar Inverter</h3>
+                        <p>An <strong>inverter</strong> converts the DC electricity from solar panels into AC electricity your home can use. The inverter must be properly sized and matched to your system.</p>
+
+                        <h4>Inverter Types</h4>
+                        <ul>
+                            <li><strong>String Inverter:</strong> One unit handles all panels. Capacity: 3–10 kW, Efficiency: 96%, Cost: <strong>$1,200</strong>, Warranty: 10 years</li>
+                            <li><strong>Microinverters:</strong> One per panel. Capacity: per panel, Efficiency: 97%, Cost: <strong>$2,400</strong> (set of 12), Warranty: 25 years</li>
+                            <li><strong>Power Optimizer + String:</strong> Optimizers on each panel plus central inverter. Capacity: 3–10 kW, Efficiency: 98%, Cost: <strong>$2,000</strong>, Warranty: 12 years</li>
+                        </ul>
+
+                        <h4>When Shading Matters</h4>
+                        <p>With <strong>string inverters</strong>, one shaded panel reduces the output of all panels. <strong>Microinverters</strong> and <strong>optimizers</strong> allow each panel to operate independently, so shading on one panel doesn't affect others.</p>
+
+                        <div class="highlight-box">
+                            <strong>Key Insight:</strong> If your roof has partial shading, microinverters or optimizers protect overall system performance. Unshaded roofs can save money with a string inverter.
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel" data-aoi="q11-visual">
+                    <div class="infographic">
+                        <div class="visual-card">
+                            <div class="visual-title">⚙️ Inverter Comparison</div>
+                            <div class="compare-blocks">
+                                <div class="compare-block"><div class="compare-block-icon">🔗</div><div class="compare-block-title">String</div><div class="compare-block-value">96%</div><div class="compare-block-sub">$1,200 / 10yr</div></div>
+                                <div class="compare-block"><div class="compare-block-icon">🔲</div><div class="compare-block-title">Micro</div><div class="compare-block-value">97%</div><div class="compare-block-sub">$2,400 / 25yr</div></div>
+                                <div class="compare-block highlight"><div class="compare-block-icon">⚡</div><div class="compare-block-title">Optimizer</div><div class="compare-block-value">98%</div><div class="compare-block-sub">$2,000 / 12yr</div></div>
+                            </div>
+                        </div>
+                        <div class="visual-card">
+                            <div class="visual-title">💰 Cost Comparison</div>
+                            <div class="progress-bars">
+                                <div class="progress-item"><span class="progress-icon">🔗</span><div class="progress-info"><div class="progress-label">String Inverter</div><div class="progress-track"><div class="progress-fill" style="width: 50%; background: linear-gradient(to right, #4CAF50, #81C784);">$1,200</div></div></div></div>
+                                <div class="progress-item"><span class="progress-icon">⚡</span><div class="progress-info"><div class="progress-label">Power Optimizer + String</div><div class="progress-track"><div class="progress-fill" style="width: 83%; background: linear-gradient(to right, #FFA726, #FFB74D);">$2,000</div></div></div></div>
+                                <div class="progress-item"><span class="progress-icon">🔲</span><div class="progress-info"><div class="progress-label">Microinverters (12 panels)</div><div class="progress-track"><div class="progress-fill" style="width: 100%; background: linear-gradient(to right, #EF5350, #EF9A9A);">$2,400</div></div></div></div>
+                            </div>
+                        </div>
+                        <div class="visual-card">
+                            <div class="visual-title">⏱️ Warranty Length</div>
+                            <div class="timeline">
+                                <div class="timeline-point"><div class="timeline-dot" style="background: #757575;">10</div><div class="timeline-label">String</div></div>
+                                <div class="timeline-point"><div class="timeline-dot" style="background: var(--secondary-green);">12</div><div class="timeline-label">Optimizer</div></div>
+                                <div class="timeline-point"><div class="timeline-dot" style="background: var(--info-blue);">25</div><div class="timeline-label">Micro</div></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel question-panel" data-aoi="q11-question">
+                    <div class="case-scenario">
+                        <h4>🏠 The Lee Family</h4>
+                        <p>The Lees are installing 12 solar panels. A large tree causes <strong>partial shading</strong> on 3 of their panels. They want an inverter that meets <strong>all three</strong> requirements.</p>
+                        <div class="case-data">
+                            <div class="case-data-row"><span>Shading Issue:</span><span class="case-data-value">3 panels shaded</span></div>
+                            <div class="case-data-row"><span>Max Budget:</span><span class="case-data-value">≤ $2,100</span></div>
+                            <div class="case-data-row"><span>Min Warranty:</span><span class="case-data-value">≥ 12 years</span></div>
+                        </div>
+                    </div>
+                    <div class="question-box">
+                        <p class="question-text">Which inverter option meets ALL their requirements?</p>
+                    </div>
+                    <div class="answer-options">
+                        <div class="answer-option" data-answer="A" onclick="selectAnswer(this, 11)"><span class="option-letter">A</span><span class="option-text"><strong>String Inverter</strong> — lowest cost</span></div>
+                        <div class="answer-option" data-answer="B" onclick="selectAnswer(this, 11)"><span class="option-letter">B</span><span class="option-text"><strong>Microinverters</strong> — best for shading</span></div>
+                        <div class="answer-option" data-answer="C" onclick="selectAnswer(this, 11)"><span class="option-letter">C</span><span class="option-text"><strong>Power Optimizer + String</strong></span></div>
+                        <div class="answer-option" data-answer="D" onclick="selectAnswer(this, 11)"><span class="option-letter">D</span><span class="option-text"><strong>None</strong> — no option meets all</span></div>
+                    </div>
+                    <button class="submit-btn" id="submit11" disabled onclick="submitAnswer(11)">Submit Answer</button>
+                    <button class="calc-toggle-btn" onclick="toggleCalc(11)">🧮 Calculator</button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Refocus 11 -->
+    <section class="screen" id="refocus11">
+        <div class="refocus-screen">
+            <div class="refocus-card">
+                <h2 class="refocus-title">Brief Pause</h2>
+                <p class="refocus-text">Please focus on the dot below. The next question will begin automatically.</p>
+                <div class="refocus-timer">
+                    <div class="timer-circle" id="timer11" style="--progress: 100;">
+                        <div class="timer-inner" id="timerNum11">5</div>
+                    </div>
+                    <div class="focus-dot"></div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- QUESTION 12: Best Overall Package -->
+    <section class="screen" id="q12" data-title="Best Energy Package 🏆">
+        <div class="session-screen">
+            <div class="content-grid">
+                <div class="panel" data-aoi="q12-text">
+                    <div class="text-content">
+                        <h3>Comparing Complete Energy Packages</h3>
+                        <p>Solar installers offer bundled packages that include panels, inverters, and optional battery storage. Comparing packages requires evaluating multiple factors simultaneously.</p>
+
+                        <h4>Available Packages</h4>
+                        <ul>
+                            <li><strong>Package A — Starter:</strong><br>
+                            4 kW system, string inverter, no battery. Net cost: <strong>$9,800</strong>. Annual production: <strong>5,840 kWh</strong>. Warranty: 10 years.</li>
+
+                            <li><strong>Package B — Standard:</strong><br>
+                            6 kW system, optimizer inverter, no battery. Net cost: <strong>$14,600</strong>. Annual production: <strong>8,760 kWh</strong>. Warranty: 12 years.</li>
+
+                            <li><strong>Package C — Premium:</strong><br>
+                            8 kW system, microinverters, LFP battery. Net cost: <strong>$28,000</strong>. Annual production: <strong>11,680 kWh</strong>. Warranty: 25 years.</li>
+                        </ul>
+
+                        <div class="highlight-box">
+                            <strong>Key Insight:</strong> The best package depends on your specific needs — budget, energy usage, backup power requirements, and desired warranty length.
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel" data-aoi="q12-visual">
+                    <div class="infographic">
+                        <div class="visual-card">
+                            <div class="visual-title">💰 Package Cost & Production</div>
+                            <div class="compare-blocks">
+                                <div class="compare-block"><div class="compare-block-icon">📦</div><div class="compare-block-title">Starter</div><div class="compare-block-value">$9,800</div><div class="compare-block-sub">5,840 kWh/yr</div></div>
+                                <div class="compare-block highlight"><div class="compare-block-icon">📦</div><div class="compare-block-title">Standard</div><div class="compare-block-value">$14,600</div><div class="compare-block-sub">8,760 kWh/yr</div></div>
+                                <div class="compare-block"><div class="compare-block-icon">📦</div><div class="compare-block-title">Premium</div><div class="compare-block-value">$28,000</div><div class="compare-block-sub">11,680 kWh/yr</div></div>
+                            </div>
+                        </div>
+                        <div class="visual-card">
+                            <div class="visual-title">📊 Annual Production</div>
+                            <div class="progress-bars">
+                                <div class="progress-item"><span class="progress-icon" style="font-weight: 700;">A</span><div class="progress-info"><div class="progress-label">Starter (4 kW)</div><div class="progress-track"><div class="progress-fill" style="width: 50%; background: linear-gradient(to right, #66BB6A, #81C784);">5,840</div></div></div></div>
+                                <div class="progress-item"><span class="progress-icon" style="font-weight: 700;">B</span><div class="progress-info"><div class="progress-label">Standard (6 kW)</div><div class="progress-track"><div class="progress-fill" style="width: 75%; background: linear-gradient(to right, #FFA726, #FFB74D);">8,760</div></div></div></div>
+                                <div class="progress-item"><span class="progress-icon" style="font-weight: 700;">C</span><div class="progress-info"><div class="progress-label">Premium (8 kW)</div><div class="progress-track"><div class="progress-fill" style="width: 100%; background: linear-gradient(to right, #EF5350, #EF9A9A);">11,680</div></div></div></div>
+                            </div>
+                        </div>
+                        <div class="visual-card">
+                            <div class="visual-title">⏱️ Warranty Comparison</div>
+                            <div class="timeline">
+                                <div class="timeline-point"><div class="timeline-dot" style="background: #757575;">10</div><div class="timeline-label">Starter</div></div>
+                                <div class="timeline-point"><div class="timeline-dot" style="background: var(--secondary-green);">12</div><div class="timeline-label">Standard</div></div>
+                                <div class="timeline-point"><div class="timeline-dot" style="background: var(--info-blue);">25</div><div class="timeline-label">Premium</div></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel question-panel" data-aoi="q12-question">
+                    <div class="case-scenario">
+                        <h4>🏠 The Anderson Family</h4>
+                        <p>The Andersons need a package that meets <strong>all three</strong> of their requirements. They want the best value for their specific situation.</p>
+                        <div class="case-data">
+                            <div class="case-data-row"><span>Min Production:</span><span class="case-data-value">≥ 7,000 kWh/yr</span></div>
+                            <div class="case-data-row"><span>Max Budget:</span><span class="case-data-value">≤ $16,000</span></div>
+                            <div class="case-data-row"><span>Min Warranty:</span><span class="case-data-value">≥ 12 years</span></div>
+                        </div>
+                    </div>
+                    <div class="question-box">
+                        <p class="question-text">Which package meets ALL three requirements?</p>
+                    </div>
+                    <div class="answer-options">
+                        <div class="answer-option" data-answer="A" onclick="selectAnswer(this, 12)"><span class="option-letter">A</span><span class="option-text"><strong>Package A</strong> — Starter</span></div>
+                        <div class="answer-option" data-answer="B" onclick="selectAnswer(this, 12)"><span class="option-letter">B</span><span class="option-text"><strong>Package B</strong> — Standard</span></div>
+                        <div class="answer-option" data-answer="C" onclick="selectAnswer(this, 12)"><span class="option-letter">C</span><span class="option-text"><strong>Package C</strong> — Premium</span></div>
+                        <div class="answer-option" data-answer="D" onclick="selectAnswer(this, 12)"><span class="option-letter">D</span><span class="option-text"><strong>None</strong> — no package meets all</span></div>
+                    </div>
+                    <button class="submit-btn" id="submit12" disabled onclick="submitAnswer(12)">Submit Answer</button>
+                    <button class="calc-toggle-btn" onclick="toggleCalc(12)">🧮 Calculator</button>
                 </div>
             </div>
         </div>
@@ -2051,7 +2635,7 @@
     <script>
         const responses = {};
         const surveyData = {};
-        const calcExpressions = {1:'',2:'',3:'',4:'',5:'',6:''};
+        const calcExpressions = {1:'',2:'',3:'',4:'',5:'',6:'',7:'',8:'',9:'',10:'',11:'',12:''};
         const startTime = Date.now();
         let activeTimer = null;
         let tutorialPlaying = false;
@@ -2195,6 +2779,12 @@
             'q4': 'Solar Cost & Tax Credit 💰',
             'q5': 'Battery Storage Selection 🔋',
             'q6': 'Choosing the Best Solar Plan 🎯',
+            'q7': 'Monthly Electricity Cost 💡',
+            'q8': 'Annual Solar Output ☀️',
+            'q9': 'Solar Payback Period 📅',
+            'q10': 'Grid-Tied vs Off-Grid 🔌',
+            'q11': 'Inverter Selection ⚙️',
+            'q12': 'Best Energy Package 🏆',
             'survey': 'Post-Study Survey',
             'completion': 'Complete'
         };
@@ -2260,7 +2850,7 @@
             // Update progress
             const qNum = parseInt(id.replace('q', ''));
             if (!isNaN(qNum)) {
-                for (let i = 1; i <= 6; i++) {
+                for (let i = 1; i <= 12; i++) {
                     const step = document.getElementById('prog' + i);
                     step.classList.remove('active', 'completed');
                     if (i < qNum) step.classList.add('completed');
@@ -2318,10 +2908,14 @@
             logEvent('answer_submit', { question: qNum, ...responses[qNum] });
             
             setTimeout(() => {
-                const nextRefocus = 'refocus' + qNum;
-                showScreen(nextRefocus);
-                const nextQ = qNum < 6 ? qNum + 1 : 'survey';
-                startTimer(qNum, nextQ === 'survey' ? 'survey' : 'q' + nextQ);
+                if (qNum < 12) {
+                    const nextRefocus = 'refocus' + qNum;
+                    showScreen(nextRefocus);
+                    startTimer(qNum, 'q' + (qNum + 1));
+                } else {
+                    // Last question - go directly to survey (no pause)
+                    showScreen('survey');
+                }
             }, 600);
         }
 
