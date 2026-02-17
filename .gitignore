@@ -15,6 +15,11 @@ data/processed/**/*.csv
 data/processed/**/*.parquet
 data/processed/**/*.h5
 !data/**/.gitkeep
+*.csv
+*.parquet
+*.h5
+*.webm
+*.json
 
 # Jupyter
 .ipynb_checkpoints/
