@@ -279,12 +279,26 @@ async function loadSavedSession(sessionIdToLoad) {
                 loadedSessionDuration = Math.max(...allTimes);
             }
 
-            // Also check metadata for duration and video offset
-            if (timeline.metadata && timeline.metadata.duration) {
-                loadedSessionDuration = timeline.metadata.duration;
-            }
-            if (timeline.metadata && timeline.metadata.videoOffset !== undefined) {
-                videoOffset = timeline.metadata.videoOffset;
+            // Restore metadata: duration, video offset, and participant dimensions
+            if (timeline.metadata) {
+                if (timeline.metadata.duration) {
+                    loadedSessionDuration = timeline.metadata.duration;
+                }
+                if (timeline.metadata.videoOffset !== undefined) {
+                    videoOffset = timeline.metadata.videoOffset;
+                }
+                if (timeline.metadata.participantWindowWidth) {
+                    participantWindowWidth = timeline.metadata.participantWindowWidth;
+                }
+                if (timeline.metadata.participantWindowHeight) {
+                    participantWindowHeight = timeline.metadata.participantWindowHeight;
+                }
+                if (timeline.metadata.participantScreenWidth) {
+                    participantScreenWidth = timeline.metadata.participantScreenWidth;
+                }
+                if (timeline.metadata.participantScreenHeight) {
+                    participantScreenHeight = timeline.metadata.participantScreenHeight;
+                }
             }
         }
 
@@ -323,17 +337,17 @@ async function loadSavedSession(sessionIdToLoad) {
             addLogEntry('system', 'Loading video recording...');
         }
 
-        // Set participant dimensions from metadata if available
+        // Set participant dimensions from export metadata if available (fallback)
         if (result.files.metadata) {
             const meta = result.files.metadata;
             if (meta.windowWidth) participantWindowWidth = meta.windowWidth;
             if (meta.windowHeight) participantWindowHeight = meta.windowHeight;
+        }
 
-            // Match container aspect ratio to participant window
-            const pvContainer = document.getElementById('participant-view-container');
-            if (pvContainer && participantWindowWidth > 0 && participantWindowHeight > 0) {
-                pvContainer.style.aspectRatio = `${participantWindowWidth} / ${participantWindowHeight}`;
-            }
+        // Match container aspect ratio to participant window (uses dims from timeline or export metadata)
+        const pvContainer = document.getElementById('participant-view-container');
+        if (pvContainer && participantWindowWidth > 0 && participantWindowHeight > 0) {
+            pvContainer.style.aspectRatio = `${participantWindowWidth} / ${participantWindowHeight}`;
         }
 
         // Update stats from loaded data
