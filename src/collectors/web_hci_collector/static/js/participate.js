@@ -1179,14 +1179,21 @@ function stopScreenRecordingAsync() {
 
 // ── Cleanup on page unload / tab switch ──────────────────
 
-window.addEventListener('beforeunload', () => {
+function cleanupOnUnload() {
     if (isCollecting) {
-        // Best-effort: send end signal before page unloads
+        // Best-effort: send end signal via WebSocket before page unloads
         try {
             ws && ws.readyState === WebSocket.OPEN &&
                 ws.send(JSON.stringify({ type: 'session', timestamp: performance.now(), data: { event: 'end', saveData: true, reason: 'page_unload' } }));
         } catch (e) { /* ignore */ }
+
+        // Reliable fallback: sendBeacon guarantees delivery even during page unload
+        try {
+            navigator.sendBeacon(`/api/session/${SESSION_ID}/disconnect`, '');
+        } catch (e) { /* ignore */ }
     }
+    // Prevent WebSocket reconnection attempts
+    wsClosedIntentionally = true;
     // Stop all media tracks regardless of state
     faceMeshLoopRunning = false;
     stopScreenRecording();
@@ -1194,7 +1201,11 @@ window.addEventListener('beforeunload', () => {
     try { webgazer.end(); } catch (e) { /* ignore */ }
     const v = document.getElementById('webcam-video');
     if (v && v.srcObject) { v.srcObject.getTracks().forEach(t => t.stop()); }
-});
+}
+
+window.addEventListener('beforeunload', cleanupOnUnload);
+// pagehide is more reliable than beforeunload on mobile browsers
+window.addEventListener('pagehide', cleanupOnUnload);
 
 document.addEventListener('visibilitychange', () => {
     if (!isCollecting) return;
