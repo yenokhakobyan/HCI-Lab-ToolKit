@@ -62,7 +62,7 @@ ServerConfig = server_globals["ServerConfig"]
 # =============================================================================
 DEFAULT_HOST = "0.0.0.0"
 DEFAULT_PORT = 8000
-DEFAULT_OUTPUT_DIR = "data/raw/web_hci"
+DEFAULT_OUTPUT_DIR = "/Users/yenokhakobyan/HCI Lab ToolKit/data/raw/web_hci"
 AUTO_START = True  # Set to True to auto-start server on load
 
 # SSL Certificate paths (set these for trusted HTTPS)
