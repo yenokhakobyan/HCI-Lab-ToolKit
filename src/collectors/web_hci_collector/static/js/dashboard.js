@@ -3698,7 +3698,7 @@ window.createNewSession = async function() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 experiment_config: {
-                    content_url: '/static/experiments/green_energy_demo.html',
+                    content_url: '/static/experiments/green_energy_v2.1.html',
                     experiment_name: 'HCI Study',
                     require_calibration: true
                 }

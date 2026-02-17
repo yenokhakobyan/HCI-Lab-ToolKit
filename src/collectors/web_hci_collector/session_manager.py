@@ -46,7 +46,7 @@ class Session:
     # Experiment configuration
     experiment_config: Dict = field(default_factory=dict)
     # Expected shape: {
-    #   "content_url": "/static/experiments/green_energy_demo.html",
+    #   "content_url": "/static/experiments/green_energy_v2.1.html",
     #   "experiment_name": "Green Energy Study",
     #   "require_calibration": True,
     # }
