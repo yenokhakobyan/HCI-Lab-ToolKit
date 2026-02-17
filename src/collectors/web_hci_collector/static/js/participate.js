@@ -45,13 +45,29 @@ let webcamFrameCtx = null;
 let lastWebcamFrameTime = 0;
 const WEBCAM_FRAME_INTERVAL = 200; // ~5Hz for dashboard preview
 
-// Calibration
+// Gaze smoothing (EMA)
+const GAZE_SMOOTHING_ALPHA = 0.3; // lower = smoother but more lag
+let smoothedGazeX = null;
+let smoothedGazeY = null;
+
+// Validation gaze buffer (rolling window for accuracy measurement)
+let validationGazeBuffer = [];
+const VALIDATION_BUFFER_SIZE = 60; // ~2s at 30Hz
+
+function collectValidationGaze(x, y) {
+    validationGazeBuffer.push({ x, y, t: performance.now() });
+    if (validationGazeBuffer.length > VALIDATION_BUFFER_SIZE) {
+        validationGazeBuffer.shift();
+    }
+}
+
+// Calibration — 9-point grid (3×3), standard for webcam eye tracking
 const CAL_POINTS = [
     { x: 10, y: 15 }, { x: 50, y: 15 }, { x: 90, y: 15 },
     { x: 10, y: 50 }, { x: 50, y: 50 }, { x: 90, y: 50 },
     { x: 10, y: 85 }, { x: 50, y: 85 }, { x: 90, y: 85 },
 ];
-const CLICKS_PER_POINT = 5;
+const CLICKS_PER_POINT = 3;
 let calCurrentPoint = 0;
 let calCurrentClicks = 0;
 let calPointElements = [];
@@ -234,7 +250,9 @@ function startCalibration() {
 function showCalPoint(idx) {
     calPointElements.forEach((el, i) => {
         el.classList.remove('active');
-        if (i === idx) el.classList.add('active');
+        if (i === idx) {
+            el.classList.add('active');
+        }
     });
     CAL_POINTS.forEach((_, i) => {
         const pd = document.getElementById(`cal-pdot-${i}`);
@@ -284,23 +302,147 @@ function handleCalClick(idx) {
         if (calCurrentPoint >= CAL_POINTS.length) {
             finishCalibration();
         } else {
-            showCalPoint(calCurrentPoint);
+            // Brief pause between points for smoother transitions
+            setTimeout(() => showCalPoint(calCurrentPoint), 300);
         }
     }
 }
 
-function finishCalibration() {
+async function finishCalibration() {
     localStorage.setItem('webgazer_calibrated', 'true');
     localStorage.setItem('webgazer_calibrated_at', new Date().toISOString());
     sendData('calibration_complete', { points: CAL_POINTS.length, clicks_per_point: CLICKS_PER_POINT });
 
     document.getElementById('cal-instruction').textContent = 'Calibration complete!';
-    document.getElementById('cal-sub').textContent = 'Starting experiment...';
+    document.getElementById('cal-sub').textContent = 'Validating accuracy...';
 
-    setTimeout(() => {
-        showStep('content');
-        startContent();
-    }, 800);
+    // Run validation if WebGazer is active
+    if (webgazerActive) {
+        const validationResult = await runCalibrationValidation();
+        if (validationResult.quality === 'poor') {
+            document.getElementById('cal-instruction').textContent = `Accuracy: ${validationResult.quality.toUpperCase()} (${Math.round(validationResult.avgOffset)}px offset)`;
+            document.getElementById('cal-sub').textContent = 'Consider re-calibrating for better results';
+            // Show re-calibrate button
+            const calUI = document.querySelector('.cal-ui');
+            calUI.style.pointerEvents = 'auto';
+            const btnRow = document.createElement('div');
+            btnRow.style.cssText = 'display:flex;gap:12px;justify-content:center;margin-top:12px;';
+            const recalBtn = document.createElement('button');
+            recalBtn.className = 'btn btn-primary';
+            recalBtn.textContent = 'Re-calibrate';
+            recalBtn.onclick = () => { btnRow.remove(); restartCalibration(); };
+            const contBtn = document.createElement('button');
+            contBtn.className = 'btn';
+            contBtn.style.cssText = 'padding:8px 20px;border:1px solid rgba(255,255,255,0.2);border-radius:8px;background:transparent;color:white;cursor:pointer;';
+            contBtn.textContent = 'Continue Anyway';
+            contBtn.onclick = () => { btnRow.remove(); proceedToContent(); };
+            btnRow.appendChild(recalBtn);
+            btnRow.appendChild(contBtn);
+            calUI.appendChild(btnRow);
+            return;
+        }
+        document.getElementById('cal-instruction').textContent = `Calibration accuracy: ${validationResult.quality.toUpperCase()}`;
+        document.getElementById('cal-sub').textContent = `Avg offset: ${Math.round(validationResult.avgOffset)}px — Starting experiment...`;
+    } else {
+        document.getElementById('cal-sub').textContent = 'Starting experiment...';
+    }
+
+    setTimeout(proceedToContent, 1200);
+}
+
+function proceedToContent() {
+    showStep('content');
+    startContent();
+}
+
+function restartCalibration() {
+    // Reset all calibration state
+    calCurrentPoint = 0;
+    calCurrentClicks = 0;
+    calPointElements.forEach(el => {
+        el.classList.remove('done', 'active');
+        el.style.display = ''; // restore if hidden during validation
+    });
+    validationGazeBuffer = [];
+    smoothedGazeX = null;
+    smoothedGazeY = null;
+    startCalibration();
+}
+
+/**
+ * Post-calibration validation: show 3 targets along a diagonal, measure gaze accuracy
+ */
+async function runCalibrationValidation() {
+    const container = document.getElementById('step-calibration');
+    const VALIDATION_POINTS = [
+        { x: 25, y: 25 },   // top-left quadrant
+        { x: 50, y: 50 },   // center
+        { x: 75, y: 75 },   // bottom-right quadrant
+    ];
+    const DWELL_TIME = 1500; // ms per target
+    const results = [];
+
+    // Hide calibration dots during validation
+    calPointElements.forEach(el => el.style.display = 'none');
+
+    document.getElementById('cal-instruction').textContent = 'Validating accuracy...';
+    document.getElementById('cal-sub').textContent = 'Look at the teal dot — do not click';
+
+    // Create validation target element
+    const target = document.createElement('div');
+    target.style.cssText = `
+        position: absolute; width: 20px; height: 20px; border-radius: 50%;
+        background: #4ecdc4; border: 3px solid white;
+        transform: translate(-50%, -50%); z-index: 10;
+        transition: opacity 0.2s;
+    `;
+    container.appendChild(target);
+
+    for (const pt of VALIDATION_POINTS) {
+        target.style.left = `${pt.x}%`;
+        target.style.top = `${pt.y}%`;
+        target.style.opacity = '1';
+
+        // Clear gaze buffer and collect for DWELL_TIME
+        validationGazeBuffer = [];
+        await new Promise(r => setTimeout(r, DWELL_TIME));
+
+        // Calculate target position in pixels
+        const targetPx = {
+            x: (pt.x / 100) * window.innerWidth,
+            y: (pt.y / 100) * window.innerHeight,
+        };
+
+        // Compute average offset from gaze samples
+        if (validationGazeBuffer.length > 0) {
+            const offsets = validationGazeBuffer.map(g =>
+                Math.sqrt((g.x - targetPx.x) ** 2 + (g.y - targetPx.y) ** 2)
+            );
+            const avgOffset = offsets.reduce((a, b) => a + b, 0) / offsets.length;
+            results.push({ point: pt, targetPx, samples: validationGazeBuffer.length, avgOffset });
+        } else {
+            results.push({ point: pt, targetPx, samples: 0, avgOffset: Infinity });
+        }
+    }
+
+    target.remove();
+
+    // Overall accuracy
+    const validResults = results.filter(r => r.samples > 0);
+    const avgOffset = validResults.length > 0
+        ? validResults.reduce((a, r) => a + r.avgOffset, 0) / validResults.length
+        : Infinity;
+
+    let quality;
+    if (avgOffset < 150) quality = 'good';
+    else if (avgOffset < 250) quality = 'fair';
+    else quality = 'poor';
+
+    const validationData = { quality, avgOffset, points: results, timestamp: performance.now() };
+    sendData('calibration_validation', validationData);
+
+    console.log(`[Calibration] Validation: ${quality} (avg offset: ${Math.round(avgOffset)}px)`);
+    return validationData;
 }
 
 // ── Step 3: Content & Data Collection ─────────────────────
@@ -509,10 +651,25 @@ async function initWebGazer() {
                     console.log('[WebGazer] First gaze prediction!', Math.round(data.x), Math.round(data.y));
                 }
                 webgazerGazeReceived = true;
+                collectValidationGaze(data.x, data.y);
+
+                // Apply EMA smoothing
+                if (smoothedGazeX === null) {
+                    smoothedGazeX = data.x;
+                    smoothedGazeY = data.y;
+                } else {
+                    smoothedGazeX = GAZE_SMOOTHING_ALPHA * data.x + (1 - GAZE_SMOOTHING_ALPHA) * smoothedGazeX;
+                    smoothedGazeY = GAZE_SMOOTHING_ALPHA * data.y + (1 - GAZE_SMOOTHING_ALPHA) * smoothedGazeY;
+                }
+
                 if (isCollecting) {
-                    gazeCursor.style.left = `${data.x}px`;
-                    gazeCursor.style.top = `${data.y}px`;
-                    sendData('gaze', { x: data.x, y: data.y, timestamp, source: 'webgazer' });
+                    gazeCursor.style.left = `${smoothedGazeX}px`;
+                    gazeCursor.style.top = `${smoothedGazeY}px`;
+                    sendData('gaze', {
+                        x: smoothedGazeX, y: smoothedGazeY,
+                        raw_x: data.x, raw_y: data.y,
+                        timestamp, source: 'webgazer',
+                    });
                 }
             }
         });
@@ -586,8 +743,8 @@ async function initFaceMesh() {
         faceMesh.setOptions({
             maxNumFaces: 1,
             refineLandmarks: true,
-            minDetectionConfidence: 0.5,
-            minTrackingConfidence: 0.5,
+            minDetectionConfidence: 0.7,
+            minTrackingConfidence: 0.7,
         });
         faceMesh.onResults(onFaceMeshResults);
 

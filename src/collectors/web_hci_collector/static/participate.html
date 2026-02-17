@@ -79,20 +79,22 @@
             background: var(--accent);
             transform: translate(-50%, -50%);
             cursor: pointer;
-            transition: all 0.3s ease;
+            transition: opacity 0.3s ease, transform 0.15s ease, background 0.3s ease;
             display: flex;
             align-items: center;
             justify-content: center;
             opacity: 0;
             pointer-events: none;
             z-index: 10;
+            box-shadow: 0 0 0 0 rgba(233, 69, 96, 0);
         }
         .calibration-point.active {
             opacity: 1;
             pointer-events: auto;
-            animation: pulse-point 1s infinite;
+            animation: pulse-point 1.2s ease-in-out infinite;
+            box-shadow: 0 0 20px rgba(233, 69, 96, 0.4);
         }
-        .calibration-point.done { background: var(--success); opacity: 0.4; pointer-events: none; }
+        .calibration-point.done { background: var(--success); opacity: 0.3; pointer-events: none; box-shadow: none; }
         .calibration-point::before {
             content: '';
             width: 8px; height: 8px;
@@ -100,8 +102,8 @@
             background: white;
         }
         @keyframes pulse-point {
-            0%, 100% { transform: translate(-50%, -50%) scale(1); }
-            50% { transform: translate(-50%, -50%) scale(1.2); }
+            0%, 100% { transform: translate(-50%, -50%) scale(1); box-shadow: 0 0 12px rgba(233, 69, 96, 0.3); }
+            50% { transform: translate(-50%, -50%) scale(1.15); box-shadow: 0 0 24px rgba(233, 69, 96, 0.6); }
         }
         .cal-ui {
             position: absolute;
@@ -226,7 +228,7 @@
         <!-- Points are created dynamically -->
         <div class="cal-ui">
             <div class="cal-progress" id="cal-progress"></div>
-            <p class="instruction-text" id="cal-instruction">Look at the red dot and click on it 5 times</p>
+            <p class="instruction-text" id="cal-instruction">Click the red dot 3 times, then move to the next</p>
             <p class="sub-text" id="cal-sub">Starting calibration...</p>
         </div>
     </div>
