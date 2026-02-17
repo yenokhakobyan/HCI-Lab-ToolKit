@@ -80,9 +80,15 @@ class WebHCICollectorServer:
         # Initialize emotion detector
         if self.config.enable_emotion_detection:
             model_path = Path(__file__).parent / "models" / "denseattnet.onnx"
+            if model_path.exists():
+                backend = "onnx"
+                model_path_str = str(model_path)
+            else:
+                backend = "landmarks"
+                model_path_str = None
             self.emotion_detector = EmotionDetector(
-                model_path=str(model_path) if model_path.exists() else None,
-                backend="onnx" if model_path.exists() else "demo"
+                model_path=model_path_str,
+                backend=backend,
             )
             self.async_emotion_detector = AsyncEmotionDetector(self.emotion_detector)
             self.async_emotion_detector.start()
@@ -469,6 +475,12 @@ class WebHCICollectorServer:
 
         # Process face mesh for emotion detection
         if data_type == "face_mesh" and self.async_emotion_detector:
+            # Submit landmarks for cognitive state estimation
+            landmarks = payload.get("landmarks")
+            head_pose_data = payload.get("head_pose")
+            if landmarks and len(landmarks) >= 468:
+                self.async_emotion_detector.submit_landmarks(landmarks, head_pose_data)
+
             # Get latest emotion prediction and broadcast
             emotion_state = self.async_emotion_detector.get_latest_state()
             if emotion_state:

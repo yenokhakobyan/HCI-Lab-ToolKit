@@ -342,7 +342,7 @@ def main():
         st.markdown("""
         - ⚠️ **HTTPS Required**: WebGazer requires HTTPS for webcam access. The server will auto-generate self-signed SSL certificates.
         - 🔐 **Certificate Warning**: You may need to accept the self-signed certificate in your browser.
-        - 🧪 **Demo Mode**: Cognitive states use simulated data unless you add a DenseAttNet model to `models/denseattnet.onnx`
+        - 🧪 **Cognitive States**: Estimated from facial landmarks (FACS-based heuristics). For model-based detection, add a DenseAttNet model to `models/denseattnet.onnx`
         """)
 
     # Data management section

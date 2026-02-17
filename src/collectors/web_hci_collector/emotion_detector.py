@@ -14,8 +14,9 @@ This module provides:
 """
 
 import numpy as np
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional, Tuple, List
 from dataclasses import dataclass
+from collections import deque
 from pathlib import Path
 import threading
 import time
@@ -58,11 +59,243 @@ class CognitiveState:
         }
 
 
+@dataclass
+class FacialFeatures:
+    """Extracted facial features from landmarks for a single frame."""
+    eye_openness: float = 0.0
+    left_eye_openness: float = 0.0
+    right_eye_openness: float = 0.0
+    brow_height: float = 0.0
+    brow_furrow: float = 0.0
+    mouth_openness: float = 0.0
+    mouth_width: float = 0.0
+    is_blinking: bool = False
+
+
+# MediaPipe FaceMesh landmark indices
+_LEFT_EYE_UPPER = 159
+_LEFT_EYE_LOWER = 145
+_LEFT_EYE_INNER = 133
+_LEFT_EYE_OUTER = 33
+_RIGHT_EYE_UPPER = 386
+_RIGHT_EYE_LOWER = 374
+_RIGHT_EYE_INNER = 362
+_RIGHT_EYE_OUTER = 263
+_LEFT_BROW_INNER = 70
+_LEFT_BROW_OUTER = 63
+_RIGHT_BROW_INNER = 300
+_RIGHT_BROW_OUTER = 293
+_UPPER_LIP = 13
+_LOWER_LIP = 14
+_MOUTH_LEFT = 61
+_MOUTH_RIGHT = 291
+
+
+class LandmarkCognitiveEstimator:
+    """
+    Estimates cognitive states from MediaPipe FaceMesh landmarks using
+    FACS-based heuristic indicators.
+
+    Uses temporal buffers to compute baseline statistics and detect
+    changes in facial expression over time.
+    """
+
+    HISTORY_WINDOW = 90   # ~3 seconds at 30fps
+    BLINK_THRESHOLD = 0.015
+    BLINK_COOLDOWN_SEC = 0.2
+    SMOOTHING_FACTOR = 0.15
+
+    def __init__(self):
+        self._eye_openness_history: deque = deque(maxlen=self.HISTORY_WINDOW)
+        self._head_pose_history: deque = deque(maxlen=self.HISTORY_WINDOW)
+        self._mouth_openness_history: deque = deque(maxlen=self.HISTORY_WINDOW)
+        self._brow_history: deque = deque(maxlen=self.HISTORY_WINDOW)
+
+        self._blink_count: int = 0
+        self._last_blink_time: float = 0.0
+
+        # Smoothed output states
+        self._smoothed = {
+            "confusion": 0.0,
+            "engagement": 0.5,
+            "boredom": 0.0,
+            "frustration": 0.0,
+        }
+
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
+
+    def predict(
+        self,
+        landmarks: List[Dict],
+        head_pose: Optional[Dict] = None,
+    ) -> CognitiveState:
+        """Estimate cognitive states from a single frame of landmarks."""
+        features = self._extract_features(landmarks)
+        self._update_history(features, head_pose)
+        raw_states = self._calculate_states(features, head_pose)
+
+        # Exponential moving average smoothing
+        for key in self._smoothed:
+            self._smoothed[key] = (
+                self._smoothed[key] * (1 - self.SMOOTHING_FACTOR)
+                + raw_states[key] * self.SMOOTHING_FACTOR
+            )
+
+        history_ratio = min(1.0, len(self._eye_openness_history) / self.HISTORY_WINDOW)
+        confidence = 0.45 + 0.25 * history_ratio
+
+        return CognitiveState(
+            confusion=float(self._smoothed["confusion"]),
+            engagement=float(self._smoothed["engagement"]),
+            boredom=float(self._smoothed["boredom"]),
+            frustration=float(self._smoothed["frustration"]),
+            timestamp=time.time(),
+            confidence=float(confidence),
+        )
+
+    # ------------------------------------------------------------------
+    # Feature extraction
+    # ------------------------------------------------------------------
+
+    def _extract_features(self, landmarks: List[Dict]) -> FacialFeatures:
+        left_eye_openness = abs(
+            landmarks[_LEFT_EYE_UPPER]["y"] - landmarks[_LEFT_EYE_LOWER]["y"]
+        )
+        right_eye_openness = abs(
+            landmarks[_RIGHT_EYE_UPPER]["y"] - landmarks[_RIGHT_EYE_LOWER]["y"]
+        )
+        avg_eye_openness = (left_eye_openness + right_eye_openness) / 2.0
+
+        # Brow height (distance from brow to upper eyelid; positive = raised)
+        left_brow_avg_y = (
+            landmarks[_LEFT_BROW_INNER]["y"] + landmarks[_LEFT_BROW_OUTER]["y"]
+        ) / 2.0
+        right_brow_avg_y = (
+            landmarks[_RIGHT_BROW_INNER]["y"] + landmarks[_RIGHT_BROW_OUTER]["y"]
+        ) / 2.0
+        left_brow_height = landmarks[_LEFT_EYE_UPPER]["y"] - left_brow_avg_y
+        right_brow_height = landmarks[_RIGHT_EYE_UPPER]["y"] - right_brow_avg_y
+        avg_brow_height = (left_brow_height + right_brow_height) / 2.0
+
+        # Inner brow distance (smaller = more furrowed)
+        brow_furrow = abs(
+            landmarks[_LEFT_BROW_INNER]["x"] - landmarks[_RIGHT_BROW_INNER]["x"]
+        )
+
+        # Mouth
+        mouth_openness = abs(
+            landmarks[_UPPER_LIP]["y"] - landmarks[_LOWER_LIP]["y"]
+        )
+        mouth_width = abs(
+            landmarks[_MOUTH_LEFT]["x"] - landmarks[_MOUTH_RIGHT]["x"]
+        )
+
+        # Blink detection
+        is_blinking = avg_eye_openness < self.BLINK_THRESHOLD
+        now = time.time()
+        if is_blinking and (now - self._last_blink_time) > self.BLINK_COOLDOWN_SEC:
+            self._last_blink_time = now
+            self._blink_count += 1
+
+        return FacialFeatures(
+            eye_openness=avg_eye_openness,
+            left_eye_openness=left_eye_openness,
+            right_eye_openness=right_eye_openness,
+            brow_height=avg_brow_height,
+            brow_furrow=brow_furrow,
+            mouth_openness=mouth_openness,
+            mouth_width=mouth_width,
+            is_blinking=is_blinking,
+        )
+
+    # ------------------------------------------------------------------
+    # History management
+    # ------------------------------------------------------------------
+
+    def _update_history(self, features: FacialFeatures, head_pose: Optional[Dict]):
+        self._eye_openness_history.append(features.eye_openness)
+        self._mouth_openness_history.append(features.mouth_openness)
+        self._brow_history.append(features.brow_height)
+        if head_pose:
+            self._head_pose_history.append(head_pose)
+
+    # ------------------------------------------------------------------
+    # Cognitive state calculation
+    # ------------------------------------------------------------------
+
+    def _calculate_states(
+        self, features: FacialFeatures, head_pose: Optional[Dict]
+    ) -> Dict[str, float]:
+        # Baseline statistics
+        if len(self._eye_openness_history) > 5:
+            avg_eo = float(np.mean(self._eye_openness_history))
+            std_eo = float(np.std(self._eye_openness_history)) + 0.001
+        else:
+            avg_eo = features.eye_openness
+            std_eo = 0.01
+
+        eo_zscore = (features.eye_openness - avg_eo) / std_eo
+
+        head_movement = self._head_movement_variance()
+        pitch = head_pose.get("pitch", 0) if head_pose else 0
+        yaw = head_pose.get("yaw", 0) if head_pose else 0
+        roll = head_pose.get("roll", 0) if head_pose else 0
+
+        # --- ENGAGEMENT ---
+        eye_wide = max(0.0, eo_zscore)
+        head_stable = max(0.0, 1.0 - head_movement * 10.0)
+        looking_forward = max(0.0, 1.0 - (abs(yaw) + abs(pitch)) / 20.0)
+        engagement = _clamp(eye_wide * 0.3 + head_stable * 0.3 + looking_forward * 0.4)
+
+        # --- BOREDOM ---
+        eye_droopy = max(0.0, -eo_zscore * 0.5)
+        yawning = min(1.0, features.mouth_openness * 10.0) if features.mouth_openness > 0.05 else 0.0
+        looking_away = min(1.0, (abs(yaw) + abs(pitch)) / 30.0)
+        boredom = _clamp(eye_droopy * 0.4 + yawning * 0.3 + looking_away * 0.3)
+
+        # --- CONFUSION ---
+        brow_furrowed = max(0.0, 0.1 - features.brow_furrow) * 10.0
+        squinting = max(0.0, -eo_zscore * 0.3)
+        head_tilt = min(1.0, abs(roll) / 15.0)
+        confusion = _clamp(brow_furrowed * 0.4 + squinting * 0.3 + head_tilt * 0.3)
+
+        # --- FRUSTRATION ---
+        rapid_blinking = min(1.0, self._blink_count / 10.0)
+        head_restless = min(1.0, head_movement * 15.0)
+        tense_brows = brow_furrowed * 0.5
+        frustration = _clamp(rapid_blinking * 0.4 + head_restless * 0.3 + tense_brows * 0.3)
+
+        # Decay blink count periodically
+        if len(self._eye_openness_history) >= self.HISTORY_WINDOW:
+            self._blink_count = max(0, self._blink_count - 1)
+
+        return {
+            "confusion": confusion,
+            "engagement": engagement,
+            "boredom": boredom,
+            "frustration": frustration,
+        }
+
+    def _head_movement_variance(self) -> float:
+        if len(self._head_pose_history) < 2:
+            return 0.0
+        pitches = [h.get("pitch", 0) for h in self._head_pose_history]
+        yaws = [h.get("yaw", 0) for h in self._head_pose_history]
+        return float(np.var(pitches) + np.var(yaws))
+
+
+def _clamp(value: float, lo: float = 0.0, hi: float = 1.0) -> float:
+    return max(lo, min(hi, value))
+
+
 class EmotionDetector:
     """
     Detects learner cognitive states from face images.
 
     Supports multiple backends:
+    - 'landmarks': Heuristic estimation from face mesh landmarks (default)
     - 'demo': Simulated predictions for testing
     - 'onnx': ONNX Runtime inference (recommended for production)
     - 'torch': PyTorch inference
@@ -90,6 +323,10 @@ class EmotionDetector:
         self.model = None
         self.session = None
         self.transform = None
+        self._landmark_estimator: Optional[LandmarkCognitiveEstimator] = None
+
+        if backend == "landmarks":
+            self._landmark_estimator = LandmarkCognitiveEstimator()
 
         self._demo_state = {
             "confusion": 0.3,
@@ -104,7 +341,7 @@ class EmotionDetector:
             "frustration": 0.005
         }
 
-        if backend != "demo":
+        if backend not in ("demo", "landmarks"):
             self._load_model(model_path)
 
     def _load_model(self, model_path: Optional[str]):
@@ -172,7 +409,7 @@ class EmotionDetector:
         Returns:
             CognitiveState with predictions
         """
-        if self.backend == "demo":
+        if self.backend == "demo" or self.backend == "landmarks":
             return self._demo_predict()
         elif self.backend == "onnx":
             return self._onnx_predict(face_image)
@@ -180,6 +417,25 @@ class EmotionDetector:
             return self._torch_predict(face_image)
         else:
             return self._demo_predict()
+
+    def predict_from_landmarks(
+        self,
+        landmarks: List[Dict],
+        head_pose: Optional[Dict] = None,
+    ) -> CognitiveState:
+        """
+        Predict cognitive states from MediaPipe face mesh landmarks.
+
+        Args:
+            landmarks: List of 468 landmark dicts with 'x', 'y', 'z' keys
+            head_pose: Optional dict with 'pitch', 'yaw', 'roll' keys
+
+        Returns:
+            CognitiveState with predictions
+        """
+        if self.backend == "landmarks" and self._landmark_estimator:
+            return self._landmark_estimator.predict(landmarks, head_pose)
+        return self._demo_predict()
 
     def _demo_predict(self) -> CognitiveState:
         """Generate simulated predictions for demo/testing."""
@@ -295,6 +551,7 @@ class AsyncEmotionDetector:
         self._running = False
         self._thread: Optional[threading.Thread] = None
         self._image_queue: Optional[np.ndarray] = None
+        self._landmarks_queue: Optional[Tuple[List[Dict], Optional[Dict]]] = None
 
     def start(self):
         """Start the async detector."""
@@ -313,6 +570,15 @@ class AsyncEmotionDetector:
         with self._lock:
             self._image_queue = face_image
 
+    def submit_landmarks(
+        self,
+        landmarks: List[Dict],
+        head_pose: Optional[Dict] = None,
+    ):
+        """Submit face mesh landmarks for async processing."""
+        with self._lock:
+            self._landmarks_queue = (landmarks, head_pose)
+
     def get_latest_state(self) -> Optional[CognitiveState]:
         """Get the latest cognitive state prediction."""
         with self._lock:
@@ -321,15 +587,21 @@ class AsyncEmotionDetector:
     def _inference_loop(self):
         """Background inference loop."""
         while self._running:
-            # Get latest image
+            state = None
+
             with self._lock:
+                landmarks_data = self._landmarks_queue
+                self._landmarks_queue = None
                 image = self._image_queue
                 self._image_queue = None
 
-            if image is not None:
-                # Run inference
+            if landmarks_data is not None:
+                landmarks, head_pose = landmarks_data
+                state = self.detector.predict_from_landmarks(landmarks, head_pose)
+            elif image is not None:
                 state = self.detector.predict(image)
 
+            if state is not None:
                 with self._lock:
                     self.latest_state = state
 

@@ -50,7 +50,7 @@ def main():
     ║  This demo collects:                                      ║
     ║    • Eye gaze (WebGazer.js)                              ║
     ║    • Face mesh landmarks (MediaPipe)                     ║
-    ║    • Cognitive states (simulated - demo mode)            ║
+    ║    • Cognitive states (landmark-based heuristics)         ║
     ║    • Mouse movement and clicks                           ║
     ║    • Keyboard events                                     ║
     ║                                                           ║
@@ -63,9 +63,9 @@ def main():
     ║  The server will auto-generate SSL certificates.         ║
     ║  You may need to accept the self-signed cert in browser. ║
     ║                                                           ║
-    ║  Note: Cognitive states use simulated data in demo mode. ║
-    ║  For real detection, add a DenseAttNet model to:         ║
-    ║    models/denseattnet.onnx                               ║
+    ║  Cognitive states are estimated from facial landmarks     ║
+    ║  using FACS-based heuristics. For model-based detection, ║
+    ║  add a DenseAttNet model to: models/denseattnet.onnx     ║
     ║                                                           ║
     ╚═══════════════════════════════════════════════════════════╝
     """)

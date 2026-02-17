@@ -38,10 +38,18 @@ The model should output 4 values (one per state):
 - Index 2: Confusion (0-1)
 - Index 3: Frustration (0-1)
 
-## Demo Mode
+## Default Mode (Landmark-Based Heuristics)
 
-Without a model file, the system runs in demo mode with simulated predictions.
-This is useful for testing the UI and data pipeline.
+Without a model file, the system estimates cognitive states from MediaPipe
+face mesh landmarks using FACS-based heuristic indicators:
+- Eye Aspect Ratio (EAR) for drowsiness/engagement
+- Eyebrow position for confusion/frustration
+- Head pose stability for engagement
+- Mouth aspect ratio for boredom (yawning detection)
+- Blink rate for frustration detection
+
+Confidence values are lower (0.45-0.70) compared to model-based detection.
+For higher accuracy, install a pre-trained model as described above.
 
 ## Alternative Models
 
