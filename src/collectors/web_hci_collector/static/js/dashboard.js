@@ -323,6 +323,12 @@ async function loadSavedSession(sessionIdToLoad) {
             const meta = result.files.metadata;
             if (meta.windowWidth) participantWindowWidth = meta.windowWidth;
             if (meta.windowHeight) participantWindowHeight = meta.windowHeight;
+
+            // Match container aspect ratio to participant window
+            const pvContainer = document.getElementById('participant-view-container');
+            if (pvContainer && participantWindowWidth > 0 && participantWindowHeight > 0) {
+                pvContainer.style.aspectRatio = `${participantWindowWidth} / ${participantWindowHeight}`;
+            }
         }
 
         // Update stats from loaded data
@@ -935,15 +941,6 @@ function recordTimelineData() {
     timelineData.engagement.push({
         time,
         value: cognitiveStates.engagement
-    });
-
-    // Record cognitive states
-    timelineData.cognitiveStates.push({
-        time,
-        confusion: cognitiveStates.confusion,
-        engagement: cognitiveStates.engagement,
-        boredom: cognitiveStates.boredom,
-        frustration: cognitiveStates.frustration
     });
 
     // Trim old data
@@ -2972,6 +2969,27 @@ function renderFaceMesh() {
  * Handle emotion/cognitive state data
  */
 function handleEmotionData(data) {
+    // In playback mode, cognitive states are driven by the timeline
+    if (timelineMode !== 'live') return;
+
+    // Update cognitive states object from server data
+    if (data.confusion !== undefined) cognitiveStates.confusion = data.confusion;
+    if (data.engagement !== undefined) cognitiveStates.engagement = data.engagement;
+    if (data.boredom !== undefined) cognitiveStates.boredom = data.boredom;
+    if (data.frustration !== undefined) cognitiveStates.frustration = data.frustration;
+
+    // Record server emotion data to timeline
+    if (startTime && !isLoadedSession) {
+        const time = Date.now() - startTime;
+        timelineData.cognitiveStates.push({
+            time,
+            confusion: data.confusion || 0,
+            engagement: data.engagement || 0,
+            boredom: data.boredom || 0,
+            frustration: data.frustration || 0
+        });
+    }
+
     // Update emotion bars
     if (data.confusion !== undefined) {
         const pct = Math.round(data.confusion * 100);
@@ -3150,6 +3168,12 @@ async function handleSessionEvent(data) {
         if (data.screenHeight) participantScreenHeight = data.screenHeight;
         if (data.windowWidth) participantWindowWidth = data.windowWidth;
         if (data.windowHeight) participantWindowHeight = data.windowHeight;
+
+        // Match container aspect ratio to participant window
+        const pvContainer = document.getElementById('participant-view-container');
+        if (pvContainer && participantWindowWidth > 0 && participantWindowHeight > 0) {
+            pvContainer.style.aspectRatio = `${participantWindowWidth} / ${participantWindowHeight}`;
+        }
 
         // Load participant's content URL in the iframe
         if (data.content_url) {
@@ -3892,6 +3916,35 @@ function handleHoverData(data, sid) {
 function handleSessionStatusUpdate(data, sid) {
     const newStatus = data.status || data.new_status;
     addLogEntry('session_status', `Session ${sid}: ${newStatus}`);
+
+    // If the current session was abandoned or completed, stop live recording
+    if (sid === sessionId && (newStatus === 'abandoned' || newStatus === 'completed')) {
+        isCollecting = false;
+        stopLiveVideo();
+
+        // Save timeline data
+        saveTimelineData();
+
+        // Switch to playback mode
+        timelineMode = 'playback';
+        timelinePlaybackTime = 0;
+        timelineIsPlaying = false;
+        updateLiveButtonState();
+
+        const playIcon = document.getElementById('play-icon');
+        const pauseIcon = document.getElementById('pause-icon');
+        if (playIcon && pauseIcon) {
+            playIcon.style.display = 'block';
+            pauseIcon.style.display = 'none';
+        }
+
+        const urlDisplay = document.getElementById('participant-url');
+        if (urlDisplay) {
+            urlDisplay.textContent = `Session ${newStatus} - Playback mode`;
+        }
+
+        addLogEntry('system', `Session ${newStatus} — switched to playback mode`);
+    }
 
     // Refresh the sessions list to reflect the change
     refreshSessionsList();
