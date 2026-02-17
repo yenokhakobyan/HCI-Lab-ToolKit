@@ -18,7 +18,7 @@ const WS_URL = `${WS_PROTOCOL}//${window.location.host}/ws/collect/${SESSION_ID}
 
 // Content URL - can be set via URL parameter: ?content=https://example.com
 // For same-origin content (full mouse tracking), use: /static/experiments/your-file.html
-const CONTENT_URL = urlParams.get('content') || '/static/experiments/green_energy_demo.html';
+const CONTENT_URL = urlParams.get('content') || '/static/experiments/green_energy_v2.1.html';
 
 // State
 let ws = null;

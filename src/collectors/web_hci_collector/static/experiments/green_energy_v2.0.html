@@ -1,0 +1,2361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=0.8, maximum-scale=0.8, user-scalable=no">
+    <title>Green Energy Learning Study</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-green: #1B7340;
+            --secondary-green: #2D9A5D;
+            --light-green: #E8F5E9;
+            --accent-yellow: #F5C842;
+            --accent-orange: #E87C3E;
+            --dark-bg: #0D1F17;
+            --card-bg: #FAFDF8;
+            --text-primary: #1A2A1F;
+            --text-secondary: #4A5D52;
+            --border-light: #D4E5DC;
+            --warning-red: #C74B4B;
+            --info-blue: #3B7DD8;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { height: 100vh; height: 100dvh; overflow: hidden; }
+        body {
+            font-family: 'DM Sans', sans-serif;
+            background: linear-gradient(135deg, #E8F5E9 0%, #F1F8E9 50%, #E0F2F1 100%);
+            color: var(--text-primary);
+            display: flex;
+            flex-direction: column;
+            font-size: clamp(13px, 1.2vw, 16px);
+        }
+
+        /* HEADER */
+        .header {
+            background: var(--dark-bg);
+            color: white;
+            padding: clamp(6px, 1vh, 10px) clamp(12px, 2vw, 30px);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+            gap: clamp(8px, 1.5vw, 20px);
+        }
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: clamp(8px, 1.5vw, 20px);
+            flex: 1;
+        }
+        .header h1 {
+            font-size: clamp(14px, 1.6vw, 22px); 
+            font-weight: 600; 
+            white-space: nowrap;
+        }
+        .header h1::before { content: "🌱 "; }
+        .header-divider {
+            width: 2px;
+            height: clamp(20px, 3vh, 30px);
+            background: rgba(255,255,255,0.3);
+            border-radius: 1px;
+        }
+        .session-title {
+            font-size: clamp(13px, 1.4vw, 20px);
+            font-weight: 600;
+            color: var(--accent-yellow);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .progress-bar { display: flex; gap: clamp(4px, 0.5vw, 8px); align-items: center; flex-shrink: 0; }
+        .progress-step {
+            width: clamp(24px, 2.5vw, 36px);
+            height: clamp(24px, 2.5vw, 36px);
+            border-radius: 50%;
+            background: rgba(255,255,255,0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: clamp(10px, 1.1vw, 15px);
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+        .progress-step.active { background: var(--accent-yellow); color: var(--dark-bg); transform: scale(1.15); }
+        .progress-step.completed { background: var(--secondary-green); }
+
+        .screen { display: none; flex: 1; overflow: hidden; min-height: 0; }
+        .screen.active { display: flex; flex-direction: column; }
+
+        .session-screen {
+            padding: clamp(4px, 0.8vh, 8px) clamp(8px, 1.2vw, 14px);
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+            overflow: hidden;
+        }
+
+        .content-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 0.7fr;
+            gap: clamp(8px, 1.2vw, 16px);
+            flex: 1;
+            min-height: 0;
+            overflow: hidden;
+        }
+
+        .panel {
+            background: var(--card-bg);
+            border-radius: clamp(8px, 1vw, 14px);
+            padding: clamp(12px, 1.5vw, 20px);
+            border: 2px solid var(--border-light);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            min-height: 0;
+        }
+
+        .text-content {
+            font-size: clamp(13px, 1.3vw, 17px);
+            line-height: 1.5;
+            flex: 1;
+            overflow-y: auto;
+            min-height: 0;
+        }
+        .text-content h3 {
+            color: var(--primary-green);
+            font-size: clamp(15px, 1.5vw, 20px);
+            margin: 0 0 clamp(8px, 1.2vh, 14px) 0;
+            font-weight: 700;
+        }
+        .text-content h4 {
+            color: var(--text-primary);
+            font-size: clamp(13px, 1.3vw, 17px);
+            margin: clamp(10px, 1.4vh, 16px) 0 clamp(6px, 0.8vh, 10px) 0;
+            font-weight: 600;
+        }
+        .text-content p { margin-bottom: clamp(12px, 1.6vh, 18px); }
+        .text-content ul { margin: clamp(10px, 1.4vh, 16px) 0 clamp(12px, 1.6vh, 18px) clamp(20px, 2.5vw, 30px); }
+        .text-content li { margin-bottom: clamp(6px, 0.8vh, 12px); }
+        .text-content strong { color: var(--primary-green); }
+        
+        .highlight-box {
+            background: linear-gradient(135deg, #E3F2FD, #BBDEFB);
+            border-left: 4px solid var(--info-blue);
+            padding: clamp(8px, 1.2vw, 14px);
+            margin: clamp(8px, 1.2vh, 14px) 0;
+            border-radius: 0 clamp(6px, 0.8vw, 12px) clamp(6px, 0.8vw, 12px) 0;
+            font-size: clamp(11px, 1.1vw, 15px);
+        }
+        .formula-box {
+            background: linear-gradient(135deg, #FFF8E1, #FFECB3);
+            border: 2px solid #FFD54F;
+            padding: clamp(10px, 1.4vw, 18px);
+            margin: clamp(8px, 1.2vh, 14px) 0;
+            border-radius: clamp(8px, 1vw, 14px);
+            text-align: center;
+        }
+        .formula-box .formula { 
+            font-size: clamp(14px, 1.5vw, 20px); 
+            font-weight: 700; 
+            color: var(--primary-green); 
+            font-family: 'IBM Plex Mono', monospace; 
+        }
+        .formula-box .example { 
+            font-size: clamp(10px, 1vw, 14px); 
+            color: var(--text-secondary); 
+            margin-top: clamp(4px, 0.6vh, 8px); 
+        }
+
+        .infographic { flex: 1; display: flex; flex-direction: column; gap: clamp(8px, 1vh, 12px); overflow-y: auto; min-height: 0; }
+        .visual-card {
+            background: white;
+            border-radius: clamp(6px, 0.8vw, 10px);
+            padding: clamp(10px, 1.2vw, 16px);
+            border: 1px solid var(--border-light);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+            flex-shrink: 0;
+        }
+        .visual-title {
+            font-size: clamp(12px, 1.2vw, 16px);
+            font-weight: 700;
+            color: var(--primary-green);
+            text-align: center;
+            margin-bottom: clamp(8px, 1vh, 12px);
+            padding-bottom: clamp(6px, 0.8vh, 10px);
+            border-bottom: 2px solid var(--light-green);
+        }
+
+        .icon-stats { display: flex; justify-content: space-around; gap: clamp(8px, 1vw, 14px); flex-wrap: wrap; }
+        .icon-stat {
+            text-align: center;
+            flex: 1;
+            min-width: clamp(60px, 7vw, 100px);
+            padding: clamp(8px, 1vw, 14px);
+            background: #f8fdf8;
+            border-radius: clamp(6px, 0.8vw, 10px);
+        }
+        .icon-stat-icon { font-size: clamp(22px, 2.4vw, 34px); margin-bottom: clamp(4px, 0.5vh, 8px); }
+        .icon-stat-value {
+            font-size: clamp(16px, 1.7vw, 24px);
+            font-weight: 700;
+            color: var(--primary-green);
+            font-family: 'IBM Plex Mono', monospace;
+        }
+        .icon-stat-label {
+            font-size: clamp(10px, 1.1vw, 14px);
+            color: var(--text-secondary);
+            margin-top: clamp(3px, 0.4vh, 6px);
+            font-weight: 500;
+        }
+
+        .compare-blocks { display: flex; gap: clamp(8px, 1vw, 14px); flex-wrap: wrap; }
+        .compare-block {
+            flex: 1;
+            min-width: clamp(70px, 8vw, 110px);
+            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+            border-radius: clamp(6px, 0.8vw, 10px);
+            padding: clamp(8px, 1vw, 14px);
+            text-align: center;
+            transition: transform 0.2s;
+        }
+        .compare-block:hover { transform: translateY(-2px); }
+        .compare-block.highlight {
+            background: linear-gradient(135deg, #E8F5E9, #C8E6C9);
+            border: 2px solid var(--primary-green);
+        }
+        .compare-block-icon { font-size: clamp(20px, 2.2vw, 30px); margin-bottom: clamp(4px, 0.5vh, 8px); }
+        .compare-block-title { font-size: clamp(10px, 1.1vw, 14px); font-weight: 600; color: var(--text-secondary); }
+        .compare-block-value {
+            font-size: clamp(14px, 1.6vw, 20px);
+            font-weight: 700;
+            color: var(--primary-green);
+            font-family: 'IBM Plex Mono', monospace;
+            margin: clamp(3px, 0.4vh, 6px) 0;
+        }
+        .compare-block-sub { font-size: clamp(9px, 1vw, 13px); color: var(--text-secondary); }
+
+        .meter-row {
+            display: flex;
+            align-items: flex-end;
+            justify-content: space-around;
+            height: clamp(70px, 10vh, 110px);
+            padding: clamp(8px, 1vw, 14px);
+        }
+        .meter { display: flex; flex-direction: column; align-items: center; }
+        .meter-bar-container {
+            width: clamp(32px, 3.5vw, 50px);
+            height: clamp(50px, 8vh, 85px);
+            background: #E0E0E0;
+            border-radius: clamp(6px, 0.7vw, 10px);
+            position: relative;
+            overflow: hidden;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .meter-bar {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            border-radius: clamp(6px, 0.7vw, 10px);
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+            padding-top: clamp(4px, 0.6vh, 8px);
+            font-size: clamp(10px, 1.1vw, 14px);
+            font-weight: 700;
+            color: white;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+        }
+        .meter-label {
+            font-size: clamp(10px, 1.1vw, 14px);
+            margin-top: clamp(4px, 0.6vh, 8px);
+            text-align: center;
+            color: var(--text-primary);
+            font-weight: 600;
+        }
+
+        .progress-bars { display: flex; flex-direction: column; gap: clamp(8px, 1vh, 12px); }
+        .progress-item { display: flex; align-items: center; gap: clamp(8px, 1vw, 14px); }
+        .progress-icon { font-size: clamp(18px, 2vw, 26px); width: clamp(26px, 3vw, 38px); text-align: center; }
+        .progress-info { flex: 1; }
+        .progress-label {
+            font-size: clamp(11px, 1.2vw, 15px);
+            color: var(--text-primary);
+            margin-bottom: clamp(3px, 0.4vh, 6px);
+            font-weight: 500;
+        }
+        .progress-track {
+            height: clamp(18px, 2.2vh, 26px);
+            background: #E0E0E0;
+            border-radius: clamp(8px, 1vh, 14px);
+            overflow: hidden;
+            position: relative;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .progress-fill {
+            height: 100%;
+            border-radius: clamp(6px, 0.8vh, 10px);
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            padding-right: clamp(4px, 0.6vw, 8px);
+            font-size: clamp(8px, 0.9vw, 11px);
+            font-weight: 700;
+            color: white;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+        }
+
+        .flow-diagram {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: clamp(8px, 1vw, 14px);
+            padding: clamp(8px, 1.2vh, 14px) 0;
+            flex-wrap: wrap;
+        }
+        .flow-step { display: flex; flex-direction: column; align-items: center; text-align: center; }
+        .flow-icon {
+            width: clamp(40px, 4.5vw, 60px);
+            height: clamp(40px, 4.5vw, 60px);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: clamp(16px, 1.8vw, 24px);
+            margin-bottom: clamp(4px, 0.5vh, 8px);
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+        }
+        .flow-text { font-size: clamp(10px, 1.1vw, 14px); color: var(--text-secondary); font-weight: 600; }
+        .flow-arrow { font-size: clamp(18px, 2vw, 26px); color: var(--primary-green); font-weight: bold; }
+
+        .timeline {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: clamp(10px, 1.4vw, 18px);
+            position: relative;
+        }
+        .timeline::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: clamp(30px, 4vw, 55px);
+            right: clamp(30px, 4vw, 55px);
+            height: 4px;
+            background: linear-gradient(to right, #9E9E9E, var(--secondary-green), var(--info-blue));
+            border-radius: 2px;
+            z-index: 0;
+        }
+        .timeline-point { position: relative; z-index: 1; text-align: center; }
+        .timeline-dot {
+            width: clamp(32px, 3.5vw, 48px);
+            height: clamp(32px, 3.5vw, 48px);
+            border-radius: 50%;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: clamp(12px, 1.3vw, 18px);
+            font-weight: 700;
+            margin: 0 auto clamp(4px, 0.6vh, 8px);
+            box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+        }
+        .timeline-label { font-size: clamp(10px, 1.1vw, 14px); color: var(--text-primary); font-weight: 600; }
+
+        /* Question Panel */
+        .question-panel { display: flex; flex-direction: column; overflow: hidden; }
+        .case-scenario {
+            background: linear-gradient(135deg, #FFF8E1, #FFECB3);
+            border-radius: clamp(6px, 0.8vw, 10px);
+            padding: clamp(8px, 1vw, 12px);
+            margin-bottom: clamp(4px, 0.6vh, 8px);
+            border: 2px solid #FFD54F;
+            flex-shrink: 0;
+        }
+        .case-scenario h4 {
+            color: #E65100;
+            font-size: clamp(12px, 1.2vw, 16px);
+            margin-bottom: clamp(4px, 0.5vh, 6px);
+            font-weight: 700;
+        }
+        .case-scenario p { font-size: clamp(10px, 1vw, 14px); line-height: 1.4; }
+        .case-data {
+            background: white;
+            border-radius: clamp(4px, 0.6vw, 8px);
+            padding: clamp(6px, 0.8vw, 10px);
+            margin-top: clamp(6px, 0.8vh, 8px);
+        }
+        .case-data-row {
+            display: flex;
+            justify-content: space-between;
+            padding: clamp(3px, 0.4vh, 5px) 0;
+            font-size: clamp(10px, 1vw, 13px);
+            border-bottom: 1px dashed #E0E0E0;
+        }
+        .case-data-row:last-child { border-bottom: none; }
+        .case-data-value {
+            font-family: 'IBM Plex Mono', monospace;
+            font-weight: 700;
+            color: var(--primary-green);
+            font-size: clamp(10px, 1.05vw, 14px);
+        }
+
+        .question-box {
+            background: white;
+            border-radius: clamp(6px, 0.8vw, 10px);
+            padding: clamp(8px, 1vw, 12px);
+            border: 3px solid var(--info-blue);
+            margin-bottom: clamp(4px, 0.6vh, 8px);
+            flex-shrink: 0;
+        }
+        .question-text {
+            font-size: clamp(11px, 1.1vw, 15px);
+            font-weight: 600;
+            line-height: 1.35;
+            color: var(--text-primary);
+        }
+
+        .answer-options { display: flex; flex-direction: column; gap: clamp(3px, 0.4vh, 6px); flex-shrink: 0; }
+        .answer-option {
+            background: white;
+            border: 2px solid var(--border-light);
+            border-radius: clamp(6px, 0.8vw, 10px);
+            padding: clamp(6px, 0.8vw, 10px);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: clamp(6px, 0.8vw, 10px);
+            flex-shrink: 0;
+        }
+        .answer-option:hover { border-color: var(--primary-green); background: #F8FDF9; transform: translateX(3px); }
+        .answer-option.selected { border-color: var(--primary-green); background: linear-gradient(135deg, #E8F5E9, #C8E6C9); }
+        .option-letter {
+            width: clamp(20px, 2.2vw, 28px);
+            height: clamp(20px, 2.2vw, 28px);
+            border-radius: 50%;
+            background: var(--border-light);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: clamp(10px, 1vw, 14px);
+            flex-shrink: 0;
+        }
+        .answer-option.selected .option-letter { background: var(--primary-green); color: white; }
+        .option-text { font-size: clamp(10px, 1.05vw, 14px); line-height: 1.3; font-weight: 500; }
+
+        .submit-btn {
+            background: var(--primary-green);
+            color: white;
+            border: none;
+            padding: clamp(8px, 1vw, 12px);
+            border-radius: clamp(6px, 0.8vw, 10px);
+            font-size: clamp(11px, 1.1vw, 15px);
+            font-weight: 700;
+            cursor: pointer;
+            width: 100%;
+            margin-top: clamp(4px, 0.6vh, 8px);
+            transition: all 0.2s;
+            flex-shrink: 0;
+        }
+        .submit-btn:hover { background: #145A32; transform: translateY(-1px); }
+        .submit-btn:disabled { background: #9E9E9E; cursor: not-allowed; transform: none; }
+
+        /* Calculator Toggle Button */
+        .calc-toggle-btn {
+            background: linear-gradient(135deg, #1a1a1a, #2d2d2d);
+            color: #4AE168;
+            border: 1px solid #333;
+            border-radius: clamp(6px, 0.8vw, 10px);
+            padding: clamp(6px, 0.8vw, 10px) clamp(10px, 1.2vw, 16px);
+            margin-top: clamp(4px, 0.6vh, 8px);
+            cursor: pointer;
+            font-family: 'DM Sans', sans-serif;
+            font-size: clamp(11px, 1.1vw, 14px);
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s;
+            flex-shrink: 0;
+        }
+        .calc-toggle-btn:hover { background: linear-gradient(135deg, #2d2d2d, #404040); }
+
+        /* Popup Calculator */
+        .calc-popup-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.4);
+            z-index: 999;
+        }
+        .calc-popup-overlay.open {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .inline-calculator {
+            background: linear-gradient(135deg, #1a1a1a, #2d2d2d);
+            border-radius: 14px;
+            padding: 16px;
+            width: 280px;
+            box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+        }
+        .calc-popup-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .calc-popup-title {
+            color: #4AE168;
+            font-weight: 700;
+            font-size: 14px;
+        }
+        .calc-popup-close {
+            background: none;
+            border: none;
+            color: #999;
+            font-size: 20px;
+            cursor: pointer;
+            line-height: 1;
+        }
+        .calc-popup-close:hover { color: white; }
+        .calc-display {
+            background: #0d0d0d;
+            color: #4AE168;
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: clamp(14px, 1.4vw, 18px);
+            padding: clamp(6px, 0.8vw, 10px);
+            border-radius: clamp(4px, 0.6vw, 8px);
+            text-align: right;
+            margin-bottom: clamp(4px, 0.6vh, 8px);
+            min-height: clamp(28px, 3vh, 36px);
+            word-break: break-all;
+            border: 1px solid #333;
+        }
+        .calc-buttons { display: grid; grid-template-columns: repeat(4, 1fr); gap: clamp(2px, 0.3vw, 4px); }
+        .calc-btn {
+            padding: clamp(6px, 0.8vw, 10px);
+            font-size: clamp(11px, 1.1vw, 14px);
+            border: none;
+            border-radius: clamp(4px, 0.6vw, 8px);
+            cursor: pointer;
+            font-weight: 700;
+            transition: all 0.1s;
+        }
+        .calc-btn:hover { transform: scale(1.05); }
+        .calc-btn:active { transform: scale(0.95); }
+        .calc-btn.num { background: #404040; color: white; }
+        .calc-btn.op { background: var(--accent-orange); color: white; }
+        .calc-btn.eq { background: var(--primary-green); color: white; }
+        .calc-btn.clear { background: var(--warning-red); color: white; }
+
+        /* Intro Screen */
+        .intro-screen, .refocus-screen, .completion-screen { flex: 1; display: flex; align-items: center; justify-content: center; padding: clamp(8px, 1.5vw, 20px); overflow: hidden; }
+        .intro-card, .refocus-card, .completion-card {
+            background: white;
+            border-radius: clamp(10px, 1.5vw, 18px);
+            padding: clamp(12px, 2vw, 24px);
+            text-align: center;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+            max-width: min(90vw, 600px);
+            max-height: calc(100vh - 80px);
+            overflow-y: auto;
+            width: 100%;
+        }
+        
+        .intro-animation {
+            width: 100%;
+            height: clamp(120px, 18vh, 200px);
+            background: linear-gradient(135deg, #E8F5E9, #C8E6C9);
+            border-radius: clamp(12px, 1.5vw, 20px);
+            margin-bottom: clamp(14px, 2vh, 24px);
+            position: relative;
+            overflow: hidden;
+        }
+        .anim-scene { position: absolute; width: 100%; height: 100%; }
+        .anim-sun {
+            position: absolute;
+            top: clamp(12px, 2vh, 25px);
+            right: clamp(25px, 5vw, 50px);
+            width: clamp(35px, 5vw, 60px);
+            height: clamp(35px, 5vw, 60px);
+            background: var(--accent-yellow);
+            border-radius: 50%;
+            animation: pulse-sun 2s infinite;
+            box-shadow: 0 0 30px var(--accent-yellow);
+        }
+        .anim-panel {
+            position: absolute;
+            bottom: clamp(25px, 4vh, 45px);
+            left: 50%;
+            transform: translateX(-50%);
+            width: clamp(70px, 10vw, 120px);
+            height: clamp(45px, 7vh, 75px);
+            background: linear-gradient(135deg, #1a237e, #3949ab);
+            border-radius: clamp(5px, 0.6vw, 10px);
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            grid-template-rows: repeat(3, 1fr);
+            gap: 2px;
+            padding: clamp(4px, 0.5vw, 8px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+        .anim-cell { background: #7986cb; border-radius: 2px; }
+        .anim-arrow {
+            position: absolute;
+            top: clamp(55px, 9vh, 95px);
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: clamp(20px, 3vw, 35px);
+            color: var(--accent-yellow);
+            animation: bounce-arrow 1s infinite;
+            text-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+        .anim-house { 
+            position: absolute; 
+            bottom: clamp(18px, 3vh, 35px); 
+            right: clamp(35px, 6vw, 65px); 
+            font-size: clamp(26px, 4vw, 45px); 
+        }
+        .anim-text {
+            position: absolute;
+            bottom: clamp(6px, 1vh, 12px);
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: clamp(10px, 1.2vw, 15px);
+            font-weight: 700;
+            color: var(--primary-green);
+            background: white;
+            padding: clamp(4px, 0.6vw, 8px) clamp(10px, 1.5vw, 18px);
+            border-radius: clamp(12px, 1.5vw, 22px);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            white-space: nowrap;
+        }
+        @keyframes pulse-sun { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.1); } }
+        @keyframes bounce-arrow { 0%, 100% { transform: translateX(-50%) translateY(0); } 50% { transform: translateX(-50%) translateY(10px); } }
+
+        .intro-title, .refocus-title, .completion-title {
+            font-size: clamp(16px, 2vw, 24px);
+            font-weight: 700;
+            color: var(--primary-green);
+            margin-bottom: clamp(6px, 1vh, 10px);
+        }
+        .intro-text, .refocus-text, .completion-message {
+            font-size: clamp(11px, 1.2vw, 16px);
+            line-height: 1.45;
+            color: var(--text-secondary);
+            margin-bottom: clamp(8px, 1.2vh, 14px);
+        }
+        .intro-steps { text-align: left; margin: clamp(14px, 2vh, 22px) 0; padding: 0; list-style: none; }
+        .intro-steps li { 
+            padding: clamp(8px, 1.2vh, 14px) 0; 
+            font-size: clamp(12px, 1.3vw, 16px); 
+            display: flex; 
+            align-items: center; 
+            gap: clamp(8px, 1.2vw, 14px); 
+            border-bottom: 1px solid var(--border-light); 
+        }
+        .intro-steps li:last-child { border-bottom: none; }
+        .step-num { 
+            background: var(--primary-green); 
+            color: white; 
+            width: clamp(24px, 2.8vw, 34px); 
+            height: clamp(24px, 2.8vw, 34px); 
+            border-radius: 50%; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            font-size: clamp(11px, 1.2vw, 15px); 
+            font-weight: 700; 
+            flex-shrink: 0; 
+        }
+        .intro-btn, .refocus-btn {
+            background: var(--primary-green);
+            color: white;
+            border: none;
+            padding: clamp(8px, 1.2vw, 14px) clamp(20px, 2.5vw, 32px);
+            border-radius: clamp(6px, 0.8vw, 12px);
+            font-size: clamp(12px, 1.3vw, 16px);
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .intro-btn:hover, .refocus-btn:hover { background: #145A32; transform: translateY(-2px); }
+
+        /* Tutorial Animation */
+        .tutorial-container {
+            width: 100%;
+            max-width: min(95%, 700px);
+            margin: 0 auto clamp(10px, 1.5vh, 16px);
+            background: #1a1a2e;
+            border-radius: clamp(10px, 1.2vw, 16px);
+            overflow: hidden;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.35);
+        }
+        .tutorial-screen {
+            position: relative;
+            aspect-ratio: 16/9;
+            background: linear-gradient(135deg, #E8F5E9 0%, #F1F8E9 50%, #E0F2F1 100%);
+            overflow: hidden;
+        }
+        .tutorial-header {
+            height: 10%;
+            background: var(--dark-bg);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 4%;
+        }
+        .tutorial-header-title {
+            color: white;
+            font-size: clamp(10px, 1.4vw, 16px);
+            font-weight: 600;
+        }
+        .tutorial-progress {
+            display: flex;
+            gap: 4px;
+        }
+        .tutorial-progress-dot {
+            width: clamp(8px, 1vw, 12px);
+            height: clamp(8px, 1vw, 12px);
+            border-radius: 50%;
+            background: rgba(255,255,255,0.3);
+        }
+        .tutorial-content {
+            height: 88%;
+            display: grid;
+            grid-template-columns: 1fr 1fr 0.8fr;
+            gap: 2%;
+            padding: 2%;
+        }
+        .tutorial-panel {
+            background: white;
+            border-radius: clamp(6px, 0.8vw, 10px);
+            border: 4px solid transparent;
+            transition: all 0.4s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        .tutorial-panel.highlight {
+            border-color: #FF6B00;
+            box-shadow: 0 0 0 4px rgba(255, 107, 0, 0.3), 0 0 30px rgba(255, 107, 0, 0.6), 0 0 60px rgba(255, 107, 0, 0.3);
+            transform: scale(1.05);
+            animation: pulse-highlight 1.5s ease-in-out infinite;
+        }
+        @keyframes pulse-highlight {
+            0%, 100% { box-shadow: 0 0 0 4px rgba(255, 107, 0, 0.3), 0 0 30px rgba(255, 107, 0, 0.6), 0 0 60px rgba(255, 107, 0, 0.3); }
+            50% { box-shadow: 0 0 0 6px rgba(255, 107, 0, 0.4), 0 0 40px rgba(255, 107, 0, 0.8), 0 0 80px rgba(255, 107, 0, 0.4); }
+        }
+        .tutorial-panel-content {
+            height: 100%;
+            padding: 8%;
+            display: flex;
+            flex-direction: column;
+            gap: 6%;
+        }
+        .tutorial-panel-line {
+            height: 8px;
+            background: #e0e0e0;
+            border-radius: 4px;
+        }
+        .tutorial-panel-line.short { width: 60%; }
+        .tutorial-panel-line.medium { width: 80%; }
+        .tutorial-panel-box {
+            flex: 1;
+            background: #f5f5f5;
+            border-radius: 6px;
+        }
+        .tutorial-panel-btn {
+            height: 20px;
+            background: var(--primary-green);
+            border-radius: 4px;
+            margin-top: auto;
+        }
+        .tutorial-calc {
+            height: 35%;
+            background: #2d2d2d;
+            border-radius: 6px;
+            margin-top: auto;
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 3px;
+            padding: 6px;
+        }
+        .tutorial-calc-btn {
+            background: #404040;
+            border-radius: 3px;
+        }
+        .tutorial-caption {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: rgba(0,0,0,0.88);
+            color: white;
+            padding: clamp(8px, 1.2vw, 14px);
+            text-align: center;
+            font-size: clamp(11px, 1.3vw, 16px);
+            font-weight: 500;
+            line-height: 1.4;
+            transform: translateY(100%);
+            transition: transform 0.4s ease;
+        }
+        .tutorial-caption.show {
+            transform: translateY(0);
+        }
+        .tutorial-controls {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: clamp(10px, 1.8vw, 20px);
+            padding: clamp(8px, 1.2vw, 14px);
+            background: #1a1a2e;
+        }
+        .tutorial-nav-btn {
+            width: clamp(28px, 3.5vw, 40px);
+            height: clamp(28px, 3.5vw, 40px);
+            border-radius: 50%;
+            background: rgba(255,255,255,0.15);
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+        .tutorial-nav-btn:hover {
+            background: rgba(255,255,255,0.25);
+            transform: scale(1.1);
+        }
+        .tutorial-nav-btn:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .tutorial-nav-btn svg {
+            width: 45%;
+            height: 45%;
+            fill: white;
+        }
+        .tutorial-play-btn {
+            width: clamp(36px, 4.5vw, 50px);
+            height: clamp(36px, 4.5vw, 50px);
+            border-radius: 50%;
+            background: var(--primary-green);
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+        .tutorial-play-btn:hover {
+            background: #145A32;
+            transform: scale(1.1);
+        }
+        .tutorial-play-btn svg {
+            width: 40%;
+            height: 40%;
+            fill: white;
+        }
+        .tutorial-indicator {
+            display: flex;
+            gap: clamp(8px, 1.2vw, 14px);
+        }
+        .tutorial-dot {
+            width: clamp(12px, 1.4vw, 18px);
+            height: clamp(12px, 1.4vw, 18px);
+            border-radius: 50%;
+            background: rgba(255,255,255,0.3);
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+        .tutorial-dot:hover {
+            background: rgba(255,255,255,0.5);
+            transform: scale(1.1);
+        }
+        .tutorial-dot.active {
+            background: var(--accent-yellow);
+            transform: scale(1.3);
+        }
+        .tutorial-dot.completed {
+            background: var(--primary-green);
+        }
+
+        /* Refocus Timer */
+        .refocus-timer { margin: clamp(14px, 2vh, 22px) 0; }
+        .timer-circle {
+            width: clamp(70px, 10vw, 110px);
+            height: clamp(70px, 10vw, 110px);
+            border-radius: 50%;
+            background: conic-gradient(var(--primary-green) calc(var(--progress, 100) * 1%), #E0E0E0 0);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto clamp(12px, 1.8vh, 18px);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        .timer-inner {
+            width: clamp(54px, 8vw, 90px);
+            height: clamp(54px, 8vw, 90px);
+            border-radius: 50%;
+            background: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: clamp(22px, 3vw, 38px);
+            font-weight: 700;
+            color: var(--primary-green);
+            font-family: 'IBM Plex Mono', monospace;
+        }
+        .focus-dot {
+            width: clamp(12px, 1.5vw, 18px);
+            height: clamp(12px, 1.5vw, 18px);
+            background: var(--primary-green);
+            border-radius: 50%;
+            margin: 0 auto;
+            animation: focus-pulse 1.5s infinite;
+        }
+        @keyframes focus-pulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.6); opacity: 0.5; } }
+
+        /* Survey */
+        .survey-screen { flex: 1; display: flex; flex-direction: column; padding: clamp(14px, 2vh, 24px) clamp(20px, 4vw, 50px); overflow-y: auto; }
+        .survey-header { text-align: center; margin-bottom: clamp(14px, 2vh, 22px); }
+        .survey-title { font-size: clamp(18px, 2.2vw, 28px); font-weight: 700; color: var(--primary-green); }
+        .survey-subtitle { font-size: clamp(12px, 1.3vw, 16px); color: var(--text-secondary); margin-top: clamp(4px, 0.6vh, 8px); }
+        .survey-section { 
+            background: white; 
+            border-radius: clamp(12px, 1.5vw, 18px); 
+            padding: clamp(14px, 2vw, 22px); 
+            margin-bottom: clamp(10px, 1.5vh, 16px); 
+            border: 1px solid var(--border-light); 
+            box-shadow: 0 2px 8px rgba(0,0,0,0.04); 
+        }
+        .survey-section-title { 
+            font-size: clamp(13px, 1.4vw, 18px); 
+            font-weight: 700; 
+            color: var(--primary-green); 
+            margin-bottom: clamp(12px, 1.6vh, 18px); 
+            padding-bottom: clamp(8px, 1vh, 12px); 
+            border-bottom: 2px solid var(--light-green); 
+        }
+        .survey-question { margin-bottom: clamp(14px, 1.8vh, 20px); }
+        .survey-question:last-child { margin-bottom: 0; }
+        .survey-q-label { 
+            font-size: clamp(12px, 1.25vw, 16px); 
+            font-weight: 500; 
+            color: var(--text-primary); 
+            margin-bottom: clamp(10px, 1.2vh, 14px); 
+            display: flex; 
+            gap: clamp(8px, 1vw, 12px); 
+            align-items: flex-start; 
+        }
+        .survey-q-num { 
+            background: var(--primary-green); 
+            color: white; 
+            width: clamp(22px, 2.4vw, 30px); 
+            height: clamp(22px, 2.4vw, 30px); 
+            border-radius: 50%; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            font-size: clamp(10px, 1.1vw, 14px); 
+            font-weight: 700; 
+            flex-shrink: 0; 
+        }
+
+        .rating-scale { display: flex; justify-content: center; gap: clamp(8px, 1.2vw, 14px); margin-left: clamp(30px, 3.5vw, 42px); flex-wrap: wrap; }
+        .rating-option { display: flex; flex-direction: column; align-items: center; cursor: pointer; }
+        .rating-option input { display: none; }
+        .rating-circle {
+            width: clamp(36px, 4vw, 52px);
+            height: clamp(36px, 4vw, 52px);
+            border-radius: 50%;
+            border: 3px solid var(--border-light);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: clamp(14px, 1.5vw, 20px);
+            font-weight: 700;
+            color: var(--text-secondary);
+            transition: all 0.2s;
+        }
+        .rating-option:hover .rating-circle { border-color: var(--primary-green); color: var(--primary-green); transform: scale(1.05); }
+        .rating-option input:checked + .rating-circle { background: var(--primary-green); border-color: var(--primary-green); color: white; transform: scale(1.1); }
+        .rating-label { font-size: clamp(8px, 0.9vw, 11px); color: var(--text-secondary); margin-top: clamp(3px, 0.4vh, 5px); text-align: center; max-width: clamp(40px, 5vw, 55px); }
+
+        .survey-select {
+            width: 100%;
+            max-width: 300px;
+            padding: clamp(10px, 1.2vw, 14px);
+            font-size: clamp(12px, 1.2vw, 15px);
+            border: 2px solid var(--border-light);
+            border-radius: clamp(8px, 1vw, 12px);
+            background: white;
+            color: var(--text-primary);
+            font-family: 'DM Sans', sans-serif;
+            cursor: pointer;
+            transition: border-color 0.2s, box-shadow 0.2s;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%234A5D52' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right clamp(12px, 1.4vw, 16px) center;
+        }
+        .survey-select:focus {
+            outline: none;
+            border-color: var(--primary-green);
+            box-shadow: 0 0 0 3px rgba(27, 115, 64, 0.15);
+        }
+        .survey-select option[value=""] {
+            color: var(--text-secondary);
+        }
+
+        .survey-nav { display: flex; justify-content: center; padding: clamp(16px, 2.5vh, 24px) 0; }
+        .survey-submit { 
+            background: var(--primary-green); 
+            color: white; 
+            border: none; 
+            padding: clamp(12px, 1.6vw, 18px) clamp(36px, 5vw, 56px); 
+            border-radius: clamp(10px, 1.2vw, 14px); 
+            font-size: clamp(14px, 1.5vw, 18px); 
+            font-weight: 700; 
+            cursor: pointer; 
+            transition: all 0.2s; 
+        }
+        .survey-submit:hover { background: #145A32; transform: translateY(-2px); }
+
+        /* Responsive adjustments for very small screens */
+        @media (max-width: 900px) {
+            .content-grid {
+                grid-template-columns: 1fr 1fr;
+                grid-template-rows: 1fr auto;
+            }
+            .question-panel {
+                grid-column: span 2;
+            }
+        }
+
+        @media (max-width: 600px) {
+            .content-grid {
+                grid-template-columns: 1fr;
+                grid-template-rows: auto;
+            }
+            .panel {
+                max-height: 40vh;
+            }
+            .question-panel {
+                grid-column: span 1;
+                max-height: none;
+            }
+            .header-left {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 2px;
+            }
+            .header-divider {
+                display: none;
+            }
+            .session-title {
+                font-size: 11px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="header-left">
+            <h1>Green Energy Learning Study</h1>
+            <div class="header-divider"></div>
+            <div class="session-title" id="currentTitle">Welcome</div>
+        </div>
+        <div class="progress-bar">
+            <div class="progress-step" id="prog1">1</div>
+            <div class="progress-step" id="prog2">2</div>
+            <div class="progress-step" id="prog3">3</div>
+            <div class="progress-step" id="prog4">4</div>
+            <div class="progress-step" id="prog5">5</div>
+            <div class="progress-step" id="prog6">6</div>
+        </div>
+    </header>
+
+    <!-- INTRO -->
+    <section class="screen active" id="intro">
+        <div class="intro-screen">
+            <div class="intro-card" style="max-width: min(95vw, 750px);">
+                <h2 class="intro-title">Welcome to the Green Energy Study</h2>
+                <p class="intro-text">Watch this short tutorial to learn how the interface works.</p>
+
+                <!-- Tutorial Animation -->
+                <div class="tutorial-container">
+                    <div class="tutorial-screen">
+                        <div class="tutorial-header">
+                            <span class="tutorial-header-title">🌱 Green Energy Study</span>
+                            <div class="tutorial-progress">
+                                <div class="tutorial-progress-dot"></div>
+                                <div class="tutorial-progress-dot"></div>
+                                <div class="tutorial-progress-dot"></div>
+                                <div class="tutorial-progress-dot"></div>
+                                <div class="tutorial-progress-dot"></div>
+                                <div class="tutorial-progress-dot"></div>
+                            </div>
+                        </div>
+                        <div class="tutorial-content">
+                            <!-- Text Panel -->
+                            <div class="tutorial-panel" id="tutPanel1">
+                                <div class="tutorial-panel-content">
+                                    <div class="tutorial-panel-line short"></div>
+                                    <div class="tutorial-panel-line"></div>
+                                    <div class="tutorial-panel-line medium"></div>
+                                    <div class="tutorial-panel-line"></div>
+                                    <div class="tutorial-panel-line short"></div>
+                                    <div class="tutorial-panel-box"></div>
+                                </div>
+                            </div>
+                            <!-- Visual Panel -->
+                            <div class="tutorial-panel" id="tutPanel2">
+                                <div class="tutorial-panel-content">
+                                    <div class="tutorial-panel-line short"></div>
+                                    <div class="tutorial-panel-box" style="background: linear-gradient(135deg, #e8f5e9, #c8e6c9);"></div>
+                                    <div class="tutorial-panel-box" style="background: linear-gradient(135deg, #fff8e1, #ffecb3);"></div>
+                                </div>
+                            </div>
+                            <!-- Question Panel -->
+                            <div class="tutorial-panel" id="tutPanel3">
+                                <div class="tutorial-panel-content">
+                                    <div class="tutorial-panel-box" style="height: 25%; flex: none; background: linear-gradient(135deg, #fff8e1, #ffecb3);"></div>
+                                    <div class="tutorial-panel-line"></div>
+                                    <div class="tutorial-panel-line"></div>
+                                    <div class="tutorial-panel-line"></div>
+                                    <div class="tutorial-panel-line"></div>
+                                    <div class="tutorial-panel-btn" id="tutSubmitBtn"></div>
+                                    <div class="tutorial-calc" id="tutCalc">
+                                        <div class="tutorial-calc-btn"></div>
+                                        <div class="tutorial-calc-btn"></div>
+                                        <div class="tutorial-calc-btn"></div>
+                                        <div class="tutorial-calc-btn"></div>
+                                        <div class="tutorial-calc-btn"></div>
+                                        <div class="tutorial-calc-btn"></div>
+                                        <div class="tutorial-calc-btn"></div>
+                                        <div class="tutorial-calc-btn"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="tutorial-caption" id="tutCaption">Press play to start the tutorial</div>
+                    </div>
+                    <div class="tutorial-controls">
+                        <button class="tutorial-nav-btn" id="tutPrevBtn" onclick="tutorialPrev()" disabled>
+                            <svg viewBox="0 0 24 24"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+                        </button>
+                        <div class="tutorial-indicator">
+                            <div class="tutorial-dot" id="tutDot0" onclick="goToTutorialStep(0)"></div>
+                            <div class="tutorial-dot" id="tutDot1" onclick="goToTutorialStep(1)"></div>
+                            <div class="tutorial-dot" id="tutDot2" onclick="goToTutorialStep(2)"></div>
+                            <div class="tutorial-dot" id="tutDot3" onclick="goToTutorialStep(3)"></div>
+                            <div class="tutorial-dot" id="tutDot4" onclick="goToTutorialStep(4)"></div>
+                        </div>
+                        <button class="tutorial-nav-btn" id="tutNextBtn" onclick="tutorialNext()">
+                            <svg viewBox="0 0 24 24"><path d="M8.59 16.59L10 18l6-6-6-6-1.41 1.41L13.17 12z"/></svg>
+                        </button>
+                        <button class="tutorial-play-btn" id="tutPlayBtn" onclick="toggleTutorialPlay()">
+                            <svg id="tutPlayIcon" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                        </button>
+                    </div>
+                </div>
+
+                <button class="intro-btn" onclick="showScreen('q1')" style="margin-top: clamp(10px, 1.5vh, 18px);">Begin Study →</button>
+            </div>
+        </div>
+    </section>
+
+    <!-- QUESTION 1: Energy Units -->
+    <section class="screen" id="q1" data-title="Understanding Energy Units ⚡">
+        <div class="session-screen">
+            <div class="content-grid">
+                <div class="panel" data-aoi="q1-text">
+                    <div class="text-content">
+                        <h3>What is a Kilowatt-Hour (kWh)?</h3>
+                        <p>When you pay your electricity bill, you're paying for <strong>kilowatt-hours (kWh)</strong> — the standard unit of electrical energy consumption. Think of it as a measure of how much electricity you've used over time.</p>
+                        
+                        <p>One kWh represents using <strong>1,000 watts of power for one hour</strong>. For example, running ten 100-watt light bulbs for one hour uses exactly 1 kWh.</p>
+
+                        <h4>Appliance Power Ratings</h4>
+                        <p>Every electrical appliance has a <strong>wattage rating</strong> that tells you how much power it draws when running:</p>
+                        <ul>
+                            <li><strong>Laptop Computer:</strong> 50 watts — low power device</li>
+                            <li><strong>Air Conditioner:</strong> 1,500 watts — significant power draw</li>
+                            <li><strong>Electric Heater:</strong> 2,000 watts — highest home power draw</li>
+                        </ul>
+
+                        <div class="formula-box">
+                            <div class="formula">kWh = Watts × Hours ÷ 1,000</div>
+                            <div class="example">Example: 1,500W AC × 4 hours ÷ 1,000 = 6 kWh</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel" data-aoi="q1-visual">
+                    <div class="infographic">
+                        <div class="visual-card">
+                            <div class="visual-title">⚡ Appliance Power Ratings</div>
+                            <div class="icon-stats">
+                                <div class="icon-stat"><div class="icon-stat-icon">💻</div><div class="icon-stat-value">50W</div><div class="icon-stat-label">Laptop</div></div>
+                                <div class="icon-stat"><div class="icon-stat-icon">❄️</div><div class="icon-stat-value">1,500W</div><div class="icon-stat-label">AC Unit</div></div>
+                                <div class="icon-stat"><div class="icon-stat-icon">🔥</div><div class="icon-stat-value">2,000W</div><div class="icon-stat-label">Heater</div></div>
+                            </div>
+                        </div>
+                        <div class="visual-card">
+                            <div class="visual-title">🔢 The Energy Formula</div>
+                            <div class="flow-diagram">
+                                <div class="flow-step"><div class="flow-icon" style="background: linear-gradient(135deg, #E3F2FD, #BBDEFB);">⚡</div><span class="flow-text">Watts</span></div>
+                                <span class="flow-arrow">×</span>
+                                <div class="flow-step"><div class="flow-icon" style="background: linear-gradient(135deg, #FFF3E0, #FFE0B2);">⏱️</div><span class="flow-text">Hours</span></div>
+                                <span class="flow-arrow">÷</span>
+                                <div class="flow-step"><div class="flow-icon" style="background: linear-gradient(135deg, #F3E5F5, #E1BEE7);">1000</div><span class="flow-text"></span></div>
+                                <span class="flow-arrow">=</span>
+                                <div class="flow-step"><div class="flow-icon" style="background: linear-gradient(135deg, #E8F5E9, #C8E6C9);">💡</div><span class="flow-text">kWh</span></div>
+                            </div>
+                        </div>
+                        <div class="visual-card">
+                            <div class="visual-title">📊 Energy Consumption Per Hour</div>
+                            <div class="progress-bars">
+                                <div class="progress-item"><span class="progress-icon">🔥</span><div class="progress-info"><div class="progress-label">Electric Heater (2,000W)</div><div class="progress-track"><div class="progress-fill" style="width: 100%; background: linear-gradient(to right, #E91E63, #F06292);">2.0 kWh</div></div></div></div>
+                                <div class="progress-item"><span class="progress-icon">❄️</span><div class="progress-info"><div class="progress-label">Air Conditioner (1,500W)</div><div class="progress-track"><div class="progress-fill" style="width: 75%; background: linear-gradient(to right, #FF5722, #FF8A65);">1.5 kWh</div></div></div></div>
+                                <div class="progress-item"><span class="progress-icon">💻</span><div class="progress-info"><div class="progress-label">Laptop (50W)</div><div class="progress-track"><div class="progress-fill" style="width: 2.5%; background: linear-gradient(to right, #4CAF50, #81C784);"></div></div></div></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel question-panel" data-aoi="q1-question">
+                    <div class="case-scenario">
+                        <h4>🏠 The Garcia Family</h4>
+                        <p>The Garcia family wants to know how much energy their electric heater uses during cold evenings. They typically run it for <strong>3 hours</strong> each night.</p>
+                        <div class="case-data">
+                            <div class="case-data-row"><span>Appliance:</span><span class="case-data-value">Electric Heater</span></div>
+                            <div class="case-data-row"><span>Duration:</span><span class="case-data-value">3 hours</span></div>
+                        </div>
+                    </div>
+                    <div class="question-box">
+                        <p class="question-text">How much energy does the heater use in total?</p>
+                    </div>
+                    <div class="answer-options">
+                        <div class="answer-option" data-answer="A" onclick="selectAnswer(this, 1)"><span class="option-letter">A</span><span class="option-text"><strong>3 kWh</strong></span></div>
+                        <div class="answer-option" data-answer="B" onclick="selectAnswer(this, 1)"><span class="option-letter">B</span><span class="option-text"><strong>4.5 kWh</strong></span></div>
+                        <div class="answer-option" data-answer="C" onclick="selectAnswer(this, 1)"><span class="option-letter">C</span><span class="option-text"><strong>6 kWh</strong></span></div>
+                        <div class="answer-option" data-answer="D" onclick="selectAnswer(this, 1)"><span class="option-letter">D</span><span class="option-text"><strong>8 kWh</strong></span></div>
+                    </div>
+                    <button class="submit-btn" id="submit1" disabled onclick="submitAnswer(1)">Submit Answer</button>
+                    <button class="calc-toggle-btn" onclick="toggleCalc(1)">🧮 Calculator</button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Refocus 1 -->
+    <section class="screen" id="refocus1">
+        <div class="refocus-screen">
+            <div class="refocus-card">
+                <h2 class="refocus-title">Brief Pause</h2>
+                <p class="refocus-text">Please focus on the dot below. The next question will begin automatically.</p>
+                <div class="refocus-timer">
+                    <div class="timer-circle" id="timer1" style="--progress: 100;">
+                        <div class="timer-inner" id="timerNum1">5</div>
+                    </div>
+                    <div class="focus-dot"></div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- QUESTION 2: Solar Panel Sizing -->
+    <section class="screen" id="q2" data-title="Solar Panel Basics ☀️">
+        <div class="session-screen">
+            <div class="content-grid">
+                <div class="panel" data-aoi="q2-text">
+                    <div class="text-content">
+                        <h3>How Solar Panels Are Rated</h3>
+                        <p>Solar panels are rated by the <strong>maximum power</strong> they can produce under ideal sunlight conditions, measured in watts (W). A typical residential solar panel today produces between <strong>300 and 400 watts</strong>.</p>
+                        
+                        <h4>Panel Categories</h4>
+                        <p>Manufacturers offer different panel tiers to match various budgets and space constraints:</p>
+                        <ul>
+                            <li><strong>Budget Panels (300W):</strong> Lower cost, but you need more panels to reach the same output</li>
+                            <li><strong>Standard Panels (350W):</strong> The most popular choice, balancing cost and performance</li>
+                            <li><strong>Premium Panels (400W):</strong> Maximum power per panel, ideal when roof space is limited</li>
+                        </ul>
+
+                        <h4>Calculating System Size</h4>
+                        <p>Your total solar system size equals the wattage of each panel multiplied by the number of panels. We express larger systems in <strong>kilowatts (kW)</strong>.</p>
+
+                        <div class="formula-box">
+                            <div class="formula">System kW = Panel Watts × Number of Panels ÷ 1,000</div>
+                            <div class="example">Example: 350W × 10 panels ÷ 1,000 = 3.5 kW system</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel" data-aoi="q2-visual">
+                    <div class="infographic">
+                        <div class="visual-card">
+                            <div class="visual-title">🔋 Panel Types & Output</div>
+                            <div class="compare-blocks">
+                                <div class="compare-block"><div class="compare-block-icon">📦</div><div class="compare-block-title">Budget</div><div class="compare-block-value">300W</div><div class="compare-block-sub">Lower cost</div></div>
+                                <div class="compare-block highlight"><div class="compare-block-icon">📦</div><div class="compare-block-title">Standard</div><div class="compare-block-value">350W</div><div class="compare-block-sub">Most popular</div></div>
+                                <div class="compare-block"><div class="compare-block-icon">📦</div><div class="compare-block-title">Premium</div><div class="compare-block-value">400W</div><div class="compare-block-sub">Max efficiency</div></div>
+                            </div>
+                        </div>
+                        <div class="visual-card">
+                            <div class="visual-title">🔢 System Size Formula</div>
+                            <div class="flow-diagram">
+                                <div class="flow-step"><div class="flow-icon" style="background: linear-gradient(135deg, #FFECB3, #FFD54F);">W</div><span class="flow-text">Watts</span></div>
+                                <span class="flow-arrow">×</span>
+                                <div class="flow-step"><div class="flow-icon" style="background: linear-gradient(135deg, #BBDEFB, #64B5F6);">#</div><span class="flow-text">Panels</span></div>
+                                <span class="flow-arrow">÷</span>
+                                <div class="flow-step"><div class="flow-icon" style="background: linear-gradient(135deg, #F3E5F5, #CE93D8);">1000</div><span class="flow-text"></span></div>
+                                <span class="flow-arrow">=</span>
+                                <div class="flow-step"><div class="flow-icon" style="background: linear-gradient(135deg, #C8E6C9, #81C784);">kW</div><span class="flow-text">System</span></div>
+                            </div>
+                        </div>
+                        <div class="visual-card">
+                            <div class="visual-title">📊 System Size with 10 Panels</div>
+                            <div class="progress-bars">
+                                <div class="progress-item"><span class="progress-icon">📦</span><div class="progress-info"><div class="progress-label">Budget: 300W × 10 panels</div><div class="progress-track"><div class="progress-fill" style="width: 75%; background: linear-gradient(to right, #66BB6A, #81C784);">3.0 kW</div></div></div></div>
+                                <div class="progress-item"><span class="progress-icon">📦</span><div class="progress-info"><div class="progress-label">Standard: 350W × 10 panels</div><div class="progress-track"><div class="progress-fill" style="width: 87.5%; background: linear-gradient(to right, #FFA726, #FFB74D);">3.5 kW</div></div></div></div>
+                                <div class="progress-item"><span class="progress-icon">📦</span><div class="progress-info"><div class="progress-label">Premium: 400W × 10 panels</div><div class="progress-track"><div class="progress-fill" style="width: 100%; background: linear-gradient(to right, #EF5350, #EF9A9A);">4.0 kW</div></div></div></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel question-panel" data-aoi="q2-question">
+                    <div class="case-scenario">
+                        <h4>🏠 The Johnson Family</h4>
+                        <p>The Johnsons have measured their roof and determined they have space for exactly <strong>12 solar panels</strong>. They've decided to go with <strong>standard panels</strong> for the best value.</p>
+                        <div class="case-data">
+                            <div class="case-data-row"><span>Panel Type:</span><span class="case-data-value">Standard</span></div>
+                            <div class="case-data-row"><span>Number of Panels:</span><span class="case-data-value">12</span></div>
+                        </div>
+                    </div>
+                    <div class="question-box">
+                        <p class="question-text">What will their total system size be in kilowatts (kW)?</p>
+                    </div>
+                    <div class="answer-options">
+                        <div class="answer-option" data-answer="A" onclick="selectAnswer(this, 2)"><span class="option-letter">A</span><span class="option-text"><strong>3.6 kW</strong></span></div>
+                        <div class="answer-option" data-answer="B" onclick="selectAnswer(this, 2)"><span class="option-letter">B</span><span class="option-text"><strong>4.2 kW</strong></span></div>
+                        <div class="answer-option" data-answer="C" onclick="selectAnswer(this, 2)"><span class="option-letter">C</span><span class="option-text"><strong>4.8 kW</strong></span></div>
+                        <div class="answer-option" data-answer="D" onclick="selectAnswer(this, 2)"><span class="option-letter">D</span><span class="option-text"><strong>5.4 kW</strong></span></div>
+                    </div>
+                    <button class="submit-btn" id="submit2" disabled onclick="submitAnswer(2)">Submit Answer</button>
+                    <button class="calc-toggle-btn" onclick="toggleCalc(2)">🧮 Calculator</button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Refocus 2 -->
+    <section class="screen" id="refocus2">
+        <div class="refocus-screen">
+            <div class="refocus-card">
+                <h2 class="refocus-title">Brief Pause</h2>
+                <p class="refocus-text">Please focus on the dot below. The next question will begin automatically.</p>
+                <div class="refocus-timer">
+                    <div class="timer-circle" id="timer2" style="--progress: 100;">
+                        <div class="timer-inner" id="timerNum2">5</div>
+                    </div>
+                    <div class="focus-dot"></div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- QUESTION 3: Daily Production -->
+    <section class="screen" id="q3" data-title="Daily Energy Production ☀️">
+        <div class="session-screen">
+            <div class="content-grid">
+                <div class="panel" data-aoi="q3-text">
+                    <div class="text-content">
+                        <h3>How Much Energy Will Your System Produce?</h3>
+                        <p>The amount of electricity your solar panels generate each day depends on two key factors: your <strong>system size</strong> and your location's <strong>peak sun hours</strong>.</p>
+                        
+                        <h4>Understanding Peak Sun Hours</h4>
+                        <p><strong>Peak sun hours</strong> represent the equivalent number of hours when sunlight intensity averages 1,000 watts per square meter. This isn't the same as daylight hours — it's a measure of usable solar energy.</p>
+
+                        <h4>Peak Sun Hours by Location</h4>
+                        <ul>
+                            <li><strong>Phoenix, AZ:</strong> 6.5 hours — desert climate, excellent solar</li>
+                            <li><strong>Denver, CO:</strong> 5.5 hours — high altitude, good solar</li>
+                            <li><strong>Chicago, IL:</strong> 4.0 hours — midwest climate, moderate solar</li>
+                        </ul>
+
+                        <div class="formula-box">
+                            <div class="formula">Daily Output = System kW × Peak Sun Hours</div>
+                            <div class="example">Example: 6 kW × 5.5 hours = 33 kWh per day</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel" data-aoi="q3-visual">
+                    <div class="infographic">
+                        <div class="visual-card">
+                            <div class="visual-title">☀️ Peak Sun Hours by City</div>
+                            <div class="meter-row">
+                                <div class="meter"><div class="meter-bar-container"><div class="meter-bar" style="height: 100%; background: linear-gradient(to top, #FF5722, #FF9800);">6.5</div></div><span class="meter-label">Phoenix</span></div>
+                                <div class="meter"><div class="meter-bar-container"><div class="meter-bar" style="height: 85%; background: linear-gradient(to top, #FFC107, #FFEB3B);">5.5</div></div><span class="meter-label">Denver</span></div>
+                                <div class="meter"><div class="meter-bar-container"><div class="meter-bar" style="height: 62%; background: linear-gradient(to top, #4CAF50, #8BC34A);">4.0</div></div><span class="meter-label">Chicago</span></div>
+                            </div>
+                        </div>
+                        <div class="visual-card">
+                            <div class="visual-title">🔢 Daily Production Formula</div>
+                            <div class="flow-diagram">
+                                <div class="flow-step"><div class="flow-icon" style="background: linear-gradient(135deg, #C8E6C9, #81C784);">kW</div><span class="flow-text">System Size</span></div>
+                                <span class="flow-arrow">×</span>
+                                <div class="flow-step"><div class="flow-icon" style="background: linear-gradient(135deg, #FFECB3, #FFD54F);">☀️</div><span class="flow-text">Sun Hours</span></div>
+                                <span class="flow-arrow">=</span>
+                                <div class="flow-step"><div class="flow-icon" style="background: linear-gradient(135deg, #BBDEFB, #64B5F6);">⚡</div><span class="flow-text">kWh/day</span></div>
+                            </div>
+                        </div>
+                        <div class="visual-card">
+                            <div class="visual-title">📊 Daily Output: 6 kW System</div>
+                            <div class="progress-bars">
+                                <div class="progress-item"><span class="progress-icon">🏜️</span><div class="progress-info"><div class="progress-label">Phoenix (6 kW × 6.5 hrs)</div><div class="progress-track"><div class="progress-fill" style="width: 100%; background: linear-gradient(to right, #FF5722, #FF8A65);">39 kWh</div></div></div></div>
+                                <div class="progress-item"><span class="progress-icon">🏔️</span><div class="progress-info"><div class="progress-label">Denver (6 kW × 5.5 hrs)</div><div class="progress-track"><div class="progress-fill" style="width: 85%; background: linear-gradient(to right, #FFC107, #FFD54F);">33 kWh</div></div></div></div>
+                                <div class="progress-item"><span class="progress-icon">🏙️</span><div class="progress-info"><div class="progress-label">Chicago (6 kW × 4.0 hrs)</div><div class="progress-track"><div class="progress-fill" style="width: 62%; background: linear-gradient(to right, #4CAF50, #81C784);">24 kWh</div></div></div></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel question-panel" data-aoi="q3-question">
+                    <div class="case-scenario">
+                        <h4>🏠 The Martinez Family</h4>
+                        <p>The Martinez family recently installed a solar system on their home in <strong>Denver, Colorado</strong>. Their system is <strong>6 kilowatts (kW)</strong> in size.</p>
+                        <div class="case-data">
+                            <div class="case-data-row"><span>Location:</span><span class="case-data-value">Denver, CO</span></div>
+                            <div class="case-data-row"><span>System Size:</span><span class="case-data-value">6 kW</span></div>
+                        </div>
+                    </div>
+                    <div class="question-box">
+                        <p class="question-text">How much energy will their system produce on a typical day?</p>
+                    </div>
+                    <div class="answer-options">
+                        <div class="answer-option" data-answer="A" onclick="selectAnswer(this, 3)"><span class="option-letter">A</span><span class="option-text"><strong>24 kWh/day</strong></span></div>
+                        <div class="answer-option" data-answer="B" onclick="selectAnswer(this, 3)"><span class="option-letter">B</span><span class="option-text"><strong>33 kWh/day</strong></span></div>
+                        <div class="answer-option" data-answer="C" onclick="selectAnswer(this, 3)"><span class="option-letter">C</span><span class="option-text"><strong>39 kWh/day</strong></span></div>
+                        <div class="answer-option" data-answer="D" onclick="selectAnswer(this, 3)"><span class="option-letter">D</span><span class="option-text"><strong>45 kWh/day</strong></span></div>
+                    </div>
+                    <button class="submit-btn" id="submit3" disabled onclick="submitAnswer(3)">Submit Answer</button>
+                    <button class="calc-toggle-btn" onclick="toggleCalc(3)">🧮 Calculator</button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Refocus 3 -->
+    <section class="screen" id="refocus3">
+        <div class="refocus-screen">
+            <div class="refocus-card">
+                <h2 class="refocus-title">Brief Pause</h2>
+                <p class="refocus-text">Please focus on the dot below. The next question will begin automatically.</p>
+                <div class="refocus-timer">
+                    <div class="timer-circle" id="timer3" style="--progress: 100;">
+                        <div class="timer-inner" id="timerNum3">5</div>
+                    </div>
+                    <div class="focus-dot"></div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- QUESTION 4: Cost & Savings -->
+    <section class="screen" id="q4" data-title="Solar Cost & Tax Credit 💰">
+        <div class="session-screen">
+            <div class="content-grid">
+                <div class="panel" data-aoi="q4-text">
+                    <div class="text-content">
+                        <h3>Understanding Solar Installation Costs</h3>
+                        <p>A residential solar installation is a significant investment, but the federal government provides a powerful incentive: the <strong>Investment Tax Credit (ITC)</strong>, which allows you to deduct <strong>30%</strong> of your solar installation cost from your federal taxes.</p>
+                        
+                        <h4>System Prices (Before Tax Credit)</h4>
+                        <ul>
+                            <li><strong>4 kW System:</strong> $12,000 — suitable for small homes</li>
+                            <li><strong>6 kW System:</strong> $18,000 — covers most average household needs</li>
+                            <li><strong>8 kW System:</strong> $24,000 — for larger homes with high energy usage</li>
+                        </ul>
+
+                        <h4>How the Tax Credit Works</h4>
+                        <p>The 30% federal tax credit directly reduces what you owe in taxes. For example, if your system costs $18,000, you can claim $5,400 as a tax credit, making your <strong>net cost just $12,600</strong>.</p>
+
+                        <div class="formula-box">
+                            <div class="formula">Net Cost = Price − (Price × 30%)</div>
+                            <div class="example">Example: $18,000 − $5,400 = $12,600 net cost</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel" data-aoi="q4-visual">
+                    <div class="infographic">
+                        <div class="visual-card">
+                            <div class="visual-title">💵 System Prices Before Tax Credit</div>
+                            <div class="compare-blocks">
+                                <div class="compare-block"><div class="compare-block-icon">🏠</div><div class="compare-block-title">4 kW</div><div class="compare-block-value">$12,000</div><div class="compare-block-sub">Small home</div></div>
+                                <div class="compare-block"><div class="compare-block-icon">🏡</div><div class="compare-block-title">6 kW</div><div class="compare-block-value">$18,000</div><div class="compare-block-sub">Average home</div></div>
+                                <div class="compare-block"><div class="compare-block-icon">🏘️</div><div class="compare-block-title">8 kW</div><div class="compare-block-value">$24,000</div><div class="compare-block-sub">Large home</div></div>
+                            </div>
+                        </div>
+                        <div class="visual-card">
+                            <div class="visual-title">🔢 Tax Credit Formula</div>
+                            <div class="flow-diagram">
+                                <div class="flow-step"><div class="flow-icon" style="background: linear-gradient(135deg, #FFCDD2, #EF9A9A);">💵</div><span class="flow-text">Price</span></div>
+                                <span class="flow-arrow">−</span>
+                                <div class="flow-step"><div class="flow-icon" style="background: linear-gradient(135deg, #C8E6C9, #81C784);">30%</div><span class="flow-text">Credit</span></div>
+                                <span class="flow-arrow">=</span>
+                                <div class="flow-step"><div class="flow-icon" style="background: linear-gradient(135deg, #A5D6A7, #66BB6A);">💰</div><span class="flow-text">You Pay</span></div>
+                            </div>
+                        </div>
+                        <div class="visual-card">
+                            <div class="visual-title">📊 Net Cost After 30% Tax Credit</div>
+                            <div class="progress-bars">
+                                <div class="progress-item"><span class="progress-icon">🏠</span><div class="progress-info"><div class="progress-label">4 kW: $12,000 − 30%</div><div class="progress-track"><div class="progress-fill" style="width: 50%; background: linear-gradient(to right, #66BB6A, #81C784);">$8,400</div></div></div></div>
+                                <div class="progress-item"><span class="progress-icon">🏡</span><div class="progress-info"><div class="progress-label">6 kW: $18,000 − 30%</div><div class="progress-track"><div class="progress-fill" style="width: 75%; background: linear-gradient(to right, #FFA726, #FFB74D);">$12,600</div></div></div></div>
+                                <div class="progress-item"><span class="progress-icon">🏘️</span><div class="progress-info"><div class="progress-label">8 kW: $24,000 − 30%</div><div class="progress-track"><div class="progress-fill" style="width: 100%; background: linear-gradient(to right, #EF5350, #EF9A9A);">$16,800</div></div></div></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel question-panel" data-aoi="q4-question">
+                    <div class="case-scenario">
+                        <h4>🏠 The Wilson Family</h4>
+                        <p>The Wilson family has a large home with high energy needs. They've decided to install an <strong>8 kW solar system</strong> and want to know their actual out-of-pocket cost after claiming the federal tax credit.</p>
+                        <div class="case-data">
+                            <div class="case-data-row"><span>System Size:</span><span class="case-data-value">8 kW</span></div>
+                            <div class="case-data-row"><span>Tax Credit:</span><span class="case-data-value">30%</span></div>
+                        </div>
+                    </div>
+                    <div class="question-box">
+                        <p class="question-text">What is their net cost after applying the tax credit?</p>
+                    </div>
+                    <div class="answer-options">
+                        <div class="answer-option" data-answer="A" onclick="selectAnswer(this, 4)"><span class="option-letter">A</span><span class="option-text"><strong>$14,400</strong></span></div>
+                        <div class="answer-option" data-answer="B" onclick="selectAnswer(this, 4)"><span class="option-letter">B</span><span class="option-text"><strong>$16,800</strong></span></div>
+                        <div class="answer-option" data-answer="C" onclick="selectAnswer(this, 4)"><span class="option-letter">C</span><span class="option-text"><strong>$18,000</strong></span></div>
+                        <div class="answer-option" data-answer="D" onclick="selectAnswer(this, 4)"><span class="option-letter">D</span><span class="option-text"><strong>$19,200</strong></span></div>
+                    </div>
+                    <button class="submit-btn" id="submit4" disabled onclick="submitAnswer(4)">Submit Answer</button>
+                    <button class="calc-toggle-btn" onclick="toggleCalc(4)">🧮 Calculator</button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Refocus 4 -->
+    <section class="screen" id="refocus4">
+        <div class="refocus-screen">
+            <div class="refocus-card">
+                <h2 class="refocus-title">Brief Pause</h2>
+                <p class="refocus-text">Please focus on the dot below. The next question will begin automatically.</p>
+                <div class="refocus-timer">
+                    <div class="timer-circle" id="timer4" style="--progress: 100;">
+                        <div class="timer-inner" id="timerNum4">5</div>
+                    </div>
+                    <div class="focus-dot"></div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- QUESTION 5: Battery Selection -->
+    <section class="screen" id="q5" data-title="Battery Storage Selection 🔋">
+        <div class="session-screen">
+            <div class="content-grid">
+                <div class="panel" data-aoi="q5-text">
+                    <div class="text-content">
+                        <h3>Home Battery Storage Systems</h3>
+                        <p>Solar panels only generate electricity during daylight. A <strong>battery storage system</strong> stores excess energy for use at night or during power outages.</p>
+                        
+                        <h4>Understanding Battery Capacity</h4>
+                        <p>Batteries are rated by <strong>total capacity</strong>, but you can only use a portion safely. The <strong>usable capacity</strong> depends on the battery chemistry:</p>
+                        <ul>
+                            <li><strong>Lithium-Ion (Li-Ion):</strong> 80% usable capacity, 10-year lifespan</li>
+                            <li><strong>Lithium Iron Phosphate (LFP):</strong> 90% usable capacity, 15-year lifespan</li>
+                            <li><strong>Lead-Acid:</strong> 50% usable capacity, 4-year lifespan</li>
+                        </ul>
+
+                        <h4>Products on the Market</h4>
+                        <ul>
+                            <li><strong>Tesla Powerwall:</strong> 13.5 kWh rated, Li-Ion, <strong>$9,000</strong></li>
+                            <li><strong>LG Chem RESU:</strong> 10 kWh rated, Li-Ion, <strong>$6,500</strong></li>
+                            <li><strong>Enphase IQ:</strong> 5 kWh rated, LFP, <strong>$4,500</strong></li>
+                        </ul>
+
+                        <div class="formula-box">
+                            <div class="formula">Usable kWh = Rated Capacity × Usable %</div>
+                            <div class="example">Example: 10 kWh × 80% = 8 kWh usable</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel" data-aoi="q5-visual">
+                    <div class="infographic">
+                        <div class="visual-card">
+                            <div class="visual-title">🔋 Battery Chemistry Comparison</div>
+                            <div class="compare-blocks">
+                                <div class="compare-block"><div class="compare-block-icon">🟢</div><div class="compare-block-title">Li-Ion</div><div class="compare-block-value">80%</div><div class="compare-block-sub">10 year life</div></div>
+                                <div class="compare-block highlight"><div class="compare-block-icon">🔵</div><div class="compare-block-title">LFP</div><div class="compare-block-value">90%</div><div class="compare-block-sub">15 year life</div></div>
+                                <div class="compare-block"><div class="compare-block-icon">⚫</div><div class="compare-block-title">Lead-Acid</div><div class="compare-block-value">50%</div><div class="compare-block-sub">4 year life</div></div>
+                            </div>
+                        </div>
+                        <div class="visual-card">
+                            <div class="visual-title">💰 Products & Pricing</div>
+                            <div class="progress-bars">
+                                <div class="progress-item"><span class="progress-icon">🟢</span><div class="progress-info"><div class="progress-label">Tesla 13.5 kWh (Li-Ion)</div><div class="progress-track"><div class="progress-fill" style="width: 100%; background: linear-gradient(to right, #E53935, #EF5350);">$9,000</div></div></div></div>
+                                <div class="progress-item"><span class="progress-icon">🟢</span><div class="progress-info"><div class="progress-label">LG Chem 10 kWh (Li-Ion)</div><div class="progress-track"><div class="progress-fill" style="width: 72%; background: linear-gradient(to right, #FB8C00, #FFA726);">$6,500</div></div></div></div>
+                                <div class="progress-item"><span class="progress-icon">🔵</span><div class="progress-info"><div class="progress-label">Enphase 5 kWh (LFP)</div><div class="progress-track"><div class="progress-fill" style="width: 50%; background: linear-gradient(to right, #43A047, #66BB6A);">$4,500</div></div></div></div>
+                            </div>
+                        </div>
+                        <div class="visual-card">
+                            <div class="visual-title">⏱️ Battery Lifespan Timeline</div>
+                            <div class="timeline">
+                                <div class="timeline-point"><div class="timeline-dot" style="background: #757575;">4</div><div class="timeline-label">Lead-Acid</div></div>
+                                <div class="timeline-point"><div class="timeline-dot" style="background: var(--secondary-green);">10</div><div class="timeline-label">Li-Ion</div></div>
+                                <div class="timeline-point"><div class="timeline-dot" style="background: var(--info-blue);">15</div><div class="timeline-label">LFP</div></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel question-panel" data-aoi="q5-question">
+                    <div class="case-scenario">
+                        <h4>🏠 The Chen Family</h4>
+                        <p>The Chens want a battery system that meets <strong>all three</strong> of their requirements. They're comparing available products.</p>
+                        <div class="case-data">
+                            <div class="case-data-row"><span>Usable Capacity Needed:</span><span class="case-data-value">≥ 8 kWh</span></div>
+                            <div class="case-data-row"><span>Minimum Lifespan:</span><span class="case-data-value">≥ 12 years</span></div>
+                            <div class="case-data-row"><span>Maximum Budget:</span><span class="case-data-value">≤ $9,500</span></div>
+                        </div>
+                    </div>
+                    <div class="question-box">
+                        <p class="question-text">Which option meets ALL three requirements?</p>
+                    </div>
+                    <div class="answer-options">
+                        <div class="answer-option" data-answer="A" onclick="selectAnswer(this, 5)"><span class="option-letter">A</span><span class="option-text"><strong>Tesla Powerwall</strong> — single unit</span></div>
+                        <div class="answer-option" data-answer="B" onclick="selectAnswer(this, 5)"><span class="option-letter">B</span><span class="option-text"><strong>LG Chem RESU</strong> — single unit</span></div>
+                        <div class="answer-option" data-answer="C" onclick="selectAnswer(this, 5)"><span class="option-letter">C</span><span class="option-text"><strong>Two Enphase IQ units</strong> — combined</span></div>
+                        <div class="answer-option" data-answer="D" onclick="selectAnswer(this, 5)"><span class="option-letter">D</span><span class="option-text"><strong>None</strong> — no option meets all</span></div>
+                    </div>
+                    <button class="submit-btn" id="submit5" disabled onclick="submitAnswer(5)">Submit Answer</button>
+                    <button class="calc-toggle-btn" onclick="toggleCalc(5)">🧮 Calculator</button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Refocus 5 -->
+    <section class="screen" id="refocus5">
+        <div class="refocus-screen">
+            <div class="refocus-card">
+                <h2 class="refocus-title">Brief Pause</h2>
+                <p class="refocus-text">Please focus on the dot below. The next question will begin automatically.</p>
+                <div class="refocus-timer">
+                    <div class="timer-circle" id="timer5" style="--progress: 100;">
+                        <div class="timer-inner" id="timerNum5">5</div>
+                    </div>
+                    <div class="focus-dot"></div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- QUESTION 6: Plan Selection -->
+    <section class="screen" id="q6" data-title="Choosing the Best Solar Plan 🎯">
+        <div class="session-screen">
+            <div class="content-grid">
+                <div class="panel" data-aoi="q6-text">
+                    <div class="text-content">
+                        <h3>Solar Financing Options</h3>
+                        <p>Going solar is a significant investment, and there are multiple ways to finance your system. Each option has different upfront costs, monthly payments, and long-term financial returns.</p>
+                        
+                        <h4>Available Solar Plans</h4>
+                        <ul>
+                            <li><strong>Plan A — Small Cash Purchase:</strong><br>
+                            $8,400 upfront cost. You own the system immediately. 25-year profit: <strong>+$18,000</strong></li>
+                            
+                            <li><strong>Plan B — Standard Cash Purchase:</strong><br>
+                            $12,600 upfront cost. Larger system, you own it. 25-year profit: <strong>+$29,000</strong></li>
+                            
+                            <li><strong>Plan C — Solar Loan:</strong><br>
+                            $0 down payment, then <strong>$140/month for 10 years</strong>. You own after loan payoff. 25-year profit: <strong>+$21,000</strong></li>
+                        </ul>
+
+                        <div class="highlight-box">
+                            <strong>Key Insight:</strong> All three plans result in ownership. Plan C spreads the cost over time but has ongoing monthly payments during the loan term.
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel" data-aoi="q6-visual">
+                    <div class="infographic">
+                        <div class="visual-card">
+                            <div class="visual-title">💰 Upfront Cost Comparison</div>
+                            <div class="progress-bars">
+                                <div class="progress-item"><span class="progress-icon" style="font-weight: 700;">A</span><div class="progress-info"><div class="progress-label">Plan A — Small Purchase</div><div class="progress-track"><div class="progress-fill" style="width: 67%; background: linear-gradient(to right, #66BB6A, #81C784);">$8,400</div></div></div></div>
+                                <div class="progress-item"><span class="progress-icon" style="font-weight: 700;">B</span><div class="progress-info"><div class="progress-label">Plan B — Standard Purchase</div><div class="progress-track"><div class="progress-fill" style="width: 100%; background: linear-gradient(to right, #FFA726, #FFB74D);">$12,600</div></div></div></div>
+                                <div class="progress-item"><span class="progress-icon" style="font-weight: 700;">C</span><div class="progress-info"><div class="progress-label">Plan C — Solar Loan</div><div class="progress-track"><div class="progress-fill" style="width: 5%; background: linear-gradient(to right, #29B6F6, #4FC3F7);">$0</div></div></div></div>
+                            </div>
+                        </div>
+                        <div class="visual-card">
+                            <div class="visual-title">📈 25-Year Total Profit</div>
+                            <div class="compare-blocks">
+                                <div class="compare-block"><div class="compare-block-title">Plan A</div><div class="compare-block-value">+$18K</div><div class="compare-block-sub">Small system</div></div>
+                                <div class="compare-block highlight"><div class="compare-block-title">Plan B</div><div class="compare-block-value">+$29K</div><div class="compare-block-sub">Best return</div></div>
+                                <div class="compare-block"><div class="compare-block-title">Plan C</div><div class="compare-block-value">+$21K</div><div class="compare-block-sub">Loan option</div></div>
+                            </div>
+                        </div>
+                        <div class="visual-card">
+                            <div class="visual-title">📋 Plan C Loan Details</div>
+                            <div class="icon-stats">
+                                <div class="icon-stat"><div class="icon-stat-icon">💵</div><div class="icon-stat-value">$140</div><div class="icon-stat-label">Monthly Payment</div></div>
+                                <div class="icon-stat"><div class="icon-stat-icon">📅</div><div class="icon-stat-value">10</div><div class="icon-stat-label">Years to Pay</div></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel question-panel" data-aoi="q6-question">
+                    <div class="case-scenario">
+                        <h4>🏠 The Thompson Family</h4>
+                        <p>The Thompsons want to go solar but need to find a plan that works with their finances while still maximizing their long-term savings.</p>
+                        <div class="case-data">
+                            <div class="case-data-row"><span>Available Savings:</span><span class="case-data-value">$9,000</span></div>
+                            <div class="case-data-row"><span>Monthly Budget:</span><span class="case-data-value">$150 maximum</span></div>
+                            <div class="case-data-row"><span>Priority:</span><span class="case-data-value">Maximize profit</span></div>
+                        </div>
+                    </div>
+                    <div class="question-box">
+                        <p class="question-text">Which plan fits their budget AND maximizes their profit?</p>
+                    </div>
+                    <div class="answer-options">
+                        <div class="answer-option" data-answer="A" onclick="selectAnswer(this, 6)"><span class="option-letter">A</span><span class="option-text"><strong>Plan A</strong> — fits their savings</span></div>
+                        <div class="answer-option" data-answer="B" onclick="selectAnswer(this, 6)"><span class="option-letter">B</span><span class="option-text"><strong>Plan B</strong> — highest profit</span></div>
+                        <div class="answer-option" data-answer="C" onclick="selectAnswer(this, 6)"><span class="option-letter">C</span><span class="option-text"><strong>Plan C</strong> — fits monthly budget</span></div>
+                        <div class="answer-option" data-answer="D" onclick="selectAnswer(this, 6)"><span class="option-letter">D</span><span class="option-text"><strong>None</strong> — can't afford any plan</span></div>
+                    </div>
+                    <button class="submit-btn" id="submit6" disabled onclick="submitAnswer(6)">Submit Answer</button>
+                    <button class="calc-toggle-btn" onclick="toggleCalc(6)">🧮 Calculator</button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Refocus to Survey -->
+    <section class="screen" id="refocus6">
+        <div class="refocus-screen">
+            <div class="refocus-card">
+                <h2 class="refocus-title">Brief Pause</h2>
+                <p class="refocus-text">Please focus on the dot below. The next question will begin automatically.</p>
+                <div class="refocus-timer">
+                    <div class="timer-circle" id="timer6" style="--progress: 100;">
+                        <div class="timer-inner" id="timerNum6">5</div>
+                    </div>
+                    <div class="focus-dot"></div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- SURVEY -->
+    <section class="screen" id="survey">
+        <div class="survey-screen">
+            <div class="survey-header">
+                <h2 class="survey-title">📋 Post-Study Survey</h2>
+                <p class="survey-subtitle">Rate each item from 1 (lowest) to 5 (highest)</p>
+            </div>
+
+            <div class="survey-section">
+                <h3 class="survey-section-title">📊 Difficulty & Effort</h3>
+                <div class="survey-question">
+                    <div class="survey-q-label"><span class="survey-q-num">1</span><span>How difficult was the material to understand?</span></div>
+                    <div class="rating-scale">
+                        <label class="rating-option"><input type="radio" name="q1" value="1"><div class="rating-circle">1</div><span class="rating-label">Very Easy</span></label>
+                        <label class="rating-option"><input type="radio" name="q1" value="2"><div class="rating-circle">2</div></label>
+                        <label class="rating-option"><input type="radio" name="q1" value="3"><div class="rating-circle">3</div><span class="rating-label">Moderate</span></label>
+                        <label class="rating-option"><input type="radio" name="q1" value="4"><div class="rating-circle">4</div></label>
+                        <label class="rating-option"><input type="radio" name="q1" value="5"><div class="rating-circle">5</div><span class="rating-label">Very Hard</span></label>
+                    </div>
+                </div>
+                <div class="survey-question">
+                    <div class="survey-q-label"><span class="survey-q-num">2</span><span>How difficult were the questions to answer?</span></div>
+                    <div class="rating-scale">
+                        <label class="rating-option"><input type="radio" name="q2" value="1"><div class="rating-circle">1</div><span class="rating-label">Very Easy</span></label>
+                        <label class="rating-option"><input type="radio" name="q2" value="2"><div class="rating-circle">2</div></label>
+                        <label class="rating-option"><input type="radio" name="q2" value="3"><div class="rating-circle">3</div><span class="rating-label">Moderate</span></label>
+                        <label class="rating-option"><input type="radio" name="q2" value="4"><div class="rating-circle">4</div></label>
+                        <label class="rating-option"><input type="radio" name="q2" value="5"><div class="rating-circle">5</div><span class="rating-label">Very Hard</span></label>
+                    </div>
+                </div>
+                <div class="survey-question">
+                    <div class="survey-q-label"><span class="survey-q-num">3</span><span>How much mental effort did you invest?</span></div>
+                    <div class="rating-scale">
+                        <label class="rating-option"><input type="radio" name="q3" value="1"><div class="rating-circle">1</div><span class="rating-label">Very Little</span></label>
+                        <label class="rating-option"><input type="radio" name="q3" value="2"><div class="rating-circle">2</div></label>
+                        <label class="rating-option"><input type="radio" name="q3" value="3"><div class="rating-circle">3</div><span class="rating-label">Moderate</span></label>
+                        <label class="rating-option"><input type="radio" name="q3" value="4"><div class="rating-circle">4</div></label>
+                        <label class="rating-option"><input type="radio" name="q3" value="5"><div class="rating-circle">5</div><span class="rating-label">Very Much</span></label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="survey-section">
+                <h3 class="survey-section-title">📖 Information Use</h3>
+                <div class="survey-question">
+                    <div class="survey-q-label"><span class="survey-q-num">4</span><span>How often did you use the written text (left panel)?</span></div>
+                    <div class="rating-scale">
+                        <label class="rating-option"><input type="radio" name="q4" value="1"><div class="rating-circle">1</div><span class="rating-label">Never</span></label>
+                        <label class="rating-option"><input type="radio" name="q4" value="2"><div class="rating-circle">2</div></label>
+                        <label class="rating-option"><input type="radio" name="q4" value="3"><div class="rating-circle">3</div><span class="rating-label">Sometimes</span></label>
+                        <label class="rating-option"><input type="radio" name="q4" value="4"><div class="rating-circle">4</div></label>
+                        <label class="rating-option"><input type="radio" name="q4" value="5"><div class="rating-circle">5</div><span class="rating-label">Always</span></label>
+                    </div>
+                </div>
+                <div class="survey-question">
+                    <div class="survey-q-label"><span class="survey-q-num">5</span><span>How often did you use the charts and graphics (middle panel)?</span></div>
+                    <div class="rating-scale">
+                        <label class="rating-option"><input type="radio" name="q5" value="1"><div class="rating-circle">1</div><span class="rating-label">Never</span></label>
+                        <label class="rating-option"><input type="radio" name="q5" value="2"><div class="rating-circle">2</div></label>
+                        <label class="rating-option"><input type="radio" name="q5" value="3"><div class="rating-circle">3</div><span class="rating-label">Sometimes</span></label>
+                        <label class="rating-option"><input type="radio" name="q5" value="4"><div class="rating-circle">4</div></label>
+                        <label class="rating-option"><input type="radio" name="q5" value="5"><div class="rating-circle">5</div><span class="rating-label">Always</span></label>
+                    </div>
+                </div>
+                <div class="survey-question">
+                    <div class="survey-q-label"><span class="survey-q-num">6</span><span>How often did you use the calculator?</span></div>
+                    <div class="rating-scale">
+                        <label class="rating-option"><input type="radio" name="q6" value="1"><div class="rating-circle">1</div><span class="rating-label">Never</span></label>
+                        <label class="rating-option"><input type="radio" name="q6" value="2"><div class="rating-circle">2</div></label>
+                        <label class="rating-option"><input type="radio" name="q6" value="3"><div class="rating-circle">3</div><span class="rating-label">Sometimes</span></label>
+                        <label class="rating-option"><input type="radio" name="q6" value="4"><div class="rating-circle">4</div></label>
+                        <label class="rating-option"><input type="radio" name="q6" value="5"><div class="rating-circle">5</div><span class="rating-label">Always</span></label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="survey-section">
+                <h3 class="survey-section-title">🧠 Decision Style</h3>
+                <div class="survey-question">
+                    <div class="survey-q-label"><span class="survey-q-num">7</span><span>I prefer making decisions based on analysis rather than intuition.</span></div>
+                    <div class="rating-scale">
+                        <label class="rating-option"><input type="radio" name="q7" value="1"><div class="rating-circle">1</div><span class="rating-label">Disagree</span></label>
+                        <label class="rating-option"><input type="radio" name="q7" value="2"><div class="rating-circle">2</div></label>
+                        <label class="rating-option"><input type="radio" name="q7" value="3"><div class="rating-circle">3</div><span class="rating-label">Neutral</span></label>
+                        <label class="rating-option"><input type="radio" name="q7" value="4"><div class="rating-circle">4</div></label>
+                        <label class="rating-option"><input type="radio" name="q7" value="5"><div class="rating-circle">5</div><span class="rating-label">Agree</span></label>
+                    </div>
+                </div>
+                <div class="survey-question">
+                    <div class="survey-q-label"><span class="survey-q-num">8</span><span>I prefer to gather all information before making a decision.</span></div>
+                    <div class="rating-scale">
+                        <label class="rating-option"><input type="radio" name="q8" value="1"><div class="rating-circle">1</div><span class="rating-label">Disagree</span></label>
+                        <label class="rating-option"><input type="radio" name="q8" value="2"><div class="rating-circle">2</div></label>
+                        <label class="rating-option"><input type="radio" name="q8" value="3"><div class="rating-circle">3</div><span class="rating-label">Neutral</span></label>
+                        <label class="rating-option"><input type="radio" name="q8" value="4"><div class="rating-circle">4</div></label>
+                        <label class="rating-option"><input type="radio" name="q8" value="5"><div class="rating-circle">5</div><span class="rating-label">Agree</span></label>
+                    </div>
+                </div>
+                <div class="survey-question">
+                    <div class="survey-q-label"><span class="survey-q-num">9</span><span>I am comfortable making quick decisions under uncertainty.</span></div>
+                    <div class="rating-scale">
+                        <label class="rating-option"><input type="radio" name="q9" value="1"><div class="rating-circle">1</div><span class="rating-label">Disagree</span></label>
+                        <label class="rating-option"><input type="radio" name="q9" value="2"><div class="rating-circle">2</div></label>
+                        <label class="rating-option"><input type="radio" name="q9" value="3"><div class="rating-circle">3</div><span class="rating-label">Neutral</span></label>
+                        <label class="rating-option"><input type="radio" name="q9" value="4"><div class="rating-circle">4</div></label>
+                        <label class="rating-option"><input type="radio" name="q9" value="5"><div class="rating-circle">5</div><span class="rating-label">Agree</span></label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="survey-section">
+                <h3 class="survey-section-title">💭 Experience</h3>
+                <div class="survey-question">
+                    <div class="survey-q-label"><span class="survey-q-num">10</span><span>How engaged did you feel during the study?</span></div>
+                    <div class="rating-scale">
+                        <label class="rating-option"><input type="radio" name="q10" value="1"><div class="rating-circle">1</div><span class="rating-label">Not at all</span></label>
+                        <label class="rating-option"><input type="radio" name="q10" value="2"><div class="rating-circle">2</div></label>
+                        <label class="rating-option"><input type="radio" name="q10" value="3"><div class="rating-circle">3</div><span class="rating-label">Somewhat</span></label>
+                        <label class="rating-option"><input type="radio" name="q10" value="4"><div class="rating-circle">4</div></label>
+                        <label class="rating-option"><input type="radio" name="q10" value="5"><div class="rating-circle">5</div><span class="rating-label">Very Much</span></label>
+                    </div>
+                </div>
+                <div class="survey-question">
+                    <div class="survey-q-label"><span class="survey-q-num">11</span><span>How confident are you in your answers?</span></div>
+                    <div class="rating-scale">
+                        <label class="rating-option"><input type="radio" name="q11" value="1"><div class="rating-circle">1</div><span class="rating-label">Not at all</span></label>
+                        <label class="rating-option"><input type="radio" name="q11" value="2"><div class="rating-circle">2</div></label>
+                        <label class="rating-option"><input type="radio" name="q11" value="3"><div class="rating-circle">3</div><span class="rating-label">Somewhat</span></label>
+                        <label class="rating-option"><input type="radio" name="q11" value="4"><div class="rating-circle">4</div></label>
+                        <label class="rating-option"><input type="radio" name="q11" value="5"><div class="rating-circle">5</div><span class="rating-label">Very Much</span></label>
+                    </div>
+                </div>
+                <div class="survey-question">
+                    <div class="survey-q-label"><span class="survey-q-num">12</span><span>Prior knowledge of solar energy before this study?</span></div>
+                    <div class="rating-scale">
+                        <label class="rating-option"><input type="radio" name="q12" value="1"><div class="rating-circle">1</div><span class="rating-label">None</span></label>
+                        <label class="rating-option"><input type="radio" name="q12" value="2"><div class="rating-circle">2</div></label>
+                        <label class="rating-option"><input type="radio" name="q12" value="3"><div class="rating-circle">3</div><span class="rating-label">Some</span></label>
+                        <label class="rating-option"><input type="radio" name="q12" value="4"><div class="rating-circle">4</div></label>
+                        <label class="rating-option"><input type="radio" name="q12" value="5"><div class="rating-circle">5</div><span class="rating-label">Expert</span></label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="survey-section">
+                <h3 class="survey-section-title">👤 About You</h3>
+                <div class="survey-question">
+                    <div class="survey-q-label"><span class="survey-q-num">13</span><span>How comfortable are you with math calculations?</span></div>
+                    <div class="rating-scale">
+                        <label class="rating-option"><input type="radio" name="q13" value="1"><div class="rating-circle">1</div><span class="rating-label">Very Low</span></label>
+                        <label class="rating-option"><input type="radio" name="q13" value="2"><div class="rating-circle">2</div></label>
+                        <label class="rating-option"><input type="radio" name="q13" value="3"><div class="rating-circle">3</div><span class="rating-label">Average</span></label>
+                        <label class="rating-option"><input type="radio" name="q13" value="4"><div class="rating-circle">4</div></label>
+                        <label class="rating-option"><input type="radio" name="q13" value="5"><div class="rating-circle">5</div><span class="rating-label">Very High</span></label>
+                    </div>
+                </div>
+                <div class="survey-question">
+                    <div class="survey-q-label"><span class="survey-q-num">14</span><span>I learn better from visual information than written text.</span></div>
+                    <div class="rating-scale">
+                        <label class="rating-option"><input type="radio" name="q14" value="1"><div class="rating-circle">1</div><span class="rating-label">Disagree</span></label>
+                        <label class="rating-option"><input type="radio" name="q14" value="2"><div class="rating-circle">2</div></label>
+                        <label class="rating-option"><input type="radio" name="q14" value="3"><div class="rating-circle">3</div><span class="rating-label">Neutral</span></label>
+                        <label class="rating-option"><input type="radio" name="q14" value="4"><div class="rating-circle">4</div></label>
+                        <label class="rating-option"><input type="radio" name="q14" value="5"><div class="rating-circle">5</div><span class="rating-label">Agree</span></label>
+                    </div>
+                </div>
+                <div class="survey-question">
+                    <div class="survey-q-label"><span class="survey-q-num">15</span><span>I prefer working independently rather than in groups.</span></div>
+                    <div class="rating-scale">
+                        <label class="rating-option"><input type="radio" name="q15" value="1"><div class="rating-circle">1</div><span class="rating-label">Disagree</span></label>
+                        <label class="rating-option"><input type="radio" name="q15" value="2"><div class="rating-circle">2</div></label>
+                        <label class="rating-option"><input type="radio" name="q15" value="3"><div class="rating-circle">3</div><span class="rating-label">Neutral</span></label>
+                        <label class="rating-option"><input type="radio" name="q15" value="4"><div class="rating-circle">4</div></label>
+                        <label class="rating-option"><input type="radio" name="q15" value="5"><div class="rating-circle">5</div><span class="rating-label">Agree</span></label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="survey-section">
+                <h3 class="survey-section-title">📝 Demographics</h3>
+                <div class="survey-question">
+                    <div class="survey-q-label"><span class="survey-q-num">16</span><span>What is your gender?</span></div>
+                    <select class="survey-select" name="q16">
+                        <option value="">Select gender...</option>
+                        <option value="male">Male</option>
+                        <option value="female">Female</option>
+                        <option value="other">Other</option>
+                        <option value="prefer_not">Prefer not to say</option>
+                    </select>
+                </div>
+                <div class="survey-question">
+                    <div class="survey-q-label"><span class="survey-q-num">17</span><span>What is your age group?</span></div>
+                    <select class="survey-select" name="q17">
+                        <option value="">Select age group...</option>
+                        <option value="18-24">18-24</option>
+                        <option value="25-34">25-34</option>
+                        <option value="35-44">35-44</option>
+                        <option value="45-54">45-54</option>
+                        <option value="55+">55+</option>
+                    </select>
+                </div>
+                <div class="survey-question">
+                    <div class="survey-q-label"><span class="survey-q-num">18</span><span>What is your current student level?</span></div>
+                    <select class="survey-select" name="q18">
+                        <option value="">Select student level...</option>
+                        <option value="freshman">Freshman</option>
+                        <option value="sophomore">Sophomore</option>
+                        <option value="junior">Junior</option>
+                        <option value="senior">Senior</option>
+                        <option value="masters">Master's</option>
+                        <option value="phd">PhD</option>
+                        <option value="not_student">Not a student</option>
+                    </select>
+                </div>
+                <div class="survey-question">
+                    <div class="survey-q-label"><span class="survey-q-num">19</span><span>What is your field of study?</span></div>
+                    <select class="survey-select" name="q19">
+                        <option value="">Select field of study...</option>
+                        <option value="stem">STEM (Science, Technology, Engineering, Math)</option>
+                        <option value="business">Business / Economics</option>
+                        <option value="humanities">Humanities / Arts</option>
+                        <option value="social_sciences">Social Sciences</option>
+                        <option value="health">Health Sciences</option>
+                        <option value="other">Other</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="survey-nav">
+                <button class="survey-submit" onclick="submitSurvey()">Submit Survey</button>
+            </div>
+        </div>
+    </section>
+
+    <!-- COMPLETION -->
+    <section class="screen" id="completion">
+        <div class="completion-screen">
+            <div class="completion-card">
+                <div style="font-size: clamp(40px, 6vw, 70px);">🎉</div>
+                <h2 class="completion-title">Thank You!</h2>
+                <p class="completion-message">You have successfully completed the study. Your responses have been recorded and will help advance our understanding of learning and decision-making.</p>
+                <p style="color: var(--text-secondary); font-size: clamp(12px, 1.2vw, 15px); margin-top: clamp(14px, 2vh, 22px);">You may now close this window.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Shared Calculator Popup -->
+    <div class="calc-popup-overlay" id="calcPopupOverlay" onclick="closeCalcPopup(event)">
+        <div class="inline-calculator" onclick="event.stopPropagation()">
+            <div class="calc-popup-header">
+                <span class="calc-popup-title">Calculator</span>
+                <button class="calc-popup-close" onclick="closeCalcPopup()">&times;</button>
+            </div>
+            <div class="calc-display" id="calcPopupDisplay">0</div>
+            <div class="calc-buttons">
+                <button class="calc-btn clear" onclick="calcClear(activeCalcQ)">C</button>
+                <button class="calc-btn op" onclick="calcInput(activeCalcQ,'(')">(</button>
+                <button class="calc-btn op" onclick="calcInput(activeCalcQ,')')">)</button>
+                <button class="calc-btn op" onclick="calcInput(activeCalcQ,'/')">÷</button>
+                <button class="calc-btn num" onclick="calcInput(activeCalcQ,'7')">7</button>
+                <button class="calc-btn num" onclick="calcInput(activeCalcQ,'8')">8</button>
+                <button class="calc-btn num" onclick="calcInput(activeCalcQ,'9')">9</button>
+                <button class="calc-btn op" onclick="calcInput(activeCalcQ,'*')">×</button>
+                <button class="calc-btn num" onclick="calcInput(activeCalcQ,'4')">4</button>
+                <button class="calc-btn num" onclick="calcInput(activeCalcQ,'5')">5</button>
+                <button class="calc-btn num" onclick="calcInput(activeCalcQ,'6')">6</button>
+                <button class="calc-btn op" onclick="calcInput(activeCalcQ,'-')">−</button>
+                <button class="calc-btn num" onclick="calcInput(activeCalcQ,'1')">1</button>
+                <button class="calc-btn num" onclick="calcInput(activeCalcQ,'2')">2</button>
+                <button class="calc-btn num" onclick="calcInput(activeCalcQ,'3')">3</button>
+                <button class="calc-btn op" onclick="calcInput(activeCalcQ,'+')">+</button>
+                <button class="calc-btn num" onclick="calcInput(activeCalcQ,'0')">0</button>
+                <button class="calc-btn num" onclick="calcInput(activeCalcQ,'.')">.</button>
+                <button class="calc-btn op" onclick="calcBackspace(activeCalcQ)">⌫</button>
+                <button class="calc-btn eq" onclick="calcEquals(activeCalcQ)">=</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const responses = {};
+        const surveyData = {};
+        const calcExpressions = {1:'',2:'',3:'',4:'',5:'',6:''};
+        const startTime = Date.now();
+        let activeTimer = null;
+        let tutorialPlaying = false;
+        let tutorialStep = -1;
+        let tutorialTimer = null;
+
+        const tutorialSteps = [
+            { panel: null, caption: "Welcome! In this study, you'll help families make smart decisions about solar energy.", duration: 5000 },
+            { panel: 1, caption: "On the left, you'll find detailed explanations about solar energy concepts like costs, savings, and efficiency.", duration: 6000 },
+            { panel: 2, caption: "The middle panel shows visual charts and graphics to help you understand the numbers at a glance.", duration: 6000 },
+            { panel: 3, caption: "On the right, you'll read about a family's situation and choose the best answer to help them.", duration: 6000 },
+            { panel: 'calc', caption: "Need to crunch some numbers? Use the built-in calculator anytime during the study.", duration: 5000 }
+        ];
+
+        function toggleTutorialPlay() {
+            if (tutorialPlaying) {
+                pauseTutorial();
+            } else {
+                playTutorial();
+            }
+        }
+
+        function playTutorial() {
+            tutorialPlaying = true;
+            updatePlayButton();
+            if (tutorialStep < 0) {
+                tutorialStep = -1;
+                nextTutorialStep();
+            } else {
+                // Resume from current step
+                const step = tutorialSteps[tutorialStep];
+                tutorialTimer = setTimeout(nextTutorialStep, step.duration);
+            }
+        }
+
+        function pauseTutorial() {
+            tutorialPlaying = false;
+            updatePlayButton();
+            if (tutorialTimer) {
+                clearTimeout(tutorialTimer);
+                tutorialTimer = null;
+            }
+        }
+
+        function updatePlayButton() {
+            const playIcon = document.getElementById('tutPlayIcon');
+            if (tutorialPlaying) {
+                playIcon.innerHTML = '<path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>';
+            } else {
+                playIcon.innerHTML = '<path d="M8 5v14l11-7z"/>';
+            }
+        }
+
+        function updateNavButtons() {
+            document.getElementById('tutPrevBtn').disabled = tutorialStep <= 0;
+            document.getElementById('tutNextBtn').disabled = tutorialStep >= tutorialSteps.length - 1;
+        }
+
+        function goToTutorialStep(stepIndex) {
+            if (tutorialTimer) {
+                clearTimeout(tutorialTimer);
+                tutorialTimer = null;
+            }
+            tutorialStep = stepIndex - 1;
+            nextTutorialStep();
+        }
+
+        function tutorialPrev() {
+            if (tutorialStep > 0) {
+                goToTutorialStep(tutorialStep - 1);
+            }
+        }
+
+        function tutorialNext() {
+            if (tutorialStep < tutorialSteps.length - 1) {
+                goToTutorialStep(tutorialStep + 1);
+            }
+        }
+
+        function nextTutorialStep() {
+            tutorialStep++;
+
+            // Reset all highlights
+            document.querySelectorAll('.tutorial-panel').forEach(p => p.classList.remove('highlight'));
+            const calc = document.getElementById('tutCalc');
+            calc.style.boxShadow = 'none';
+            calc.style.transform = 'scale(1)';
+            calc.style.border = 'none';
+            calc.style.animation = 'none';
+
+            // Update dots
+            for (let i = 0; i < 5; i++) {
+                const dot = document.getElementById('tutDot' + i);
+                dot.classList.remove('active', 'completed');
+                if (i < tutorialStep) dot.classList.add('completed');
+                if (i === tutorialStep) dot.classList.add('active');
+            }
+
+            // Update nav buttons
+            updateNavButtons();
+
+            if (tutorialStep >= tutorialSteps.length) {
+                // Tutorial complete
+                document.getElementById('tutCaption').textContent = "✅ Tutorial complete! Click 'Begin Study' to start.";
+                tutorialPlaying = false;
+                updatePlayButton();
+                tutorialStep = tutorialSteps.length - 1;
+                updateNavButtons();
+                return;
+            }
+
+            const step = tutorialSteps[tutorialStep];
+
+            // Show caption
+            const caption = document.getElementById('tutCaption');
+            caption.textContent = step.caption;
+            caption.classList.add('show');
+
+            // Highlight appropriate panel
+            if (step.panel === 'calc') {
+                const calc = document.getElementById('tutCalc');
+                calc.style.boxShadow = '0 0 0 4px rgba(255, 107, 0, 0.5), 0 0 30px rgba(255, 107, 0, 0.8), 0 0 60px rgba(255, 107, 0, 0.4)';
+                calc.style.transform = 'scale(1.15)';
+                calc.style.border = '3px solid #FF6B00';
+                calc.style.animation = 'pulse-highlight 1.5s ease-in-out infinite';
+            } else if (step.panel) {
+                document.getElementById('tutPanel' + step.panel).classList.add('highlight');
+            }
+
+            // Auto-advance if playing
+            if (tutorialPlaying) {
+                tutorialTimer = setTimeout(nextTutorialStep, step.duration);
+            }
+        }
+
+        const titles = {
+            'intro': 'Welcome',
+            'q1': 'Understanding Energy Units ⚡',
+            'q2': 'Solar Panel Basics ☀️',
+            'q3': 'Daily Energy Production ☀️',
+            'q4': 'Solar Cost & Tax Credit 💰',
+            'q5': 'Battery Storage Selection 🔋',
+            'q6': 'Choosing the Best Solar Plan 🎯',
+            'survey': 'Post-Study Survey',
+            'completion': 'Complete'
+        };
+
+        let activeCalcQ = 1;
+        const calcDisplay = () => document.getElementById('calcPopupDisplay');
+
+        function calcInput(q, val) {
+            if (calcExpressions[q] === '0') calcExpressions[q] = '';
+            calcExpressions[q] += val;
+            calcDisplay().textContent = calcExpressions[q] || '0';
+        }
+
+        function toggleCalc(q) {
+            activeCalcQ = q;
+            calcDisplay().textContent = calcExpressions[q] || '0';
+            document.getElementById('calcPopupOverlay').classList.add('open');
+        }
+
+        function closeCalcPopup(e) {
+            if (e && e.target !== e.currentTarget) return;
+            document.getElementById('calcPopupOverlay').classList.remove('open');
+        }
+
+        function calcClear(q) {
+            calcExpressions[q] = '';
+            calcDisplay().textContent = '0';
+        }
+
+        function calcBackspace(q) {
+            calcExpressions[q] = calcExpressions[q].slice(0, -1);
+            calcDisplay().textContent = calcExpressions[q] || '0';
+        }
+
+        function calcEquals(q) {
+            try {
+                const result = eval(calcExpressions[q]);
+                calcDisplay().textContent = result;
+                logEvent('calculator_use', { question: q, expression: calcExpressions[q], result: result });
+                calcExpressions[q] = String(result);
+            } catch (e) {
+                calcDisplay().textContent = 'Error';
+                calcExpressions[q] = '';
+            }
+        }
+
+        function showScreen(id) {
+            if (activeTimer) {
+                clearInterval(activeTimer);
+                activeTimer = null;
+            }
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
+            
+            // Update title in header
+            const titleEl = document.getElementById('currentTitle');
+            if (titles[id]) {
+                titleEl.textContent = titles[id];
+            } else if (id.startsWith('refocus')) {
+                titleEl.textContent = 'Brief Pause';
+            }
+            
+            // Update progress
+            const qNum = parseInt(id.replace('q', ''));
+            if (!isNaN(qNum)) {
+                for (let i = 1; i <= 6; i++) {
+                    const step = document.getElementById('prog' + i);
+                    step.classList.remove('active', 'completed');
+                    if (i < qNum) step.classList.add('completed');
+                    else if (i === qNum) step.classList.add('active');
+                }
+            }
+            
+            logEvent('screen_view', { screen: id });
+        }
+
+        function startTimer(refocusNum, nextScreen) {
+            let seconds = 5;
+            const timerCircle = document.getElementById('timer' + refocusNum);
+            const timerNum = document.getElementById('timerNum' + refocusNum);
+            timerNum.textContent = seconds;
+
+            activeTimer = setInterval(() => {
+                seconds--;
+                timerNum.textContent = seconds;
+                const progress = (seconds / 5) * 100;
+                timerCircle.style.setProperty('--progress', progress);
+                
+                if (seconds <= 0) {
+                    clearInterval(activeTimer);
+                    activeTimer = null;
+                    showScreen(nextScreen);
+                }
+            }, 1000);
+        }
+
+        function skipTimer(nextQ) {
+            if (activeTimer) {
+                clearInterval(activeTimer);
+                activeTimer = null;
+            }
+            const nextScreen = nextQ === 'survey' ? 'survey' : 'q' + nextQ;
+            showScreen(nextScreen);
+        }
+
+        function selectAnswer(el, qNum) {
+            el.parentElement.querySelectorAll('.answer-option').forEach(o => o.classList.remove('selected'));
+            el.classList.add('selected');
+            responses[qNum] = { answer: el.dataset.answer };
+            document.getElementById('submit' + qNum).disabled = false;
+            logEvent('answer_select', { question: qNum, answer: el.dataset.answer });
+        }
+
+        function submitAnswer(qNum) {
+            responses[qNum].timestamp = Date.now() - startTime;
+            responses[qNum].calcUsed = calcExpressions[qNum] !== '';
+            const btn = document.getElementById('submit' + qNum);
+            btn.textContent = '✓ Submitted';
+            btn.disabled = true;
+            btn.style.background = '#4CAF50';
+            logEvent('answer_submit', { question: qNum, ...responses[qNum] });
+            
+            setTimeout(() => {
+                const nextRefocus = 'refocus' + qNum;
+                showScreen(nextRefocus);
+                const nextQ = qNum < 6 ? qNum + 1 : 'survey';
+                startTimer(qNum, nextQ === 'survey' ? 'survey' : 'q' + nextQ);
+            }, 600);
+        }
+
+        function submitSurvey() {
+            // Radio buttons (q1-q15)
+            for (let i = 1; i <= 15; i++) {
+                const el = document.querySelector(`[name="q${i}"]:checked`);
+                if (el) surveyData['q' + i] = el.value;
+            }
+            // Dropdowns (q16-q19)
+            for (let i = 16; i <= 19; i++) {
+                const el = document.querySelector(`select[name="q${i}"]`);
+                if (el && el.value) surveyData['q' + i] = el.value;
+            }
+            logEvent('survey_complete', { surveyData, responses, totalTime: Date.now() - startTime });
+            showScreen('completion');
+        }
+
+        function logEvent(type, data) {
+            console.log('EVENT:', { type, ts: Date.now() - startTime, ...data });
+        }
+
+        document.querySelectorAll('.panel').forEach(p => {
+            let enter = null;
+            p.addEventListener('mouseenter', () => enter = Date.now());
+            p.addEventListener('mouseleave', () => {
+                if (enter) {
+                    logEvent('panel_dwell', { aoi: p.dataset.aoi, duration: Date.now() - enter });
+                    enter = null;
+                }
+            });
+        });
+
+        logEvent('module_start', {});
+    </script>
+</body>
+</html>

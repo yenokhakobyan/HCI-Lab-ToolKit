@@ -473,7 +473,7 @@ async function runCalibrationValidation() {
 // ── Step 3: Content & Data Collection ─────────────────────
 
 async function startContent() {
-    const contentUrl = experimentConfig.content_url || '/static/experiments/green_energy_demo.html';
+    const contentUrl = experimentConfig.content_url || '/static/experiments/green_energy_v2.1.html';
     console.log('Loading content:', contentUrl);
 
     // Enable collection immediately so gaze/mouse data is captured during setup
