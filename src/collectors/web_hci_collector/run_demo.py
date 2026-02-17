@@ -29,7 +29,7 @@ def main():
     parser.add_argument("--no-browser", action="store_true", help="Don't open browser automatically")
     parser.add_argument("--no-ssl", action="store_true", help="Disable HTTPS (webcam won't work)")
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
-    parser.add_argument("--output-dir", default="data/raw/web_hci", help="Output directory for data")
+    parser.add_argument("--output-dir", default="/Users/yenokhakobyan/HCI Lab ToolKit/data/raw/web_hci", help="Output directory for data")
 
     args = parser.parse_args()
 

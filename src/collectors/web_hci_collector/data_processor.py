@@ -65,7 +65,7 @@ class DataProcessor:
     - Data synchronization across streams
     """
 
-    def __init__(self, output_dir: str = "data/raw/web_hci"):
+    def __init__(self, output_dir: str = "/Users/yenokhakobyan/HCI Lab ToolKit/data/raw/web_hci"):
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
 

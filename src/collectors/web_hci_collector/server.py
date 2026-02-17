@@ -35,7 +35,7 @@ class ServerConfig:
     """Configuration for the Web HCI Collector Server."""
     host: str = "127.0.0.1"
     port: int = 8000
-    output_dir: str = "data/raw/web_hci"
+    output_dir: str = "/Users/yenokhakobyan/HCI Lab ToolKit/data/raw/web_hci"
     enable_emotion_detection: bool = True
     enable_l2cs_gaze: bool = False  # L2CS-Net server-side gaze estimation (optional)
     save_interval_seconds: int = 30
