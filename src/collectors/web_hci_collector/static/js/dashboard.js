@@ -106,6 +106,7 @@ let videoUrl = null;
 let videoElement = null;
 let videoMimeType = 'video/webm';
 let videoStartTime = 0;
+let videoOffset = 0;  // ms between data collection start and video recording start
 let videoDuration = 0;
 
 // Live video streaming state (MSE)
@@ -278,9 +279,12 @@ async function loadSavedSession(sessionIdToLoad) {
                 loadedSessionDuration = Math.max(...allTimes);
             }
 
-            // Also check metadata for duration
+            // Also check metadata for duration and video offset
             if (timeline.metadata && timeline.metadata.duration) {
                 loadedSessionDuration = timeline.metadata.duration;
+            }
+            if (timeline.metadata && timeline.metadata.videoOffset !== undefined) {
+                videoOffset = timeline.metadata.videoOffset;
             }
         }
 
@@ -1777,11 +1781,10 @@ function updatePlaybackScreenshot(currentTime) {
                 lastPlaybackDisplayState = 'video';
             }
 
-            // Seek video to current time (convert ms to seconds)
-            // Only seek if more than 1 second off to avoid jittery playback
-            const videoTime = currentTime / 1000;
+            // Seek video to current time, accounting for video start offset
+            const videoTime = Math.max(0, currentTime - videoOffset) / 1000;
             const timeDiff = Math.abs(videoElement.currentTime - videoTime);
-            if (timeDiff > 1.0 || (!timelineIsPlaying && timeDiff > 0.1)) {
+            if (timeDiff > 0.3 || (!timelineIsPlaying && timeDiff > 0.1)) {
                 videoElement.currentTime = videoTime;
             }
 
@@ -1924,6 +1927,7 @@ function resetTimelineData() {
     videoBlob = null;
     videoDuration = 0;
     videoStartTime = 0;
+    videoOffset = 0;
     videoSourceSet = false;  // Allow new video source to be set
     lastPlaybackDisplayState = null;  // Reset display state tracking
     if (videoElement) {
@@ -2339,6 +2343,9 @@ function handleVideoStart(data) {
     console.log('Video recording started:', data);
     videoMimeType = data.mimeType || 'video/webm';
     videoStartTime = data.startTime || Date.now();
+    // Compute offset: how many ms after startTime did the video begin
+    videoOffset = startTime ? (videoStartTime - startTime) : 0;
+    console.log(`[Video] Offset from data start: ${videoOffset}ms`);
     timelineData.videoChunks = [];
 
     // Clean up any existing video
@@ -3151,6 +3158,7 @@ async function handleSessionEvent(data) {
     if (data.event === 'start') {
         startTime = Date.now();
         sessionEndDuration = 0;
+        videoOffset = 0;
         isCollecting = true;
         addLogEntry('system', 'Session started');
 
@@ -3277,7 +3285,8 @@ async function saveTimelineData() {
                 participantWindowHeight: participantWindowHeight,
                 participantScreenWidth: participantScreenWidth,
                 participantScreenHeight: participantScreenHeight,
-                duration: startTime ? Date.now() - startTime : 0,
+                duration: startTime ? Date.now() - startTime : (sessionEndDuration || 0),
+                videoOffset: videoOffset,
                 savedAt: new Date().toISOString()
             }
         };
