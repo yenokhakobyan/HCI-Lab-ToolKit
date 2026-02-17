@@ -19,6 +19,7 @@ let ws = null;
 let isCollecting = false;
 let sessionId = null;
 let startTime = null;
+let sessionEndDuration = 0;
 let stats = {
     gazeSamples: 0,
     faceSamples: 0,
@@ -606,7 +607,8 @@ function getSessionDuration() {
         }
         return 60000; // Default 1 minute if not set
     }
-    return startTime ? Date.now() - startTime : 0;
+    if (startTime) return Date.now() - startTime;
+    return sessionEndDuration || 0;
 }
 
 /**
@@ -2259,7 +2261,7 @@ function handleIncomingData(data) {
     if (session_id && sessionId !== session_id) {
         sessionId = session_id;
         document.getElementById('session-id').textContent = session_id;
-        if (!startTime) startTime = Date.now();
+        // Don't auto-set startTime here — wait for explicit session start event
     }
 
     switch (type) {
@@ -3148,6 +3150,7 @@ function handleKeyboardData(data) {
 async function handleSessionEvent(data) {
     if (data.event === 'start') {
         startTime = Date.now();
+        sessionEndDuration = 0;
         isCollecting = true;
         addLogEntry('system', 'Session started');
 
@@ -3214,6 +3217,10 @@ async function handleSessionEvent(data) {
         isCollecting = false;
         stopLiveVideo();
         addLogEntry('system', 'Session ended');
+
+        // Capture final duration before clearing startTime
+        if (startTime) sessionEndDuration = Date.now() - startTime;
+        startTime = null;
 
         // Save timeline data to server
         await saveTimelineData();
@@ -3921,6 +3928,10 @@ function handleSessionStatusUpdate(data, sid) {
     if (sid === sessionId && (newStatus === 'abandoned' || newStatus === 'completed')) {
         isCollecting = false;
         stopLiveVideo();
+
+        // Capture final duration before clearing startTime
+        if (startTime) sessionEndDuration = Date.now() - startTime;
+        startTime = null;
 
         // Save timeline data
         saveTimelineData();
