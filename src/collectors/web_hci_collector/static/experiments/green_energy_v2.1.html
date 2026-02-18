@@ -50,8 +50,8 @@
             flex: 1;
         }
         .header h1 {
-            font-size: clamp(14px, 1.6vw, 22px); 
-            font-weight: 600; 
+            font-size: clamp(14px, 1.6vw, 22px);
+            font-weight: 600;
             white-space: nowrap;
         }
         .header h1::before { content: "🌱 "; }
@@ -69,21 +69,34 @@
             overflow: hidden;
             text-overflow: ellipsis;
         }
-        .progress-bar { display: flex; gap: clamp(4px, 0.5vw, 8px); align-items: center; flex-shrink: 0; }
+        .progress-bar {
+            display: flex;
+            gap: clamp(3px, 0.4vw, 6px);
+            align-items: center;
+            flex-shrink: 0;
+            position: relative;
+        }
         .progress-step {
-            width: clamp(18px, 2vw, 28px);
-            height: clamp(18px, 2vw, 28px);
+            width: clamp(14px, 1.6vw, 22px);
+            height: clamp(14px, 1.6vw, 22px);
             border-radius: 50%;
             background: rgba(255,255,255,0.2);
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: clamp(8px, 0.9vw, 12px);
+            font-size: clamp(7px, 0.8vw, 11px);
             font-weight: 600;
             transition: all 0.3s;
         }
         .progress-step.active { background: var(--accent-yellow); color: var(--dark-bg); transform: scale(1.15); }
         .progress-step.completed { background: var(--secondary-green); }
+        .progress-text {
+            display: none;
+            color: var(--accent-yellow);
+            font-size: clamp(12px, 1.3vw, 16px);
+            font-weight: 700;
+            font-family: 'IBM Plex Mono', monospace;
+        }
 
         .screen { display: none; flex: 1; overflow: hidden; min-height: 0; }
         .screen.active { display: flex; flex-direction: column; }
@@ -140,7 +153,7 @@
         .text-content ul { margin: clamp(10px, 1.4vh, 16px) 0 clamp(12px, 1.6vh, 18px) clamp(20px, 2.5vw, 30px); }
         .text-content li { margin-bottom: clamp(6px, 0.8vh, 12px); }
         .text-content strong { color: var(--primary-green); }
-        
+
         .highlight-box {
             background: linear-gradient(135deg, #E3F2FD, #BBDEFB);
             border-left: 4px solid var(--info-blue);
@@ -157,16 +170,16 @@
             border-radius: clamp(8px, 1vw, 14px);
             text-align: center;
         }
-        .formula-box .formula { 
-            font-size: clamp(14px, 1.5vw, 20px); 
-            font-weight: 700; 
-            color: var(--primary-green); 
-            font-family: 'IBM Plex Mono', monospace; 
+        .formula-box .formula {
+            font-size: clamp(14px, 1.5vw, 20px);
+            font-weight: 700;
+            color: var(--primary-green);
+            font-family: 'IBM Plex Mono', monospace;
         }
-        .formula-box .example { 
-            font-size: clamp(10px, 1vw, 14px); 
-            color: var(--text-secondary); 
-            margin-top: clamp(4px, 0.6vh, 8px); 
+        .formula-box .example {
+            font-size: clamp(10px, 1vw, 14px);
+            color: var(--text-secondary);
+            margin-top: clamp(4px, 0.6vh, 8px);
         }
 
         .infographic { flex: 1; display: flex; flex-direction: column; gap: clamp(8px, 1vh, 12px); overflow-y: auto; min-height: 0; }
@@ -225,6 +238,10 @@
         .compare-block.highlight {
             background: linear-gradient(135deg, #E8F5E9, #C8E6C9);
             border: 2px solid var(--primary-green);
+        }
+        .compare-block.negative {
+            background: linear-gradient(135deg, #FFEBEE, #FFCDD2);
+            border: 2px solid var(--warning-red);
         }
         .compare-block-icon { font-size: clamp(20px, 2.2vw, 30px); margin-bottom: clamp(4px, 0.5vh, 8px); }
         .compare-block-title { font-size: clamp(10px, 1.1vw, 14px); font-weight: 600; color: var(--text-secondary); }
@@ -567,7 +584,7 @@
             overflow-y: auto;
             width: 100%;
         }
-        
+
         .intro-animation {
             width: 100%;
             height: clamp(120px, 18vh, 200px);
@@ -616,11 +633,11 @@
             animation: bounce-arrow 1s infinite;
             text-shadow: 0 2px 8px rgba(0,0,0,0.2);
         }
-        .anim-house { 
-            position: absolute; 
-            bottom: clamp(18px, 3vh, 35px); 
-            right: clamp(35px, 6vw, 65px); 
-            font-size: clamp(26px, 4vw, 45px); 
+        .anim-house {
+            position: absolute;
+            bottom: clamp(18px, 3vh, 35px);
+            right: clamp(35px, 6vw, 65px);
+            font-size: clamp(26px, 4vw, 45px);
         }
         .anim-text {
             position: absolute;
@@ -652,27 +669,27 @@
             margin-bottom: clamp(8px, 1.2vh, 14px);
         }
         .intro-steps { text-align: left; margin: clamp(14px, 2vh, 22px) 0; padding: 0; list-style: none; }
-        .intro-steps li { 
-            padding: clamp(8px, 1.2vh, 14px) 0; 
-            font-size: clamp(12px, 1.3vw, 16px); 
-            display: flex; 
-            align-items: center; 
-            gap: clamp(8px, 1.2vw, 14px); 
-            border-bottom: 1px solid var(--border-light); 
+        .intro-steps li {
+            padding: clamp(8px, 1.2vh, 14px) 0;
+            font-size: clamp(12px, 1.3vw, 16px);
+            display: flex;
+            align-items: center;
+            gap: clamp(8px, 1.2vw, 14px);
+            border-bottom: 1px solid var(--border-light);
         }
         .intro-steps li:last-child { border-bottom: none; }
-        .step-num { 
-            background: var(--primary-green); 
-            color: white; 
-            width: clamp(24px, 2.8vw, 34px); 
-            height: clamp(24px, 2.8vw, 34px); 
-            border-radius: 50%; 
-            display: flex; 
-            align-items: center; 
-            justify-content: center; 
-            font-size: clamp(11px, 1.2vw, 15px); 
-            font-weight: 700; 
-            flex-shrink: 0; 
+        .step-num {
+            background: var(--primary-green);
+            color: white;
+            width: clamp(24px, 2.8vw, 34px);
+            height: clamp(24px, 2.8vw, 34px);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: clamp(11px, 1.2vw, 15px);
+            font-weight: 700;
+            flex-shrink: 0;
         }
         .intro-btn, .refocus-btn {
             background: var(--primary-green);
@@ -928,45 +945,45 @@
         .survey-header { text-align: center; margin-bottom: clamp(14px, 2vh, 22px); }
         .survey-title { font-size: clamp(18px, 2.2vw, 28px); font-weight: 700; color: var(--primary-green); }
         .survey-subtitle { font-size: clamp(12px, 1.3vw, 16px); color: var(--text-secondary); margin-top: clamp(4px, 0.6vh, 8px); }
-        .survey-section { 
-            background: white; 
-            border-radius: clamp(12px, 1.5vw, 18px); 
-            padding: clamp(14px, 2vw, 22px); 
-            margin-bottom: clamp(10px, 1.5vh, 16px); 
-            border: 1px solid var(--border-light); 
-            box-shadow: 0 2px 8px rgba(0,0,0,0.04); 
+        .survey-section {
+            background: white;
+            border-radius: clamp(12px, 1.5vw, 18px);
+            padding: clamp(14px, 2vw, 22px);
+            margin-bottom: clamp(10px, 1.5vh, 16px);
+            border: 1px solid var(--border-light);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
         }
-        .survey-section-title { 
-            font-size: clamp(13px, 1.4vw, 18px); 
-            font-weight: 700; 
-            color: var(--primary-green); 
-            margin-bottom: clamp(12px, 1.6vh, 18px); 
-            padding-bottom: clamp(8px, 1vh, 12px); 
-            border-bottom: 2px solid var(--light-green); 
+        .survey-section-title {
+            font-size: clamp(13px, 1.4vw, 18px);
+            font-weight: 700;
+            color: var(--primary-green);
+            margin-bottom: clamp(12px, 1.6vh, 18px);
+            padding-bottom: clamp(8px, 1vh, 12px);
+            border-bottom: 2px solid var(--light-green);
         }
         .survey-question { margin-bottom: clamp(14px, 1.8vh, 20px); }
         .survey-question:last-child { margin-bottom: 0; }
-        .survey-q-label { 
-            font-size: clamp(12px, 1.25vw, 16px); 
-            font-weight: 500; 
-            color: var(--text-primary); 
-            margin-bottom: clamp(10px, 1.2vh, 14px); 
-            display: flex; 
-            gap: clamp(8px, 1vw, 12px); 
-            align-items: flex-start; 
+        .survey-q-label {
+            font-size: clamp(12px, 1.25vw, 16px);
+            font-weight: 500;
+            color: var(--text-primary);
+            margin-bottom: clamp(10px, 1.2vh, 14px);
+            display: flex;
+            gap: clamp(8px, 1vw, 12px);
+            align-items: flex-start;
         }
-        .survey-q-num { 
-            background: var(--primary-green); 
-            color: white; 
-            width: clamp(22px, 2.4vw, 30px); 
-            height: clamp(22px, 2.4vw, 30px); 
-            border-radius: 50%; 
-            display: flex; 
-            align-items: center; 
-            justify-content: center; 
-            font-size: clamp(10px, 1.1vw, 14px); 
-            font-weight: 700; 
-            flex-shrink: 0; 
+        .survey-q-num {
+            background: var(--primary-green);
+            color: white;
+            width: clamp(22px, 2.4vw, 30px);
+            height: clamp(22px, 2.4vw, 30px);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: clamp(10px, 1.1vw, 14px);
+            font-weight: 700;
+            flex-shrink: 0;
         }
 
         .rating-scale { display: flex; justify-content: center; gap: clamp(8px, 1.2vw, 14px); margin-left: clamp(30px, 3.5vw, 42px); flex-wrap: wrap; }
@@ -1016,20 +1033,26 @@
         }
 
         .survey-nav { display: flex; justify-content: center; padding: clamp(16px, 2.5vh, 24px) 0; }
-        .survey-submit { 
-            background: var(--primary-green); 
-            color: white; 
-            border: none; 
-            padding: clamp(12px, 1.6vw, 18px) clamp(36px, 5vw, 56px); 
-            border-radius: clamp(10px, 1.2vw, 14px); 
-            font-size: clamp(14px, 1.5vw, 18px); 
-            font-weight: 700; 
-            cursor: pointer; 
-            transition: all 0.2s; 
+        .survey-submit {
+            background: var(--primary-green);
+            color: white;
+            border: none;
+            padding: clamp(12px, 1.6vw, 18px) clamp(36px, 5vw, 56px);
+            border-radius: clamp(10px, 1.2vw, 14px);
+            font-size: clamp(14px, 1.5vw, 18px);
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
         }
         .survey-submit:hover { background: #145A32; transform: translateY(-2px); }
 
-        /* Responsive adjustments for very small screens */
+        /* Responsive: medium desktop */
+        @media (max-width: 1200px) {
+            .content-grid { grid-template-columns: 1fr 1fr 0.65fr; gap: clamp(6px, 1vw, 12px); }
+            .session-screen { padding: clamp(4px, 0.6vh, 6px) clamp(6px, 1vw, 10px); }
+        }
+
+        /* Responsive: tablet */
         @media (max-width: 900px) {
             .content-grid {
                 grid-template-columns: 1fr 1fr;
@@ -1037,16 +1060,23 @@
             }
             .question-panel {
                 grid-column: span 2;
+                max-height: 40vh;
+                overflow-y: auto;
             }
+            body { font-size: clamp(12px, 1.5vw, 15px); }
+            .progress-step { display: none; }
+            .progress-text { display: block; }
         }
 
+        /* Responsive: mobile */
         @media (max-width: 600px) {
             .content-grid {
                 grid-template-columns: 1fr;
                 grid-template-rows: auto;
             }
             .panel {
-                max-height: 40vh;
+                max-height: 35vh;
+                overflow-y: auto;
             }
             .question-panel {
                 grid-column: span 1;
@@ -1063,6 +1093,21 @@
             .session-title {
                 font-size: 11px;
             }
+            .compare-blocks { flex-direction: column; }
+        }
+
+        /* Responsive: landscape tablet (height-constrained) */
+        @media (max-height: 600px) and (orientation: landscape) {
+            .header { padding: clamp(3px, 0.5vh, 6px) clamp(12px, 2vw, 30px); }
+            .header h1 { font-size: clamp(12px, 1.3vw, 16px); }
+            .session-screen { padding: clamp(2px, 0.5vh, 4px) clamp(6px, 1vw, 10px); }
+            .panel { padding: clamp(8px, 1vw, 14px); }
+            .visual-card { padding: clamp(6px, 0.8vw, 10px); }
+        }
+
+        /* Responsive: ultra-wide */
+        @media (min-width: 1920px) {
+            .session-screen { max-width: 1800px; margin: 0 auto; }
         }
     </style>
 </head>
@@ -1086,6 +1131,7 @@
             <div class="progress-step" id="prog10">10</div>
             <div class="progress-step" id="prog11">11</div>
             <div class="progress-step" id="prog12">12</div>
+            <span class="progress-text" id="progressText">1/12</span>
         </div>
     </header>
 
@@ -1117,7 +1163,6 @@
                             </div>
                         </div>
                         <div class="tutorial-content">
-                            <!-- Text Panel -->
                             <div class="tutorial-panel" id="tutPanel1">
                                 <div class="tutorial-panel-content">
                                     <div class="tutorial-panel-line short"></div>
@@ -1128,7 +1173,6 @@
                                     <div class="tutorial-panel-box"></div>
                                 </div>
                             </div>
-                            <!-- Visual Panel -->
                             <div class="tutorial-panel" id="tutPanel2">
                                 <div class="tutorial-panel-content">
                                     <div class="tutorial-panel-line short"></div>
@@ -1136,7 +1180,6 @@
                                     <div class="tutorial-panel-box" style="background: linear-gradient(135deg, #fff8e1, #ffecb3);"></div>
                                 </div>
                             </div>
-                            <!-- Question Panel -->
                             <div class="tutorial-panel" id="tutPanel3">
                                 <div class="tutorial-panel-content">
                                     <div class="tutorial-panel-box" style="height: 25%; flex: none; background: linear-gradient(135deg, #fff8e1, #ffecb3);"></div>
@@ -1185,7 +1228,11 @@
         </div>
     </section>
 
-    <!-- QUESTION 1: Energy Units -->
+    <!-- ============================================================ -->
+    <!-- QUESTIONS 1-4: FOUNDATION (Complexity 2 - Single Formula)    -->
+    <!-- ============================================================ -->
+
+    <!-- QUESTION 1: Energy Units (was Q1) -->
     <section class="screen" id="q1" data-title="Understanding Energy Units ⚡">
         <div class="session-screen">
             <div class="content-grid">
@@ -1193,7 +1240,7 @@
                     <div class="text-content">
                         <h3>What is a Kilowatt-Hour (kWh)?</h3>
                         <p>When you pay your electricity bill, you're paying for <strong>kilowatt-hours (kWh)</strong> — the standard unit of electrical energy consumption. Think of it as a measure of how much electricity you've used over time.</p>
-                        
+
                         <p>One kWh represents using <strong>1,000 watts of power for one hour</strong>. For example, running ten 100-watt light bulbs for one hour uses exactly 1 kWh.</p>
 
                         <h4>Appliance Power Ratings</h4>
@@ -1268,24 +1315,11 @@
             </div>
         </div>
     </section>
-
-    <!-- Refocus 1 -->
     <section class="screen" id="refocus1">
-        <div class="refocus-screen">
-            <div class="refocus-card">
-                <h2 class="refocus-title">Brief Pause</h2>
-                <p class="refocus-text">Please focus on the dot below. The next question will begin automatically.</p>
-                <div class="refocus-timer">
-                    <div class="timer-circle" id="timer1" style="--progress: 100;">
-                        <div class="timer-inner" id="timerNum1">5</div>
-                    </div>
-                    <div class="focus-dot"></div>
-                </div>
-            </div>
-        </div>
+        <div class="refocus-screen"><div class="refocus-card"><h2 class="refocus-title">Brief Pause</h2><p class="refocus-text">Please focus on the dot below. The next question will begin automatically.</p><div class="refocus-timer"><div class="timer-circle" id="timer1" style="--progress: 100;"><div class="timer-inner" id="timerNum1">5</div></div><div class="focus-dot"></div></div></div></div>
     </section>
 
-    <!-- QUESTION 2: Solar Panel Sizing -->
+    <!-- QUESTION 2: Solar Panel Sizing (was Q2) -->
     <section class="screen" id="q2" data-title="Solar Panel Basics ☀️">
         <div class="session-screen">
             <div class="content-grid">
@@ -1293,7 +1327,7 @@
                     <div class="text-content">
                         <h3>How Solar Panels Are Rated</h3>
                         <p>Solar panels are rated by the <strong>maximum power</strong> they can produce under ideal sunlight conditions, measured in watts (W). A typical residential solar panel today produces between <strong>300 and 400 watts</strong>.</p>
-                        
+
                         <h4>Panel Categories</h4>
                         <p>Manufacturers offer different panel tiers to match various budgets and space constraints:</p>
                         <ul>
@@ -1369,130 +1403,19 @@
             </div>
         </div>
     </section>
-
-    <!-- Refocus 2 -->
     <section class="screen" id="refocus2">
-        <div class="refocus-screen">
-            <div class="refocus-card">
-                <h2 class="refocus-title">Brief Pause</h2>
-                <p class="refocus-text">Please focus on the dot below. The next question will begin automatically.</p>
-                <div class="refocus-timer">
-                    <div class="timer-circle" id="timer2" style="--progress: 100;">
-                        <div class="timer-inner" id="timerNum2">5</div>
-                    </div>
-                    <div class="focus-dot"></div>
-                </div>
-            </div>
-        </div>
+        <div class="refocus-screen"><div class="refocus-card"><h2 class="refocus-title">Brief Pause</h2><p class="refocus-text">Please focus on the dot below. The next question will begin automatically.</p><div class="refocus-timer"><div class="timer-circle" id="timer2" style="--progress: 100;"><div class="timer-inner" id="timerNum2">5</div></div><div class="focus-dot"></div></div></div></div>
     </section>
 
-    <!-- QUESTION 3: Daily Production -->
-    <section class="screen" id="q3" data-title="Daily Energy Production ☀️">
+    <!-- QUESTION 3: Tax Credit Net Cost (was Q4) -->
+    <section class="screen" id="q3" data-title="Solar Cost & Tax Credit 💰">
         <div class="session-screen">
             <div class="content-grid">
                 <div class="panel" data-aoi="q3-text">
                     <div class="text-content">
-                        <h3>How Much Energy Will Your System Produce?</h3>
-                        <p>The amount of electricity your solar panels generate each day depends on two key factors: your <strong>system size</strong> and your location's <strong>peak sun hours</strong>.</p>
-                        
-                        <h4>Understanding Peak Sun Hours</h4>
-                        <p><strong>Peak sun hours</strong> represent the equivalent number of hours when sunlight intensity averages 1,000 watts per square meter. This isn't the same as daylight hours — it's a measure of usable solar energy.</p>
-
-                        <h4>Peak Sun Hours by Location</h4>
-                        <ul>
-                            <li><strong>Phoenix, AZ:</strong> 6.5 hours — desert climate, excellent solar</li>
-                            <li><strong>Denver, CO:</strong> 5.5 hours — high altitude, good solar</li>
-                            <li><strong>Chicago, IL:</strong> 4.0 hours — midwest climate, moderate solar</li>
-                        </ul>
-
-                        <div class="formula-box">
-                            <div class="formula">Daily Output = System kW × Peak Sun Hours</div>
-                            <div class="example">Example: 6 kW × 5.5 hours = 33 kWh per day</div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="panel" data-aoi="q3-visual">
-                    <div class="infographic">
-                        <div class="visual-card">
-                            <div class="visual-title">☀️ Peak Sun Hours by City</div>
-                            <div class="meter-row">
-                                <div class="meter"><div class="meter-bar-container"><div class="meter-bar" style="height: 100%; background: linear-gradient(to top, #FF5722, #FF9800);">6.5</div></div><span class="meter-label">Phoenix</span></div>
-                                <div class="meter"><div class="meter-bar-container"><div class="meter-bar" style="height: 85%; background: linear-gradient(to top, #FFC107, #FFEB3B);">5.5</div></div><span class="meter-label">Denver</span></div>
-                                <div class="meter"><div class="meter-bar-container"><div class="meter-bar" style="height: 62%; background: linear-gradient(to top, #4CAF50, #8BC34A);">4.0</div></div><span class="meter-label">Chicago</span></div>
-                            </div>
-                        </div>
-                        <div class="visual-card">
-                            <div class="visual-title">🔢 Daily Production Formula</div>
-                            <div class="flow-diagram">
-                                <div class="flow-step"><div class="flow-icon" style="background: linear-gradient(135deg, #C8E6C9, #81C784);">kW</div><span class="flow-text">System Size</span></div>
-                                <span class="flow-arrow">×</span>
-                                <div class="flow-step"><div class="flow-icon" style="background: linear-gradient(135deg, #FFECB3, #FFD54F);">☀️</div><span class="flow-text">Sun Hours</span></div>
-                                <span class="flow-arrow">=</span>
-                                <div class="flow-step"><div class="flow-icon" style="background: linear-gradient(135deg, #BBDEFB, #64B5F6);">⚡</div><span class="flow-text">kWh/day</span></div>
-                            </div>
-                        </div>
-                        <div class="visual-card">
-                            <div class="visual-title">📊 Daily Output: 6 kW System</div>
-                            <div class="progress-bars">
-                                <div class="progress-item"><span class="progress-icon">🏜️</span><div class="progress-info"><div class="progress-label">Phoenix (6 kW × 6.5 hrs)</div><div class="progress-track"><div class="progress-fill" style="width: 100%; background: linear-gradient(to right, #FF5722, #FF8A65);">39 kWh</div></div></div></div>
-                                <div class="progress-item"><span class="progress-icon">🏔️</span><div class="progress-info"><div class="progress-label">Denver (6 kW × 5.5 hrs)</div><div class="progress-track"><div class="progress-fill" style="width: 85%; background: linear-gradient(to right, #FFC107, #FFD54F);">33 kWh</div></div></div></div>
-                                <div class="progress-item"><span class="progress-icon">🏙️</span><div class="progress-info"><div class="progress-label">Chicago (6 kW × 4.0 hrs)</div><div class="progress-track"><div class="progress-fill" style="width: 62%; background: linear-gradient(to right, #4CAF50, #81C784);">24 kWh</div></div></div></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="panel question-panel" data-aoi="q3-question">
-                    <div class="case-scenario">
-                        <h4>🏠 The Martinez Family</h4>
-                        <p>The Martinez family recently installed a solar system on their home in <strong>Denver, Colorado</strong>. Their system is <strong>6 kilowatts (kW)</strong> in size.</p>
-                        <div class="case-data">
-                            <div class="case-data-row"><span>Location:</span><span class="case-data-value">Denver, CO</span></div>
-                            <div class="case-data-row"><span>System Size:</span><span class="case-data-value">6 kW</span></div>
-                        </div>
-                    </div>
-                    <div class="question-box">
-                        <p class="question-text">How much energy will their system produce on a typical day?</p>
-                    </div>
-                    <div class="answer-options">
-                        <div class="answer-option" data-answer="A" onclick="selectAnswer(this, 3)"><span class="option-letter">A</span><span class="option-text"><strong>24 kWh/day</strong></span></div>
-                        <div class="answer-option" data-answer="B" onclick="selectAnswer(this, 3)"><span class="option-letter">B</span><span class="option-text"><strong>33 kWh/day</strong></span></div>
-                        <div class="answer-option" data-answer="C" onclick="selectAnswer(this, 3)"><span class="option-letter">C</span><span class="option-text"><strong>39 kWh/day</strong></span></div>
-                        <div class="answer-option" data-answer="D" onclick="selectAnswer(this, 3)"><span class="option-letter">D</span><span class="option-text"><strong>45 kWh/day</strong></span></div>
-                    </div>
-                    <button class="submit-btn" id="submit3" disabled onclick="submitAnswer(3)">Submit Answer</button>
-                    <button class="calc-toggle-btn" onclick="toggleCalc(3)">🧮 Calculator</button>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- Refocus 3 -->
-    <section class="screen" id="refocus3">
-        <div class="refocus-screen">
-            <div class="refocus-card">
-                <h2 class="refocus-title">Brief Pause</h2>
-                <p class="refocus-text">Please focus on the dot below. The next question will begin automatically.</p>
-                <div class="refocus-timer">
-                    <div class="timer-circle" id="timer3" style="--progress: 100;">
-                        <div class="timer-inner" id="timerNum3">5</div>
-                    </div>
-                    <div class="focus-dot"></div>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- QUESTION 4: Cost & Savings -->
-    <section class="screen" id="q4" data-title="Solar Cost & Tax Credit 💰">
-        <div class="session-screen">
-            <div class="content-grid">
-                <div class="panel" data-aoi="q4-text">
-                    <div class="text-content">
                         <h3>Understanding Solar Installation Costs</h3>
                         <p>A residential solar installation is a significant investment, but the federal government provides a powerful incentive: the <strong>Investment Tax Credit (ITC)</strong>, which allows you to deduct <strong>30%</strong> of your solar installation cost from your federal taxes.</p>
-                        
+
                         <h4>System Prices (Before Tax Credit)</h4>
                         <ul>
                             <li><strong>4 kW System:</strong> $12,000 — suitable for small homes</li>
@@ -1510,7 +1433,7 @@
                     </div>
                 </div>
 
-                <div class="panel" data-aoi="q4-visual">
+                <div class="panel" data-aoi="q3-visual">
                     <div class="infographic">
                         <div class="visual-card">
                             <div class="visual-title">💵 System Prices Before Tax Credit</div>
@@ -1541,7 +1464,7 @@
                     </div>
                 </div>
 
-                <div class="panel question-panel" data-aoi="q4-question">
+                <div class="panel question-panel" data-aoi="q3-question">
                     <div class="case-scenario">
                         <h4>🏠 The Wilson Family</h4>
                         <p>The Wilson family has a large home with high energy needs. They've decided to install an <strong>8 kW solar system</strong> and want to know their actual out-of-pocket cost after claiming the federal tax credit.</p>
@@ -1554,10 +1477,93 @@
                         <p class="question-text">What is their net cost after applying the tax credit?</p>
                     </div>
                     <div class="answer-options">
-                        <div class="answer-option" data-answer="A" onclick="selectAnswer(this, 4)"><span class="option-letter">A</span><span class="option-text"><strong>$14,400</strong></span></div>
-                        <div class="answer-option" data-answer="B" onclick="selectAnswer(this, 4)"><span class="option-letter">B</span><span class="option-text"><strong>$16,800</strong></span></div>
-                        <div class="answer-option" data-answer="C" onclick="selectAnswer(this, 4)"><span class="option-letter">C</span><span class="option-text"><strong>$18,000</strong></span></div>
-                        <div class="answer-option" data-answer="D" onclick="selectAnswer(this, 4)"><span class="option-letter">D</span><span class="option-text"><strong>$19,200</strong></span></div>
+                        <div class="answer-option" data-answer="A" onclick="selectAnswer(this, 3)"><span class="option-letter">A</span><span class="option-text"><strong>$14,400</strong></span></div>
+                        <div class="answer-option" data-answer="B" onclick="selectAnswer(this, 3)"><span class="option-letter">B</span><span class="option-text"><strong>$16,800</strong></span></div>
+                        <div class="answer-option" data-answer="C" onclick="selectAnswer(this, 3)"><span class="option-letter">C</span><span class="option-text"><strong>$18,000</strong></span></div>
+                        <div class="answer-option" data-answer="D" onclick="selectAnswer(this, 3)"><span class="option-letter">D</span><span class="option-text"><strong>$19,200</strong></span></div>
+                    </div>
+                    <button class="submit-btn" id="submit3" disabled onclick="submitAnswer(3)">Submit Answer</button>
+                    <button class="calc-toggle-btn" onclick="toggleCalc(3)">🧮 Calculator</button>
+                </div>
+            </div>
+        </div>
+    </section>
+    <section class="screen" id="refocus3">
+        <div class="refocus-screen"><div class="refocus-card"><h2 class="refocus-title">Brief Pause</h2><p class="refocus-text">Please focus on the dot below. The next question will begin automatically.</p><div class="refocus-timer"><div class="timer-circle" id="timer3" style="--progress: 100;"><div class="timer-inner" id="timerNum3">5</div></div><div class="focus-dot"></div></div></div></div>
+    </section>
+
+    <!-- QUESTION 4: Payback Period (was Q9) -->
+    <section class="screen" id="q4" data-title="Solar Payback Period 📅">
+        <div class="session-screen">
+            <div class="content-grid">
+                <div class="panel" data-aoi="q4-text">
+                    <div class="text-content">
+                        <h3>How Long Until Solar Pays for Itself?</h3>
+                        <p>The <strong>payback period</strong> is the number of years it takes for cumulative energy savings to equal your initial investment. After this point, your solar system generates pure savings.</p>
+
+                        <h4>Calculating Annual Savings</h4>
+                        <p>Your annual electricity savings depend on how much energy your solar system produces and your local utility rate:</p>
+                        <ul>
+                            <li><strong>High-rate area ($0.25/kWh):</strong> 8,000 kWh/year saves <strong>$2,000/year</strong></li>
+                            <li><strong>Mid-rate area ($0.15/kWh):</strong> 8,000 kWh/year saves <strong>$1,200/year</strong></li>
+                            <li><strong>Low-rate area ($0.10/kWh):</strong> 8,000 kWh/year saves <strong>$800/year</strong></li>
+                        </ul>
+
+                        <div class="formula-box">
+                            <div class="formula">Payback Years = Net System Cost ÷ Annual Savings</div>
+                            <div class="example">Example: $12,600 ÷ $2,000/yr = 6.3 years</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel" data-aoi="q4-visual">
+                    <div class="infographic">
+                        <div class="visual-card">
+                            <div class="visual-title">💵 Annual Savings by Rate</div>
+                            <div class="meter-row">
+                                <div class="meter"><div class="meter-bar-container"><div class="meter-bar" style="height: 100%; background: linear-gradient(to top, #4CAF50, #81C784);">$2,000</div></div><span class="meter-label">High Rate</span></div>
+                                <div class="meter"><div class="meter-bar-container"><div class="meter-bar" style="height: 60%; background: linear-gradient(to top, #FFC107, #FFEB3B);">$1,200</div></div><span class="meter-label">Mid Rate</span></div>
+                                <div class="meter"><div class="meter-bar-container"><div class="meter-bar" style="height: 40%; background: linear-gradient(to top, #FF5722, #FF8A65);">$800</div></div><span class="meter-label">Low Rate</span></div>
+                            </div>
+                        </div>
+                        <div class="visual-card">
+                            <div class="visual-title">🔢 Payback Formula</div>
+                            <div class="flow-diagram">
+                                <div class="flow-step"><div class="flow-icon" style="background: linear-gradient(135deg, #FFCDD2, #EF9A9A);">💵</div><span class="flow-text">Net Cost</span></div>
+                                <span class="flow-arrow">÷</span>
+                                <div class="flow-step"><div class="flow-icon" style="background: linear-gradient(135deg, #C8E6C9, #81C784);">💰</div><span class="flow-text">Savings/yr</span></div>
+                                <span class="flow-arrow">=</span>
+                                <div class="flow-step"><div class="flow-icon" style="background: linear-gradient(135deg, #BBDEFB, #64B5F6);">📅</div><span class="flow-text">Years</span></div>
+                            </div>
+                        </div>
+                        <div class="visual-card">
+                            <div class="visual-title">📊 Payback Period ($12,600 system)</div>
+                            <div class="progress-bars">
+                                <div class="progress-item"><span class="progress-icon">⚡</span><div class="progress-info"><div class="progress-label">High Rate ($12,600 ÷ $2,000)</div><div class="progress-track"><div class="progress-fill" style="width: 40%; background: linear-gradient(to right, #4CAF50, #81C784);">6.3 yrs</div></div></div></div>
+                                <div class="progress-item"><span class="progress-icon">⚡</span><div class="progress-info"><div class="progress-label">Mid Rate ($12,600 ÷ $1,200)</div><div class="progress-track"><div class="progress-fill" style="width: 66%; background: linear-gradient(to right, #FFA726, #FFB74D);">10.5 yrs</div></div></div></div>
+                                <div class="progress-item"><span class="progress-icon">⚡</span><div class="progress-info"><div class="progress-label">Low Rate ($12,600 ÷ $800)</div><div class="progress-track"><div class="progress-fill" style="width: 100%; background: linear-gradient(to right, #EF5350, #EF9A9A);">15.8 yrs</div></div></div></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel question-panel" data-aoi="q4-question">
+                    <div class="case-scenario">
+                        <h4>🏠 The Kim Family</h4>
+                        <p>The Kims installed a solar system with a <strong>net cost of $10,500</strong> (after tax credit). Their system produces enough energy to save them <strong>$1,500 per year</strong> on electricity bills.</p>
+                        <div class="case-data">
+                            <div class="case-data-row"><span>Net Cost:</span><span class="case-data-value">$10,500</span></div>
+                            <div class="case-data-row"><span>Annual Savings:</span><span class="case-data-value">$1,500/year</span></div>
+                        </div>
+                    </div>
+                    <div class="question-box">
+                        <p class="question-text">How many years until their solar system pays for itself?</p>
+                    </div>
+                    <div class="answer-options">
+                        <div class="answer-option" data-answer="A" onclick="selectAnswer(this, 4)"><span class="option-letter">A</span><span class="option-text"><strong>5 years</strong></span></div>
+                        <div class="answer-option" data-answer="B" onclick="selectAnswer(this, 4)"><span class="option-letter">B</span><span class="option-text"><strong>7 years</strong></span></div>
+                        <div class="answer-option" data-answer="C" onclick="selectAnswer(this, 4)"><span class="option-letter">C</span><span class="option-text"><strong>8.5 years</strong></span></div>
+                        <div class="answer-option" data-answer="D" onclick="selectAnswer(this, 4)"><span class="option-letter">D</span><span class="option-text"><strong>10 years</strong></span></div>
                     </div>
                     <button class="submit-btn" id="submit4" disabled onclick="submitAnswer(4)">Submit Answer</button>
                     <button class="calc-toggle-btn" onclick="toggleCalc(4)">🧮 Calculator</button>
@@ -1565,50 +1571,36 @@
             </div>
         </div>
     </section>
-
-    <!-- Refocus 4 -->
     <section class="screen" id="refocus4">
-        <div class="refocus-screen">
-            <div class="refocus-card">
-                <h2 class="refocus-title">Brief Pause</h2>
-                <p class="refocus-text">Please focus on the dot below. The next question will begin automatically.</p>
-                <div class="refocus-timer">
-                    <div class="timer-circle" id="timer4" style="--progress: 100;">
-                        <div class="timer-inner" id="timerNum4">5</div>
-                    </div>
-                    <div class="focus-dot"></div>
-                </div>
-            </div>
-        </div>
+        <div class="refocus-screen"><div class="refocus-card"><h2 class="refocus-title">Brief Pause</h2><p class="refocus-text">Please focus on the dot below. The next question will begin automatically.</p><div class="refocus-timer"><div class="timer-circle" id="timer4" style="--progress: 100;"><div class="timer-inner" id="timerNum4">5</div></div><div class="focus-dot"></div></div></div></div>
     </section>
 
-    <!-- QUESTION 5: Battery Selection -->
-    <section class="screen" id="q5" data-title="Battery Storage Selection 🔋">
+    <!-- ============================================================ -->
+    <!-- QUESTIONS 5-7: APPLICATION (Complexity 3 - Multi-step)      -->
+    <!-- ============================================================ -->
+
+    <!-- QUESTION 5: Daily Production (was Q3) -->
+    <section class="screen" id="q5" data-title="Daily Energy Production ☀️">
         <div class="session-screen">
             <div class="content-grid">
                 <div class="panel" data-aoi="q5-text">
                     <div class="text-content">
-                        <h3>Home Battery Storage Systems</h3>
-                        <p>Solar panels only generate electricity during daylight. A <strong>battery storage system</strong> stores excess energy for use at night or during power outages.</p>
-                        
-                        <h4>Understanding Battery Capacity</h4>
-                        <p>Batteries are rated by <strong>total capacity</strong>, but you can only use a portion safely. The <strong>usable capacity</strong> depends on the battery chemistry:</p>
-                        <ul>
-                            <li><strong>Lithium-Ion (Li-Ion):</strong> 80% usable capacity, 10-year lifespan</li>
-                            <li><strong>Lithium Iron Phosphate (LFP):</strong> 90% usable capacity, 15-year lifespan</li>
-                            <li><strong>Lead-Acid:</strong> 50% usable capacity, 4-year lifespan</li>
-                        </ul>
+                        <h3>How Much Energy Will Your System Produce?</h3>
+                        <p>The amount of electricity your solar panels generate each day depends on two key factors: your <strong>system size</strong> and your location's <strong>peak sun hours</strong>.</p>
 
-                        <h4>Products on the Market</h4>
+                        <h4>Understanding Peak Sun Hours</h4>
+                        <p><strong>Peak sun hours</strong> represent the equivalent number of hours when sunlight intensity averages 1,000 watts per square meter. This isn't the same as daylight hours — it's a measure of usable solar energy.</p>
+
+                        <h4>Peak Sun Hours by Location</h4>
                         <ul>
-                            <li><strong>Tesla Powerwall:</strong> 13.5 kWh rated, Li-Ion, <strong>$9,000</strong></li>
-                            <li><strong>LG Chem RESU:</strong> 10 kWh rated, Li-Ion, <strong>$6,500</strong></li>
-                            <li><strong>Enphase IQ:</strong> 5 kWh rated, LFP, <strong>$4,500</strong></li>
+                            <li><strong>Phoenix, AZ:</strong> 6.5 hours — desert climate, excellent solar</li>
+                            <li><strong>Denver, CO:</strong> 5.5 hours — high altitude, good solar</li>
+                            <li><strong>Chicago, IL:</strong> 4.0 hours — midwest climate, moderate solar</li>
                         </ul>
 
                         <div class="formula-box">
-                            <div class="formula">Usable kWh = Rated Capacity × Usable %</div>
-                            <div class="example">Example: 10 kWh × 80% = 8 kWh usable</div>
+                            <div class="formula">Daily Output = System kW × Peak Sun Hours</div>
+                            <div class="example">Example: 6 kW × 5.5 hours = 33 kWh per day</div>
                         </div>
                     </div>
                 </div>
@@ -1616,27 +1608,29 @@
                 <div class="panel" data-aoi="q5-visual">
                     <div class="infographic">
                         <div class="visual-card">
-                            <div class="visual-title">🔋 Battery Chemistry Comparison</div>
-                            <div class="compare-blocks">
-                                <div class="compare-block"><div class="compare-block-icon">🟢</div><div class="compare-block-title">Li-Ion</div><div class="compare-block-value">80%</div><div class="compare-block-sub">10 year life</div></div>
-                                <div class="compare-block highlight"><div class="compare-block-icon">🔵</div><div class="compare-block-title">LFP</div><div class="compare-block-value">90%</div><div class="compare-block-sub">15 year life</div></div>
-                                <div class="compare-block"><div class="compare-block-icon">⚫</div><div class="compare-block-title">Lead-Acid</div><div class="compare-block-value">50%</div><div class="compare-block-sub">4 year life</div></div>
+                            <div class="visual-title">☀️ Peak Sun Hours by City</div>
+                            <div class="meter-row">
+                                <div class="meter"><div class="meter-bar-container"><div class="meter-bar" style="height: 100%; background: linear-gradient(to top, #FF5722, #FF9800);">6.5</div></div><span class="meter-label">Phoenix</span></div>
+                                <div class="meter"><div class="meter-bar-container"><div class="meter-bar" style="height: 85%; background: linear-gradient(to top, #FFC107, #FFEB3B);">5.5</div></div><span class="meter-label">Denver</span></div>
+                                <div class="meter"><div class="meter-bar-container"><div class="meter-bar" style="height: 62%; background: linear-gradient(to top, #4CAF50, #8BC34A);">4.0</div></div><span class="meter-label">Chicago</span></div>
                             </div>
                         </div>
                         <div class="visual-card">
-                            <div class="visual-title">💰 Products & Pricing</div>
+                            <div class="visual-title">🔢 Daily Production Formula</div>
+                            <div class="flow-diagram">
+                                <div class="flow-step"><div class="flow-icon" style="background: linear-gradient(135deg, #C8E6C9, #81C784);">kW</div><span class="flow-text">System Size</span></div>
+                                <span class="flow-arrow">×</span>
+                                <div class="flow-step"><div class="flow-icon" style="background: linear-gradient(135deg, #FFECB3, #FFD54F);">☀️</div><span class="flow-text">Sun Hours</span></div>
+                                <span class="flow-arrow">=</span>
+                                <div class="flow-step"><div class="flow-icon" style="background: linear-gradient(135deg, #BBDEFB, #64B5F6);">⚡</div><span class="flow-text">kWh/day</span></div>
+                            </div>
+                        </div>
+                        <div class="visual-card">
+                            <div class="visual-title">📊 Daily Output: 6 kW System</div>
                             <div class="progress-bars">
-                                <div class="progress-item"><span class="progress-icon">🟢</span><div class="progress-info"><div class="progress-label">Tesla 13.5 kWh (Li-Ion)</div><div class="progress-track"><div class="progress-fill" style="width: 100%; background: linear-gradient(to right, #E53935, #EF5350);">$9,000</div></div></div></div>
-                                <div class="progress-item"><span class="progress-icon">🟢</span><div class="progress-info"><div class="progress-label">LG Chem 10 kWh (Li-Ion)</div><div class="progress-track"><div class="progress-fill" style="width: 72%; background: linear-gradient(to right, #FB8C00, #FFA726);">$6,500</div></div></div></div>
-                                <div class="progress-item"><span class="progress-icon">🔵</span><div class="progress-info"><div class="progress-label">Enphase 5 kWh (LFP)</div><div class="progress-track"><div class="progress-fill" style="width: 50%; background: linear-gradient(to right, #43A047, #66BB6A);">$4,500</div></div></div></div>
-                            </div>
-                        </div>
-                        <div class="visual-card">
-                            <div class="visual-title">⏱️ Battery Lifespan Timeline</div>
-                            <div class="timeline">
-                                <div class="timeline-point"><div class="timeline-dot" style="background: #757575;">4</div><div class="timeline-label">Lead-Acid</div></div>
-                                <div class="timeline-point"><div class="timeline-dot" style="background: var(--secondary-green);">10</div><div class="timeline-label">Li-Ion</div></div>
-                                <div class="timeline-point"><div class="timeline-dot" style="background: var(--info-blue);">15</div><div class="timeline-label">LFP</div></div>
+                                <div class="progress-item"><span class="progress-icon">🏜️</span><div class="progress-info"><div class="progress-label">Phoenix (6 kW × 6.5 hrs)</div><div class="progress-track"><div class="progress-fill" style="width: 100%; background: linear-gradient(to right, #FF5722, #FF8A65);">39 kWh</div></div></div></div>
+                                <div class="progress-item"><span class="progress-icon">🏔️</span><div class="progress-info"><div class="progress-label">Denver (6 kW × 5.5 hrs)</div><div class="progress-track"><div class="progress-fill" style="width: 85%; background: linear-gradient(to right, #FFC107, #FFD54F);">33 kWh</div></div></div></div>
+                                <div class="progress-item"><span class="progress-icon">🏙️</span><div class="progress-info"><div class="progress-label">Chicago (6 kW × 4.0 hrs)</div><div class="progress-track"><div class="progress-fill" style="width: 62%; background: linear-gradient(to right, #4CAF50, #81C784);">24 kWh</div></div></div></div>
                             </div>
                         </div>
                     </div>
@@ -1644,22 +1638,21 @@
 
                 <div class="panel question-panel" data-aoi="q5-question">
                     <div class="case-scenario">
-                        <h4>🏠 The Chen Family</h4>
-                        <p>The Chens want a battery system that meets <strong>all three</strong> of their requirements. They're comparing available products.</p>
+                        <h4>🏠 The Martinez Family</h4>
+                        <p>The Martinez family recently installed a solar system on their home in <strong>Denver, Colorado</strong>. Their system is <strong>6 kilowatts (kW)</strong> in size.</p>
                         <div class="case-data">
-                            <div class="case-data-row"><span>Usable Capacity Needed:</span><span class="case-data-value">≥ 8 kWh</span></div>
-                            <div class="case-data-row"><span>Minimum Lifespan:</span><span class="case-data-value">≥ 12 years</span></div>
-                            <div class="case-data-row"><span>Maximum Budget:</span><span class="case-data-value">≤ $9,500</span></div>
+                            <div class="case-data-row"><span>Location:</span><span class="case-data-value">Denver, CO</span></div>
+                            <div class="case-data-row"><span>System Size:</span><span class="case-data-value">6 kW</span></div>
                         </div>
                     </div>
                     <div class="question-box">
-                        <p class="question-text">Which option meets ALL three requirements?</p>
+                        <p class="question-text">How much energy will their system produce on a typical day?</p>
                     </div>
                     <div class="answer-options">
-                        <div class="answer-option" data-answer="A" onclick="selectAnswer(this, 5)"><span class="option-letter">A</span><span class="option-text"><strong>Tesla Powerwall</strong> — single unit</span></div>
-                        <div class="answer-option" data-answer="B" onclick="selectAnswer(this, 5)"><span class="option-letter">B</span><span class="option-text"><strong>LG Chem RESU</strong> — single unit</span></div>
-                        <div class="answer-option" data-answer="C" onclick="selectAnswer(this, 5)"><span class="option-letter">C</span><span class="option-text"><strong>Two Enphase IQ units</strong> — combined</span></div>
-                        <div class="answer-option" data-answer="D" onclick="selectAnswer(this, 5)"><span class="option-letter">D</span><span class="option-text"><strong>None</strong> — no option meets all</span></div>
+                        <div class="answer-option" data-answer="A" onclick="selectAnswer(this, 5)"><span class="option-letter">A</span><span class="option-text"><strong>24 kWh/day</strong></span></div>
+                        <div class="answer-option" data-answer="B" onclick="selectAnswer(this, 5)"><span class="option-letter">B</span><span class="option-text"><strong>33 kWh/day</strong></span></div>
+                        <div class="answer-option" data-answer="C" onclick="selectAnswer(this, 5)"><span class="option-letter">C</span><span class="option-text"><strong>39 kWh/day</strong></span></div>
+                        <div class="answer-option" data-answer="D" onclick="selectAnswer(this, 5)"><span class="option-letter">D</span><span class="option-text"><strong>45 kWh/day</strong></span></div>
                     </div>
                     <button class="submit-btn" id="submit5" disabled onclick="submitAnswer(5)">Submit Answer</button>
                     <button class="calc-toggle-btn" onclick="toggleCalc(5)">🧮 Calculator</button>
@@ -1667,125 +1660,15 @@
             </div>
         </div>
     </section>
-
-    <!-- Refocus 5 -->
     <section class="screen" id="refocus5">
-        <div class="refocus-screen">
-            <div class="refocus-card">
-                <h2 class="refocus-title">Brief Pause</h2>
-                <p class="refocus-text">Please focus on the dot below. The next question will begin automatically.</p>
-                <div class="refocus-timer">
-                    <div class="timer-circle" id="timer5" style="--progress: 100;">
-                        <div class="timer-inner" id="timerNum5">5</div>
-                    </div>
-                    <div class="focus-dot"></div>
-                </div>
-            </div>
-        </div>
+        <div class="refocus-screen"><div class="refocus-card"><h2 class="refocus-title">Brief Pause</h2><p class="refocus-text">Please focus on the dot below. The next question will begin automatically.</p><div class="refocus-timer"><div class="timer-circle" id="timer5" style="--progress: 100;"><div class="timer-inner" id="timerNum5">5</div></div><div class="focus-dot"></div></div></div></div>
     </section>
 
-    <!-- QUESTION 6: Plan Selection -->
-    <section class="screen" id="q6" data-title="Choosing the Best Solar Plan 🎯">
+    <!-- QUESTION 6: Monthly Electricity Bill (was Q7) -->
+    <section class="screen" id="q6" data-title="Monthly Electricity Cost 💡">
         <div class="session-screen">
             <div class="content-grid">
                 <div class="panel" data-aoi="q6-text">
-                    <div class="text-content">
-                        <h3>Solar Financing Options</h3>
-                        <p>Going solar is a significant investment, and there are multiple ways to finance your system. Each option has different upfront costs, monthly payments, and long-term financial returns.</p>
-                        
-                        <h4>Available Solar Plans</h4>
-                        <ul>
-                            <li><strong>Plan A — Small Cash Purchase:</strong><br>
-                            $8,400 upfront cost. You own the system immediately. 25-year profit: <strong>+$18,000</strong></li>
-                            
-                            <li><strong>Plan B — Standard Cash Purchase:</strong><br>
-                            $12,600 upfront cost. Larger system, you own it. 25-year profit: <strong>+$29,000</strong></li>
-                            
-                            <li><strong>Plan C — Solar Loan:</strong><br>
-                            $0 down payment, then <strong>$140/month for 10 years</strong>. You own after loan payoff. 25-year profit: <strong>+$21,000</strong></li>
-                        </ul>
-
-                        <div class="highlight-box">
-                            <strong>Key Insight:</strong> All three plans result in ownership. Plan C spreads the cost over time but has ongoing monthly payments during the loan term.
-                        </div>
-                    </div>
-                </div>
-
-                <div class="panel" data-aoi="q6-visual">
-                    <div class="infographic">
-                        <div class="visual-card">
-                            <div class="visual-title">💰 Upfront Cost Comparison</div>
-                            <div class="progress-bars">
-                                <div class="progress-item"><span class="progress-icon" style="font-weight: 700;">A</span><div class="progress-info"><div class="progress-label">Plan A — Small Purchase</div><div class="progress-track"><div class="progress-fill" style="width: 67%; background: linear-gradient(to right, #66BB6A, #81C784);">$8,400</div></div></div></div>
-                                <div class="progress-item"><span class="progress-icon" style="font-weight: 700;">B</span><div class="progress-info"><div class="progress-label">Plan B — Standard Purchase</div><div class="progress-track"><div class="progress-fill" style="width: 100%; background: linear-gradient(to right, #FFA726, #FFB74D);">$12,600</div></div></div></div>
-                                <div class="progress-item"><span class="progress-icon" style="font-weight: 700;">C</span><div class="progress-info"><div class="progress-label">Plan C — Solar Loan</div><div class="progress-track"><div class="progress-fill" style="width: 5%; background: linear-gradient(to right, #29B6F6, #4FC3F7);">$0</div></div></div></div>
-                            </div>
-                        </div>
-                        <div class="visual-card">
-                            <div class="visual-title">📈 25-Year Total Profit</div>
-                            <div class="compare-blocks">
-                                <div class="compare-block"><div class="compare-block-title">Plan A</div><div class="compare-block-value">+$18K</div><div class="compare-block-sub">Small system</div></div>
-                                <div class="compare-block highlight"><div class="compare-block-title">Plan B</div><div class="compare-block-value">+$29K</div><div class="compare-block-sub">Best return</div></div>
-                                <div class="compare-block"><div class="compare-block-title">Plan C</div><div class="compare-block-value">+$21K</div><div class="compare-block-sub">Loan option</div></div>
-                            </div>
-                        </div>
-                        <div class="visual-card">
-                            <div class="visual-title">📋 Plan C Loan Details</div>
-                            <div class="icon-stats">
-                                <div class="icon-stat"><div class="icon-stat-icon">💵</div><div class="icon-stat-value">$140</div><div class="icon-stat-label">Monthly Payment</div></div>
-                                <div class="icon-stat"><div class="icon-stat-icon">📅</div><div class="icon-stat-value">10</div><div class="icon-stat-label">Years to Pay</div></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="panel question-panel" data-aoi="q6-question">
-                    <div class="case-scenario">
-                        <h4>🏠 The Thompson Family</h4>
-                        <p>The Thompsons want to go solar but need to find a plan that works with their finances while still maximizing their long-term savings.</p>
-                        <div class="case-data">
-                            <div class="case-data-row"><span>Available Savings:</span><span class="case-data-value">$9,000</span></div>
-                            <div class="case-data-row"><span>Monthly Budget:</span><span class="case-data-value">$150 maximum</span></div>
-                            <div class="case-data-row"><span>Priority:</span><span class="case-data-value">Maximize profit</span></div>
-                        </div>
-                    </div>
-                    <div class="question-box">
-                        <p class="question-text">Which plan fits their budget AND maximizes their profit?</p>
-                    </div>
-                    <div class="answer-options">
-                        <div class="answer-option" data-answer="A" onclick="selectAnswer(this, 6)"><span class="option-letter">A</span><span class="option-text"><strong>Plan A</strong> — fits their savings</span></div>
-                        <div class="answer-option" data-answer="B" onclick="selectAnswer(this, 6)"><span class="option-letter">B</span><span class="option-text"><strong>Plan B</strong> — highest profit</span></div>
-                        <div class="answer-option" data-answer="C" onclick="selectAnswer(this, 6)"><span class="option-letter">C</span><span class="option-text"><strong>Plan C</strong> — fits monthly budget</span></div>
-                        <div class="answer-option" data-answer="D" onclick="selectAnswer(this, 6)"><span class="option-letter">D</span><span class="option-text"><strong>None</strong> — can't afford any plan</span></div>
-                    </div>
-                    <button class="submit-btn" id="submit6" disabled onclick="submitAnswer(6)">Submit Answer</button>
-                    <button class="calc-toggle-btn" onclick="toggleCalc(6)">🧮 Calculator</button>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- Refocus 6 -->
-    <section class="screen" id="refocus6">
-        <div class="refocus-screen">
-            <div class="refocus-card">
-                <h2 class="refocus-title">Brief Pause</h2>
-                <p class="refocus-text">Please focus on the dot below. The next question will begin automatically.</p>
-                <div class="refocus-timer">
-                    <div class="timer-circle" id="timer6" style="--progress: 100;">
-                        <div class="timer-inner" id="timerNum6">5</div>
-                    </div>
-                    <div class="focus-dot"></div>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- QUESTION 7: Monthly Electricity Cost -->
-    <section class="screen" id="q7" data-title="Monthly Electricity Cost 💡">
-        <div class="session-screen">
-            <div class="content-grid">
-                <div class="panel" data-aoi="q7-text">
                     <div class="text-content">
                         <h3>How Your Electricity Bill Is Calculated</h3>
                         <p>Your monthly electricity bill is determined by multiplying the total energy you consume (in kWh) by the <strong>utility rate</strong> — the price your electricity provider charges per kilowatt-hour.</p>
@@ -1808,7 +1691,7 @@
                     </div>
                 </div>
 
-                <div class="panel" data-aoi="q7-visual">
+                <div class="panel" data-aoi="q6-visual">
                     <div class="infographic">
                         <div class="visual-card">
                             <div class="visual-title">💵 Utility Rates by State</div>
@@ -1841,7 +1724,7 @@
                     </div>
                 </div>
 
-                <div class="panel question-panel" data-aoi="q7-question">
+                <div class="panel question-panel" data-aoi="q6-question">
                     <div class="case-scenario">
                         <h4>🏠 The Rivera Family</h4>
                         <p>The Riveras live in <strong>New York</strong> and use about <strong>25 kWh per day</strong>. They want to estimate their monthly electricity bill.</p>
@@ -1854,39 +1737,26 @@
                         <p class="question-text">What is their estimated monthly electricity bill?</p>
                     </div>
                     <div class="answer-options">
-                        <div class="answer-option" data-answer="A" onclick="selectAnswer(this, 7)"><span class="option-letter">A</span><span class="option-text"><strong>$120</strong></span></div>
-                        <div class="answer-option" data-answer="B" onclick="selectAnswer(this, 7)"><span class="option-letter">B</span><span class="option-text"><strong>$150</strong></span></div>
-                        <div class="answer-option" data-answer="C" onclick="selectAnswer(this, 7)"><span class="option-letter">C</span><span class="option-text"><strong>$175</strong></span></div>
-                        <div class="answer-option" data-answer="D" onclick="selectAnswer(this, 7)"><span class="option-letter">D</span><span class="option-text"><strong>$200</strong></span></div>
+                        <div class="answer-option" data-answer="A" onclick="selectAnswer(this, 6)"><span class="option-letter">A</span><span class="option-text"><strong>$120</strong></span></div>
+                        <div class="answer-option" data-answer="B" onclick="selectAnswer(this, 6)"><span class="option-letter">B</span><span class="option-text"><strong>$150</strong></span></div>
+                        <div class="answer-option" data-answer="C" onclick="selectAnswer(this, 6)"><span class="option-letter">C</span><span class="option-text"><strong>$175</strong></span></div>
+                        <div class="answer-option" data-answer="D" onclick="selectAnswer(this, 6)"><span class="option-letter">D</span><span class="option-text"><strong>$200</strong></span></div>
                     </div>
-                    <button class="submit-btn" id="submit7" disabled onclick="submitAnswer(7)">Submit Answer</button>
-                    <button class="calc-toggle-btn" onclick="toggleCalc(7)">🧮 Calculator</button>
+                    <button class="submit-btn" id="submit6" disabled onclick="submitAnswer(6)">Submit Answer</button>
+                    <button class="calc-toggle-btn" onclick="toggleCalc(6)">🧮 Calculator</button>
                 </div>
             </div>
         </div>
     </section>
-
-    <!-- Refocus 7 -->
-    <section class="screen" id="refocus7">
-        <div class="refocus-screen">
-            <div class="refocus-card">
-                <h2 class="refocus-title">Brief Pause</h2>
-                <p class="refocus-text">Please focus on the dot below. The next question will begin automatically.</p>
-                <div class="refocus-timer">
-                    <div class="timer-circle" id="timer7" style="--progress: 100;">
-                        <div class="timer-inner" id="timerNum7">5</div>
-                    </div>
-                    <div class="focus-dot"></div>
-                </div>
-            </div>
-        </div>
+    <section class="screen" id="refocus6">
+        <div class="refocus-screen"><div class="refocus-card"><h2 class="refocus-title">Brief Pause</h2><p class="refocus-text">Please focus on the dot below. The next question will begin automatically.</p><div class="refocus-timer"><div class="timer-circle" id="timer6" style="--progress: 100;"><div class="timer-inner" id="timerNum6">5</div></div><div class="focus-dot"></div></div></div></div>
     </section>
 
-    <!-- QUESTION 8: Annual Energy Output -->
-    <section class="screen" id="q8" data-title="Annual Solar Output ☀️">
+    <!-- QUESTION 7: Annual Solar Output (was Q8) -->
+    <section class="screen" id="q7" data-title="Annual Solar Output ☀️">
         <div class="session-screen">
             <div class="content-grid">
-                <div class="panel" data-aoi="q8-text">
+                <div class="panel" data-aoi="q7-text">
                     <div class="text-content">
                         <h3>Estimating Annual Solar Energy Production</h3>
                         <p>While daily output fluctuates with weather and seasons, solar professionals estimate <strong>annual production</strong> by multiplying daily output by <strong>365 days</strong> and applying a <strong>performance factor</strong> that accounts for real-world losses.</p>
@@ -1906,7 +1776,7 @@
                     </div>
                 </div>
 
-                <div class="panel" data-aoi="q8-visual">
+                <div class="panel" data-aoi="q7-visual">
                     <div class="infographic">
                         <div class="visual-card">
                             <div class="visual-title">⚙️ Performance Factor Levels</div>
@@ -1939,7 +1809,7 @@
                     </div>
                 </div>
 
-                <div class="panel question-panel" data-aoi="q8-question">
+                <div class="panel question-panel" data-aoi="q7-question">
                     <div class="case-scenario">
                         <h4>🏠 The Patel Family</h4>
                         <p>The Patels have a solar system that produces <strong>28 kWh per day</strong>. Their panels have optimal tilt but their roof gets some afternoon shading, giving them a <strong>75% performance factor</strong>.</p>
@@ -1952,10 +1822,103 @@
                         <p class="question-text">What is their estimated annual energy production?</p>
                     </div>
                     <div class="answer-options">
-                        <div class="answer-option" data-answer="A" onclick="selectAnswer(this, 8)"><span class="option-letter">A</span><span class="option-text"><strong>6,570 kWh/year</strong></span></div>
-                        <div class="answer-option" data-answer="B" onclick="selectAnswer(this, 8)"><span class="option-letter">B</span><span class="option-text"><strong>7,665 kWh/year</strong></span></div>
-                        <div class="answer-option" data-answer="C" onclick="selectAnswer(this, 8)"><span class="option-letter">C</span><span class="option-text"><strong>8,694 kWh/year</strong></span></div>
-                        <div class="answer-option" data-answer="D" onclick="selectAnswer(this, 8)"><span class="option-letter">D</span><span class="option-text"><strong>10,220 kWh/year</strong></span></div>
+                        <div class="answer-option" data-answer="A" onclick="selectAnswer(this, 7)"><span class="option-letter">A</span><span class="option-text"><strong>6,570 kWh/year</strong></span></div>
+                        <div class="answer-option" data-answer="B" onclick="selectAnswer(this, 7)"><span class="option-letter">B</span><span class="option-text"><strong>7,665 kWh/year</strong></span></div>
+                        <div class="answer-option" data-answer="C" onclick="selectAnswer(this, 7)"><span class="option-letter">C</span><span class="option-text"><strong>8,694 kWh/year</strong></span></div>
+                        <div class="answer-option" data-answer="D" onclick="selectAnswer(this, 7)"><span class="option-letter">D</span><span class="option-text"><strong>10,220 kWh/year</strong></span></div>
+                    </div>
+                    <button class="submit-btn" id="submit7" disabled onclick="submitAnswer(7)">Submit Answer</button>
+                    <button class="calc-toggle-btn" onclick="toggleCalc(7)">🧮 Calculator</button>
+                </div>
+            </div>
+        </div>
+    </section>
+    <section class="screen" id="refocus7">
+        <div class="refocus-screen"><div class="refocus-card"><h2 class="refocus-title">Brief Pause</h2><p class="refocus-text">Please focus on the dot below. The next question will begin automatically.</p><div class="refocus-timer"><div class="timer-circle" id="timer7" style="--progress: 100;"><div class="timer-inner" id="timerNum7">5</div></div><div class="focus-dot"></div></div></div></div>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- QUESTIONS 8-12: DECISION-MAKING (Complexity 4)              -->
+    <!-- ============================================================ -->
+
+    <!-- QUESTION 8: Battery Selection (was Q5) — VISUAL FIX: added computed usable kWh -->
+    <section class="screen" id="q8" data-title="Battery Storage Selection 🔋">
+        <div class="session-screen">
+            <div class="content-grid">
+                <div class="panel" data-aoi="q8-text">
+                    <div class="text-content">
+                        <h3>Home Battery Storage Systems</h3>
+                        <p>Solar panels only generate electricity during daylight. A <strong>battery storage system</strong> stores excess energy for use at night or during power outages.</p>
+
+                        <h4>Understanding Battery Capacity</h4>
+                        <p>Batteries are rated by <strong>total capacity</strong>, but you can only use a portion safely. The <strong>usable capacity</strong> depends on the battery chemistry:</p>
+                        <ul>
+                            <li><strong>Lithium-Ion (Li-Ion):</strong> 80% usable capacity, 10-year lifespan</li>
+                            <li><strong>Lithium Iron Phosphate (LFP):</strong> 90% usable capacity, 15-year lifespan</li>
+                            <li><strong>Lead-Acid:</strong> 50% usable capacity, 4-year lifespan</li>
+                        </ul>
+
+                        <h4>Products on the Market</h4>
+                        <ul>
+                            <li><strong>Tesla Powerwall:</strong> 13.5 kWh rated, Li-Ion, <strong>$9,000</strong></li>
+                            <li><strong>LG Chem RESU:</strong> 10 kWh rated, Li-Ion, <strong>$6,500</strong></li>
+                            <li><strong>Enphase IQ:</strong> 5 kWh rated, LFP, <strong>$4,500</strong></li>
+                        </ul>
+
+                        <div class="formula-box">
+                            <div class="formula">Usable kWh = Rated Capacity × Usable %</div>
+                            <div class="example">Example: 10 kWh × 80% = 8 kWh usable</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel" data-aoi="q8-visual">
+                    <div class="infographic">
+                        <div class="visual-card">
+                            <div class="visual-title">🔋 Battery Chemistry Comparison</div>
+                            <div class="compare-blocks">
+                                <div class="compare-block"><div class="compare-block-icon">🟢</div><div class="compare-block-title">Li-Ion</div><div class="compare-block-value">80%</div><div class="compare-block-sub">10 year life</div></div>
+                                <div class="compare-block highlight"><div class="compare-block-icon">🔵</div><div class="compare-block-title">LFP</div><div class="compare-block-value">90%</div><div class="compare-block-sub">15 year life</div></div>
+                                <div class="compare-block"><div class="compare-block-icon">⚫</div><div class="compare-block-title">Lead-Acid</div><div class="compare-block-value">50%</div><div class="compare-block-sub">4 year life</div></div>
+                            </div>
+                        </div>
+                        <div class="visual-card">
+                            <div class="visual-title">💰 Products & Usable Capacity</div>
+                            <div class="progress-bars">
+                                <div class="progress-item"><span class="progress-icon">🟢</span><div class="progress-info"><div class="progress-label">Tesla 13.5 kWh (80% → 10.8 usable)</div><div class="progress-track"><div class="progress-fill" style="width: 100%; background: linear-gradient(to right, #E53935, #EF5350);">$9,000</div></div></div></div>
+                                <div class="progress-item"><span class="progress-icon">🟢</span><div class="progress-info"><div class="progress-label">LG Chem 10 kWh (80% → 8.0 usable)</div><div class="progress-track"><div class="progress-fill" style="width: 72%; background: linear-gradient(to right, #FB8C00, #FFA726);">$6,500</div></div></div></div>
+                                <div class="progress-item"><span class="progress-icon">🔵</span><div class="progress-info"><div class="progress-label">Enphase 5 kWh (90% → 4.5 usable)</div><div class="progress-track"><div class="progress-fill" style="width: 50%; background: linear-gradient(to right, #43A047, #66BB6A);">$4,500</div></div></div></div>
+                            </div>
+                        </div>
+                        <div class="visual-card">
+                            <div class="visual-title">⏱️ Battery Lifespan Timeline</div>
+                            <div class="timeline">
+                                <div class="timeline-point"><div class="timeline-dot" style="background: #757575;">4</div><div class="timeline-label">Lead-Acid</div></div>
+                                <div class="timeline-point"><div class="timeline-dot" style="background: var(--secondary-green);">10</div><div class="timeline-label">Li-Ion</div></div>
+                                <div class="timeline-point"><div class="timeline-dot" style="background: var(--info-blue);">15</div><div class="timeline-label">LFP</div></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel question-panel" data-aoi="q8-question">
+                    <div class="case-scenario">
+                        <h4>🏠 The Chen Family</h4>
+                        <p>The Chens want a battery system that meets <strong>all three</strong> of their requirements. They're comparing available products.</p>
+                        <div class="case-data">
+                            <div class="case-data-row"><span>Usable Capacity Needed:</span><span class="case-data-value">≥ 8 kWh</span></div>
+                            <div class="case-data-row"><span>Minimum Lifespan:</span><span class="case-data-value">≥ 12 years</span></div>
+                            <div class="case-data-row"><span>Maximum Budget:</span><span class="case-data-value">≤ $9,500</span></div>
+                        </div>
+                    </div>
+                    <div class="question-box">
+                        <p class="question-text">Which option meets ALL three requirements?</p>
+                    </div>
+                    <div class="answer-options">
+                        <div class="answer-option" data-answer="A" onclick="selectAnswer(this, 8)"><span class="option-letter">A</span><span class="option-text"><strong>Tesla Powerwall</strong> — single unit</span></div>
+                        <div class="answer-option" data-answer="B" onclick="selectAnswer(this, 8)"><span class="option-letter">B</span><span class="option-text"><strong>LG Chem RESU</strong> — single unit</span></div>
+                        <div class="answer-option" data-answer="C" onclick="selectAnswer(this, 8)"><span class="option-letter">C</span><span class="option-text"><strong>Two Enphase IQ units</strong> — combined</span></div>
+                        <div class="answer-option" data-answer="D" onclick="selectAnswer(this, 8)"><span class="option-letter">D</span><span class="option-text"><strong>None</strong> — no option meets all</span></div>
                     </div>
                     <button class="submit-btn" id="submit8" disabled onclick="submitAnswer(8)">Submit Answer</button>
                     <button class="calc-toggle-btn" onclick="toggleCalc(8)">🧮 Calculator</button>
@@ -1963,43 +1926,33 @@
             </div>
         </div>
     </section>
-
-    <!-- Refocus 8 -->
     <section class="screen" id="refocus8">
-        <div class="refocus-screen">
-            <div class="refocus-card">
-                <h2 class="refocus-title">Brief Pause</h2>
-                <p class="refocus-text">Please focus on the dot below. The next question will begin automatically.</p>
-                <div class="refocus-timer">
-                    <div class="timer-circle" id="timer8" style="--progress: 100;">
-                        <div class="timer-inner" id="timerNum8">5</div>
-                    </div>
-                    <div class="focus-dot"></div>
-                </div>
-            </div>
-        </div>
+        <div class="refocus-screen"><div class="refocus-card"><h2 class="refocus-title">Brief Pause</h2><p class="refocus-text">Please focus on the dot below. The next question will begin automatically.</p><div class="refocus-timer"><div class="timer-circle" id="timer8" style="--progress: 100;"><div class="timer-inner" id="timerNum8">5</div></div><div class="focus-dot"></div></div></div></div>
     </section>
 
-    <!-- QUESTION 9: Payback Period -->
-    <section class="screen" id="q9" data-title="Solar Payback Period 📅">
+    <!-- QUESTION 9: Financing Plan Selection (was Q6) -->
+    <section class="screen" id="q9" data-title="Choosing the Best Solar Plan 🎯">
         <div class="session-screen">
             <div class="content-grid">
                 <div class="panel" data-aoi="q9-text">
                     <div class="text-content">
-                        <h3>How Long Until Solar Pays for Itself?</h3>
-                        <p>The <strong>payback period</strong> is the number of years it takes for cumulative energy savings to equal your initial investment. After this point, your solar system generates pure savings.</p>
+                        <h3>Solar Financing Options</h3>
+                        <p>Going solar is a significant investment, and there are multiple ways to finance your system. Each option has different upfront costs, monthly payments, and long-term financial returns.</p>
 
-                        <h4>Calculating Annual Savings</h4>
-                        <p>Your annual electricity savings depend on how much energy your solar system produces and your local utility rate:</p>
+                        <h4>Available Solar Plans</h4>
                         <ul>
-                            <li><strong>High-rate area ($0.25/kWh):</strong> 8,000 kWh/year saves <strong>$2,000/year</strong></li>
-                            <li><strong>Mid-rate area ($0.15/kWh):</strong> 8,000 kWh/year saves <strong>$1,200/year</strong></li>
-                            <li><strong>Low-rate area ($0.10/kWh):</strong> 8,000 kWh/year saves <strong>$800/year</strong></li>
+                            <li><strong>Plan A — Small Cash Purchase:</strong><br>
+                            $8,400 upfront cost. You own the system immediately. 25-year profit: <strong>+$18,000</strong></li>
+
+                            <li><strong>Plan B — Standard Cash Purchase:</strong><br>
+                            $12,600 upfront cost. Larger system, you own it. 25-year profit: <strong>+$29,000</strong></li>
+
+                            <li><strong>Plan C — Solar Loan:</strong><br>
+                            $0 down payment, then <strong>$140/month for 10 years</strong>. You own after loan payoff. 25-year profit: <strong>+$21,000</strong></li>
                         </ul>
 
-                        <div class="formula-box">
-                            <div class="formula">Payback Years = Net System Cost ÷ Annual Savings</div>
-                            <div class="example">Example: $12,600 ÷ $2,000/yr = 6.3 years</div>
+                        <div class="highlight-box">
+                            <strong>Key Insight:</strong> All three plans result in ownership. Plan C spreads the cost over time but has ongoing monthly payments during the loan term.
                         </div>
                     </div>
                 </div>
@@ -2007,29 +1960,26 @@
                 <div class="panel" data-aoi="q9-visual">
                     <div class="infographic">
                         <div class="visual-card">
-                            <div class="visual-title">💵 Annual Savings by Rate</div>
-                            <div class="meter-row">
-                                <div class="meter"><div class="meter-bar-container"><div class="meter-bar" style="height: 100%; background: linear-gradient(to top, #4CAF50, #81C784);">$2,000</div></div><span class="meter-label">High Rate</span></div>
-                                <div class="meter"><div class="meter-bar-container"><div class="meter-bar" style="height: 60%; background: linear-gradient(to top, #FFC107, #FFEB3B);">$1,200</div></div><span class="meter-label">Mid Rate</span></div>
-                                <div class="meter"><div class="meter-bar-container"><div class="meter-bar" style="height: 40%; background: linear-gradient(to top, #FF5722, #FF8A65);">$800</div></div><span class="meter-label">Low Rate</span></div>
-                            </div>
-                        </div>
-                        <div class="visual-card">
-                            <div class="visual-title">🔢 Payback Formula</div>
-                            <div class="flow-diagram">
-                                <div class="flow-step"><div class="flow-icon" style="background: linear-gradient(135deg, #FFCDD2, #EF9A9A);">💵</div><span class="flow-text">Net Cost</span></div>
-                                <span class="flow-arrow">÷</span>
-                                <div class="flow-step"><div class="flow-icon" style="background: linear-gradient(135deg, #C8E6C9, #81C784);">💰</div><span class="flow-text">Savings/yr</span></div>
-                                <span class="flow-arrow">=</span>
-                                <div class="flow-step"><div class="flow-icon" style="background: linear-gradient(135deg, #BBDEFB, #64B5F6);">📅</div><span class="flow-text">Years</span></div>
-                            </div>
-                        </div>
-                        <div class="visual-card">
-                            <div class="visual-title">📊 Payback Period ($12,600 system)</div>
+                            <div class="visual-title">💰 Upfront Cost Comparison</div>
                             <div class="progress-bars">
-                                <div class="progress-item"><span class="progress-icon">⚡</span><div class="progress-info"><div class="progress-label">High Rate ($12,600 ÷ $2,000)</div><div class="progress-track"><div class="progress-fill" style="width: 40%; background: linear-gradient(to right, #4CAF50, #81C784);">6.3 yrs</div></div></div></div>
-                                <div class="progress-item"><span class="progress-icon">⚡</span><div class="progress-info"><div class="progress-label">Mid Rate ($12,600 ÷ $1,200)</div><div class="progress-track"><div class="progress-fill" style="width: 66%; background: linear-gradient(to right, #FFA726, #FFB74D);">10.5 yrs</div></div></div></div>
-                                <div class="progress-item"><span class="progress-icon">⚡</span><div class="progress-info"><div class="progress-label">Low Rate ($12,600 ÷ $800)</div><div class="progress-track"><div class="progress-fill" style="width: 100%; background: linear-gradient(to right, #EF5350, #EF9A9A);">15.8 yrs</div></div></div></div>
+                                <div class="progress-item"><span class="progress-icon" style="font-weight: 700;">A</span><div class="progress-info"><div class="progress-label">Plan A — Small Purchase</div><div class="progress-track"><div class="progress-fill" style="width: 67%; background: linear-gradient(to right, #66BB6A, #81C784);">$8,400</div></div></div></div>
+                                <div class="progress-item"><span class="progress-icon" style="font-weight: 700;">B</span><div class="progress-info"><div class="progress-label">Plan B — Standard Purchase</div><div class="progress-track"><div class="progress-fill" style="width: 100%; background: linear-gradient(to right, #FFA726, #FFB74D);">$12,600</div></div></div></div>
+                                <div class="progress-item"><span class="progress-icon" style="font-weight: 700;">C</span><div class="progress-info"><div class="progress-label">Plan C — Solar Loan</div><div class="progress-track"><div class="progress-fill" style="width: 5%; background: linear-gradient(to right, #29B6F6, #4FC3F7);">$0</div></div></div></div>
+                            </div>
+                        </div>
+                        <div class="visual-card">
+                            <div class="visual-title">📈 25-Year Total Profit</div>
+                            <div class="compare-blocks">
+                                <div class="compare-block"><div class="compare-block-title">Plan A</div><div class="compare-block-value">+$18K</div><div class="compare-block-sub">Small system</div></div>
+                                <div class="compare-block highlight"><div class="compare-block-title">Plan B</div><div class="compare-block-value">+$29K</div><div class="compare-block-sub">Best return</div></div>
+                                <div class="compare-block"><div class="compare-block-title">Plan C</div><div class="compare-block-value">+$21K</div><div class="compare-block-sub">Loan option</div></div>
+                            </div>
+                        </div>
+                        <div class="visual-card">
+                            <div class="visual-title">📋 Plan C Loan Details</div>
+                            <div class="icon-stats">
+                                <div class="icon-stat"><div class="icon-stat-icon">💵</div><div class="icon-stat-value">$140</div><div class="icon-stat-label">Monthly Payment</div></div>
+                                <div class="icon-stat"><div class="icon-stat-icon">📅</div><div class="icon-stat-value">10</div><div class="icon-stat-label">Years to Pay</div></div>
                             </div>
                         </div>
                     </div>
@@ -2037,21 +1987,22 @@
 
                 <div class="panel question-panel" data-aoi="q9-question">
                     <div class="case-scenario">
-                        <h4>🏠 The Kim Family</h4>
-                        <p>The Kims installed a solar system with a <strong>net cost of $10,500</strong> (after tax credit). Their system produces enough energy to save them <strong>$1,500 per year</strong> on electricity bills.</p>
+                        <h4>🏠 The Thompson Family</h4>
+                        <p>The Thompsons want to go solar but need to find a plan that works with their finances while still maximizing their long-term savings.</p>
                         <div class="case-data">
-                            <div class="case-data-row"><span>Net Cost:</span><span class="case-data-value">$10,500</span></div>
-                            <div class="case-data-row"><span>Annual Savings:</span><span class="case-data-value">$1,500/year</span></div>
+                            <div class="case-data-row"><span>Available Savings:</span><span class="case-data-value">$9,000</span></div>
+                            <div class="case-data-row"><span>Monthly Budget:</span><span class="case-data-value">$150 maximum</span></div>
+                            <div class="case-data-row"><span>Priority:</span><span class="case-data-value">Maximize profit</span></div>
                         </div>
                     </div>
                     <div class="question-box">
-                        <p class="question-text">How many years until their solar system pays for itself?</p>
+                        <p class="question-text">Which plan fits their budget AND maximizes their profit?</p>
                     </div>
                     <div class="answer-options">
-                        <div class="answer-option" data-answer="A" onclick="selectAnswer(this, 9)"><span class="option-letter">A</span><span class="option-text"><strong>5 years</strong></span></div>
-                        <div class="answer-option" data-answer="B" onclick="selectAnswer(this, 9)"><span class="option-letter">B</span><span class="option-text"><strong>7 years</strong></span></div>
-                        <div class="answer-option" data-answer="C" onclick="selectAnswer(this, 9)"><span class="option-letter">C</span><span class="option-text"><strong>8.5 years</strong></span></div>
-                        <div class="answer-option" data-answer="D" onclick="selectAnswer(this, 9)"><span class="option-letter">D</span><span class="option-text"><strong>10 years</strong></span></div>
+                        <div class="answer-option" data-answer="A" onclick="selectAnswer(this, 9)"><span class="option-letter">A</span><span class="option-text"><strong>Plan A</strong> — fits their savings</span></div>
+                        <div class="answer-option" data-answer="B" onclick="selectAnswer(this, 9)"><span class="option-letter">B</span><span class="option-text"><strong>Plan B</strong> — highest profit</span></div>
+                        <div class="answer-option" data-answer="C" onclick="selectAnswer(this, 9)"><span class="option-letter">C</span><span class="option-text"><strong>Plan C</strong> — fits monthly budget</span></div>
+                        <div class="answer-option" data-answer="D" onclick="selectAnswer(this, 9)"><span class="option-letter">D</span><span class="option-text"><strong>None</strong> — can't afford any plan</span></div>
                     </div>
                     <button class="submit-btn" id="submit9" disabled onclick="submitAnswer(9)">Submit Answer</button>
                     <button class="calc-toggle-btn" onclick="toggleCalc(9)">🧮 Calculator</button>
@@ -2059,24 +2010,11 @@
             </div>
         </div>
     </section>
-
-    <!-- Refocus 9 -->
     <section class="screen" id="refocus9">
-        <div class="refocus-screen">
-            <div class="refocus-card">
-                <h2 class="refocus-title">Brief Pause</h2>
-                <p class="refocus-text">Please focus on the dot below. The next question will begin automatically.</p>
-                <div class="refocus-timer">
-                    <div class="timer-circle" id="timer9" style="--progress: 100;">
-                        <div class="timer-inner" id="timerNum9">5</div>
-                    </div>
-                    <div class="focus-dot"></div>
-                </div>
-            </div>
-        </div>
+        <div class="refocus-screen"><div class="refocus-card"><h2 class="refocus-title">Brief Pause</h2><p class="refocus-text">Please focus on the dot below. The next question will begin automatically.</p><div class="refocus-timer"><div class="timer-circle" id="timer9" style="--progress: 100;"><div class="timer-inner" id="timerNum9">5</div></div><div class="focus-dot"></div></div></div></div>
     </section>
 
-    <!-- QUESTION 10: Grid vs Off-Grid Cost -->
+    <!-- QUESTION 10: Grid vs Off-Grid (was Q10) — FIX: added 10-year financial summary to BOTH panels -->
     <section class="screen" id="q10" data-title="Grid-Tied vs Off-Grid 🔌">
         <div class="session-screen">
             <div class="content-grid">
@@ -2101,8 +2039,12 @@
                             <li><strong>Reliability:</strong> Fully independent; works during outages</li>
                         </ul>
 
+                        <h4>10-Year Financial Comparison</h4>
+                        <p><strong>Grid-Tied:</strong> $150/mo × 120 months = $18,000 savings − $12,600 cost = <strong>net +$5,400</strong></p>
+                        <p><strong>Off-Grid:</strong> $200/mo × 120 months = $24,000 savings − $29,400 cost = <strong>net −$5,400</strong></p>
+
                         <div class="highlight-box">
-                            <strong>Key Insight:</strong> Off-grid costs more upfront but eliminates your electricity bill entirely. Grid-tied is cheaper initially but you still pay for some grid electricity.
+                            <strong>Key Insight:</strong> Off-grid costs more upfront and results in a net loss over 10 years. Grid-tied is cheaper and produces a net gain, but lacks outage protection.
                         </div>
                     </div>
                 </div>
@@ -2124,10 +2066,10 @@
                             </div>
                         </div>
                         <div class="visual-card">
-                            <div class="visual-title">⚡ Feature Comparison</div>
-                            <div class="icon-stats">
-                                <div class="icon-stat"><div class="icon-stat-icon">🔌</div><div class="icon-stat-value">Grid</div><div class="icon-stat-label">Needs grid access</div></div>
-                                <div class="icon-stat"><div class="icon-stat-icon">🏝️</div><div class="icon-stat-value">Off</div><div class="icon-stat-label">Fully independent</div></div>
+                            <div class="visual-title">📈 10-Year Net Savings</div>
+                            <div class="compare-blocks">
+                                <div class="compare-block highlight"><div class="compare-block-icon">🔌</div><div class="compare-block-title">Grid-Tied</div><div class="compare-block-value" style="color: var(--primary-green);">+$5,400</div><div class="compare-block-sub">$18K saved − $12.6K cost</div></div>
+                                <div class="compare-block negative"><div class="compare-block-icon">🏝️</div><div class="compare-block-title">Off-Grid</div><div class="compare-block-value" style="color: var(--warning-red);">−$5,400</div><div class="compare-block-sub">$24K saved − $29.4K cost</div></div>
                             </div>
                         </div>
                     </div>
@@ -2158,24 +2100,11 @@
             </div>
         </div>
     </section>
-
-    <!-- Refocus 10 -->
     <section class="screen" id="refocus10">
-        <div class="refocus-screen">
-            <div class="refocus-card">
-                <h2 class="refocus-title">Brief Pause</h2>
-                <p class="refocus-text">Please focus on the dot below. The next question will begin automatically.</p>
-                <div class="refocus-timer">
-                    <div class="timer-circle" id="timer10" style="--progress: 100;">
-                        <div class="timer-inner" id="timerNum10">5</div>
-                    </div>
-                    <div class="focus-dot"></div>
-                </div>
-            </div>
-        </div>
+        <div class="refocus-screen"><div class="refocus-card"><h2 class="refocus-title">Brief Pause</h2><p class="refocus-text">Please focus on the dot below. The next question will begin automatically.</p><div class="refocus-timer"><div class="timer-circle" id="timer10" style="--progress: 100;"><div class="timer-inner" id="timerNum10">5</div></div><div class="focus-dot"></div></div></div></div>
     </section>
 
-    <!-- QUESTION 11: Inverter Selection -->
+    <!-- QUESTION 11: Inverter Selection (was Q11) — VISUAL FIX: added shading capability indicators -->
     <section class="screen" id="q11" data-title="Inverter Selection ⚙️">
         <div class="session-screen">
             <div class="content-grid">
@@ -2205,9 +2134,9 @@
                         <div class="visual-card">
                             <div class="visual-title">⚙️ Inverter Comparison</div>
                             <div class="compare-blocks">
-                                <div class="compare-block"><div class="compare-block-icon">🔗</div><div class="compare-block-title">String</div><div class="compare-block-value">96%</div><div class="compare-block-sub">$1,200 / 10yr</div></div>
-                                <div class="compare-block"><div class="compare-block-icon">🔲</div><div class="compare-block-title">Micro</div><div class="compare-block-value">97%</div><div class="compare-block-sub">$2,400 / 25yr</div></div>
-                                <div class="compare-block highlight"><div class="compare-block-icon">⚡</div><div class="compare-block-title">Optimizer</div><div class="compare-block-value">98%</div><div class="compare-block-sub">$2,000 / 12yr</div></div>
+                                <div class="compare-block"><div class="compare-block-icon">🔗</div><div class="compare-block-title">String</div><div class="compare-block-value">96%</div><div class="compare-block-sub">$1,200 / 10yr</div><div class="compare-block-sub">❌ Shading affected</div></div>
+                                <div class="compare-block"><div class="compare-block-icon">🔲</div><div class="compare-block-title">Micro</div><div class="compare-block-value">97%</div><div class="compare-block-sub">$2,400 / 25yr</div><div class="compare-block-sub">✅ Shading OK</div></div>
+                                <div class="compare-block highlight"><div class="compare-block-icon">⚡</div><div class="compare-block-title">Optimizer</div><div class="compare-block-value">98%</div><div class="compare-block-sub">$2,000 / 12yr</div><div class="compare-block-sub">✅ Shading OK</div></div>
                             </div>
                         </div>
                         <div class="visual-card">
@@ -2254,24 +2183,11 @@
             </div>
         </div>
     </section>
-
-    <!-- Refocus 11 -->
     <section class="screen" id="refocus11">
-        <div class="refocus-screen">
-            <div class="refocus-card">
-                <h2 class="refocus-title">Brief Pause</h2>
-                <p class="refocus-text">Please focus on the dot below. The next question will begin automatically.</p>
-                <div class="refocus-timer">
-                    <div class="timer-circle" id="timer11" style="--progress: 100;">
-                        <div class="timer-inner" id="timerNum11">5</div>
-                    </div>
-                    <div class="focus-dot"></div>
-                </div>
-            </div>
-        </div>
+        <div class="refocus-screen"><div class="refocus-card"><h2 class="refocus-title">Brief Pause</h2><p class="refocus-text">Please focus on the dot below. The next question will begin automatically.</p><div class="refocus-timer"><div class="timer-circle" id="timer11" style="--progress: 100;"><div class="timer-inner" id="timerNum11">5</div></div><div class="focus-dot"></div></div></div></div>
     </section>
 
-    <!-- QUESTION 12: Best Overall Package -->
+    <!-- QUESTION 12: Best Overall Package (was Q12) -->
     <section class="screen" id="q12" data-title="Best Energy Package 🏆">
         <div class="session-screen">
             <div class="content-grid">
@@ -2651,42 +2567,26 @@
         ];
 
         function toggleTutorialPlay() {
-            if (tutorialPlaying) {
-                pauseTutorial();
-            } else {
-                playTutorial();
-            }
+            if (tutorialPlaying) { pauseTutorial(); } else { playTutorial(); }
         }
 
         function playTutorial() {
             tutorialPlaying = true;
             updatePlayButton();
-            if (tutorialStep < 0) {
-                tutorialStep = -1;
-                nextTutorialStep();
-            } else {
-                // Resume from current step
-                const step = tutorialSteps[tutorialStep];
-                tutorialTimer = setTimeout(nextTutorialStep, step.duration);
-            }
+            if (tutorialStep < 0) { tutorialStep = -1; nextTutorialStep(); }
+            else { const step = tutorialSteps[tutorialStep]; tutorialTimer = setTimeout(nextTutorialStep, step.duration); }
         }
 
         function pauseTutorial() {
             tutorialPlaying = false;
             updatePlayButton();
-            if (tutorialTimer) {
-                clearTimeout(tutorialTimer);
-                tutorialTimer = null;
-            }
+            if (tutorialTimer) { clearTimeout(tutorialTimer); tutorialTimer = null; }
         }
 
         function updatePlayButton() {
             const playIcon = document.getElementById('tutPlayIcon');
-            if (tutorialPlaying) {
-                playIcon.innerHTML = '<path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>';
-            } else {
-                playIcon.innerHTML = '<path d="M8 5v14l11-7z"/>';
-            }
+            if (tutorialPlaying) { playIcon.innerHTML = '<path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>'; }
+            else { playIcon.innerHTML = '<path d="M8 5v14l11-7z"/>'; }
         }
 
         function updateNavButtons() {
@@ -2695,93 +2595,61 @@
         }
 
         function goToTutorialStep(stepIndex) {
-            if (tutorialTimer) {
-                clearTimeout(tutorialTimer);
-                tutorialTimer = null;
-            }
+            if (tutorialTimer) { clearTimeout(tutorialTimer); tutorialTimer = null; }
             tutorialStep = stepIndex - 1;
             nextTutorialStep();
         }
 
-        function tutorialPrev() {
-            if (tutorialStep > 0) {
-                goToTutorialStep(tutorialStep - 1);
-            }
-        }
-
-        function tutorialNext() {
-            if (tutorialStep < tutorialSteps.length - 1) {
-                goToTutorialStep(tutorialStep + 1);
-            }
-        }
+        function tutorialPrev() { if (tutorialStep > 0) { goToTutorialStep(tutorialStep - 1); } }
+        function tutorialNext() { if (tutorialStep < tutorialSteps.length - 1) { goToTutorialStep(tutorialStep + 1); } }
 
         function nextTutorialStep() {
             tutorialStep++;
-
-            // Reset all highlights
             document.querySelectorAll('.tutorial-panel').forEach(p => p.classList.remove('highlight'));
             const calc = document.getElementById('tutCalc');
-            calc.style.boxShadow = 'none';
-            calc.style.transform = 'scale(1)';
-            calc.style.border = 'none';
-            calc.style.animation = 'none';
+            calc.style.boxShadow = 'none'; calc.style.transform = 'scale(1)'; calc.style.border = 'none'; calc.style.animation = 'none';
 
-            // Update dots
             for (let i = 0; i < 5; i++) {
                 const dot = document.getElementById('tutDot' + i);
                 dot.classList.remove('active', 'completed');
                 if (i < tutorialStep) dot.classList.add('completed');
                 if (i === tutorialStep) dot.classList.add('active');
             }
-
-            // Update nav buttons
             updateNavButtons();
 
             if (tutorialStep >= tutorialSteps.length) {
-                // Tutorial complete
                 document.getElementById('tutCaption').textContent = "✅ Tutorial complete! Click 'Begin Study' to start.";
-                tutorialPlaying = false;
-                updatePlayButton();
-                tutorialStep = tutorialSteps.length - 1;
-                updateNavButtons();
+                tutorialPlaying = false; updatePlayButton();
+                tutorialStep = tutorialSteps.length - 1; updateNavButtons();
                 return;
             }
 
             const step = tutorialSteps[tutorialStep];
-
-            // Show caption
             const caption = document.getElementById('tutCaption');
-            caption.textContent = step.caption;
-            caption.classList.add('show');
+            caption.textContent = step.caption; caption.classList.add('show');
 
-            // Highlight appropriate panel
             if (step.panel === 'calc') {
-                const calc = document.getElementById('tutCalc');
                 calc.style.boxShadow = '0 0 0 4px rgba(255, 107, 0, 0.5), 0 0 30px rgba(255, 107, 0, 0.8), 0 0 60px rgba(255, 107, 0, 0.4)';
-                calc.style.transform = 'scale(1.15)';
-                calc.style.border = '3px solid #FF6B00';
+                calc.style.transform = 'scale(1.15)'; calc.style.border = '3px solid #FF6B00';
                 calc.style.animation = 'pulse-highlight 1.5s ease-in-out infinite';
             } else if (step.panel) {
                 document.getElementById('tutPanel' + step.panel).classList.add('highlight');
             }
 
-            // Auto-advance if playing
-            if (tutorialPlaying) {
-                tutorialTimer = setTimeout(nextTutorialStep, step.duration);
-            }
+            if (tutorialPlaying) { tutorialTimer = setTimeout(nextTutorialStep, step.duration); }
         }
 
         const titles = {
             'intro': 'Welcome',
             'q1': 'Understanding Energy Units ⚡',
             'q2': 'Solar Panel Basics ☀️',
-            'q3': 'Daily Energy Production ☀️',
-            'q4': 'Solar Cost & Tax Credit 💰',
-            'q5': 'Battery Storage Selection 🔋',
-            'q6': 'Choosing the Best Solar Plan 🎯',
-            'q7': 'Monthly Electricity Cost 💡',
-            'q8': 'Annual Solar Output ☀️',
-            'q9': 'Solar Payback Period 📅',
+            'q3': 'Solar Cost & Tax Credit 💰',
+            'q4': 'Solar Payback Period 📅',
+            'q5': 'Daily Energy Production ☀️',
+            'q6': 'Monthly Electricity Cost 💡',
+            'q7': 'Annual Solar Output ☀️',
+            'q8': 'Battery Storage Selection 🔋',
+            'q9': 'Choosing the Best Solar Plan 🎯',
             'q10': 'Grid-Tied vs Off-Grid 🔌',
             'q11': 'Inverter Selection ⚙️',
             'q12': 'Best Energy Package 🏆',
@@ -2809,10 +2677,7 @@
             document.getElementById('calcPopupOverlay').classList.remove('open');
         }
 
-        function calcClear(q) {
-            calcExpressions[q] = '';
-            calcDisplay().textContent = '0';
-        }
+        function calcClear(q) { calcExpressions[q] = ''; calcDisplay().textContent = '0'; }
 
         function calcBackspace(q) {
             calcExpressions[q] = calcExpressions[q].slice(0, -1);
@@ -2825,29 +2690,18 @@
                 calcDisplay().textContent = result;
                 logEvent('calculator_use', { question: q, expression: calcExpressions[q], result: result });
                 calcExpressions[q] = String(result);
-            } catch (e) {
-                calcDisplay().textContent = 'Error';
-                calcExpressions[q] = '';
-            }
+            } catch (e) { calcDisplay().textContent = 'Error'; calcExpressions[q] = ''; }
         }
 
         function showScreen(id) {
-            if (activeTimer) {
-                clearInterval(activeTimer);
-                activeTimer = null;
-            }
+            if (activeTimer) { clearInterval(activeTimer); activeTimer = null; }
             document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
             document.getElementById(id).classList.add('active');
-            
-            // Update title in header
+
             const titleEl = document.getElementById('currentTitle');
-            if (titles[id]) {
-                titleEl.textContent = titles[id];
-            } else if (id.startsWith('refocus')) {
-                titleEl.textContent = 'Brief Pause';
-            }
-            
-            // Update progress
+            if (titles[id]) { titleEl.textContent = titles[id]; }
+            else if (id.startsWith('refocus')) { titleEl.textContent = 'Brief Pause'; }
+
             const qNum = parseInt(id.replace('q', ''));
             if (!isNaN(qNum)) {
                 for (let i = 1; i <= 12; i++) {
@@ -2856,8 +2710,9 @@
                     if (i < qNum) step.classList.add('completed');
                     else if (i === qNum) step.classList.add('active');
                 }
+                document.getElementById('progressText').textContent = qNum + '/12';
             }
-            
+
             logEvent('screen_view', { screen: id });
         }
 
@@ -2872,20 +2727,16 @@
                 timerNum.textContent = seconds;
                 const progress = (seconds / 5) * 100;
                 timerCircle.style.setProperty('--progress', progress);
-                
+
                 if (seconds <= 0) {
-                    clearInterval(activeTimer);
-                    activeTimer = null;
+                    clearInterval(activeTimer); activeTimer = null;
                     showScreen(nextScreen);
                 }
             }, 1000);
         }
 
         function skipTimer(nextQ) {
-            if (activeTimer) {
-                clearInterval(activeTimer);
-                activeTimer = null;
-            }
+            if (activeTimer) { clearInterval(activeTimer); activeTimer = null; }
             const nextScreen = nextQ === 'survey' ? 'survey' : 'q' + nextQ;
             showScreen(nextScreen);
         }
@@ -2902,30 +2753,25 @@
             responses[qNum].timestamp = Date.now() - startTime;
             responses[qNum].calcUsed = calcExpressions[qNum] !== '';
             const btn = document.getElementById('submit' + qNum);
-            btn.textContent = '✓ Submitted';
-            btn.disabled = true;
-            btn.style.background = '#4CAF50';
+            btn.textContent = '✓ Submitted'; btn.disabled = true; btn.style.background = '#4CAF50';
             logEvent('answer_submit', { question: qNum, ...responses[qNum] });
-            
+
             setTimeout(() => {
                 if (qNum < 12) {
                     const nextRefocus = 'refocus' + qNum;
                     showScreen(nextRefocus);
                     startTimer(qNum, 'q' + (qNum + 1));
                 } else {
-                    // Last question - go directly to survey (no pause)
                     showScreen('survey');
                 }
             }, 600);
         }
 
         function submitSurvey() {
-            // Radio buttons (q1-q15)
             for (let i = 1; i <= 15; i++) {
                 const el = document.querySelector(`[name="q${i}"]:checked`);
                 if (el) surveyData['q' + i] = el.value;
             }
-            // Dropdowns (q16-q19)
             for (let i = 16; i <= 19; i++) {
                 const el = document.querySelector(`select[name="q${i}"]`);
                 if (el && el.value) surveyData['q' + i] = el.value;
