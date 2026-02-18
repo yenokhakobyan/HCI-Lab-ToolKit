@@ -367,6 +367,106 @@ class WebHCICollectorServer:
                 )
             return {"error": "Video not found"}
 
+        @self.app.get("/api/session/{session_id}/face-mesh")
+        async def get_session_face_mesh(session_id: str):
+            """Load face mesh data from CSV for session playback.
+
+            Parses the face_mesh CSV file and returns landmarks, key_points,
+            head_pose and bounding_box aligned to timeline-relative timestamps.
+            Subsamples every 2nd row to reduce payload size.
+            """
+            session_dir = Path(self.config.output_dir) / session_id
+            if not session_dir.exists():
+                return {"success": False, "error": "Session not found"}
+
+            # Find face mesh CSV (prefer live version, fall back to timestamped export)
+            csv_path = session_dir / "face_mesh_live.csv"
+            if not csv_path.exists():
+                candidates = sorted(session_dir.glob("face_mesh_*.csv"))
+                if candidates:
+                    csv_path = candidates[-1]  # Use latest export
+                else:
+                    return {"success": False, "error": "No face mesh data found"}
+
+            try:
+                import csv as csv_mod
+
+                # Find the session start reference timestamp from gaze CSV
+                # (gaze is the earliest data stream, and timeline uses the same reference)
+                # The gaze CSV has performance.now() timestamps; the timeline uses
+                # Date.now() - startTime. We align by subtracting gaze's first timestamp
+                # from all CSV timestamps, matching the timeline reference.
+                ref_ts = None
+                gaze_csv = session_dir / "gaze_live.csv"
+                if not gaze_csv.exists():
+                    gaze_candidates = sorted(session_dir.glob("gaze_*.csv"))
+                    if gaze_candidates:
+                        gaze_csv = gaze_candidates[-1]
+
+                if gaze_csv.exists():
+                    with open(gaze_csv, 'r') as gf:
+                        greader = csv_mod.DictReader(gf)
+                        first_gaze = next(greader, None)
+                        if first_gaze and first_gaze.get('timestamp'):
+                            ref_ts = float(first_gaze['timestamp'])
+
+                data = []
+
+                with open(csv_path, 'r') as f:
+                    reader = csv_mod.DictReader(f)
+                    for i, row in enumerate(reader):
+                        # Subsample: take every 2nd row to reduce payload
+                        if i % 2 != 0:
+                            continue
+
+                        ts = float(row['timestamp'])
+                        # Use gaze first timestamp as reference (aligns with timeline)
+                        # Fall back to first face_mesh timestamp if no gaze data
+                        if ref_ts is None:
+                            ref_ts = ts
+
+                        # Convert to timeline-relative time (ms from session start)
+                        timeline_time = round(ts - ref_ts)
+
+                        entry = {'time': timeline_time}
+
+                        # Parse JSON fields
+                        if row.get('landmarks'):
+                            try:
+                                entry['landmarks'] = json.loads(row['landmarks'])
+                            except (json.JSONDecodeError, TypeError):
+                                pass
+
+                        if row.get('key_points'):
+                            try:
+                                entry['key_points'] = json.loads(row['key_points'])
+                            except (json.JSONDecodeError, TypeError):
+                                pass
+
+                        if row.get('head_pose'):
+                            try:
+                                entry['head_pose'] = json.loads(row['head_pose'])
+                            except (json.JSONDecodeError, TypeError):
+                                pass
+
+                        if row.get('bounding_box'):
+                            try:
+                                entry['bounding_box'] = json.loads(row['bounding_box'])
+                            except (json.JSONDecodeError, TypeError):
+                                pass
+
+                        if row.get('landmark_count'):
+                            entry['landmark_count'] = int(row['landmark_count'])
+
+                        data.append(entry)
+
+                print(f"[{datetime.now().strftime('%H:%M:%S')}] Face mesh loaded for {session_id}: {len(data)} frames")
+                return {"success": True, "data": data}
+
+            except Exception as e:
+                print(f"Error loading face mesh data: {e}")
+                return {"success": False, "error": str(e)}
+
         # --- WebSocket endpoints ---
 
         @self.app.websocket("/ws/collect/{session_id}")
