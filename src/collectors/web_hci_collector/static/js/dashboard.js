@@ -379,7 +379,9 @@ async function loadSavedSession(sessionIdToLoad) {
                 videoElement.onloadedmetadata = () => {
                     addLogEntry('system', `Video ready: ${Math.round(videoElement.duration)}s`);
                     // Update loaded session duration from video (most authoritative source)
-                    if (videoElement.duration && videoElement.duration > 0) {
+                    // Guard against Infinity — Chrome's MediaRecorder produces WebM files
+                    // without duration metadata, causing videoElement.duration = Infinity
+                    if (videoElement.duration && isFinite(videoElement.duration) && videoElement.duration > 0) {
                         loadedSessionDuration = videoElement.duration * 1000; // Convert to ms
                         // Refresh timeline display with correct duration
                         updateTimeline();
@@ -399,6 +401,19 @@ async function loadSavedSession(sessionIdToLoad) {
                 if (frame) frame.style.opacity = '0';
             }
             addLogEntry('system', 'Loading video recording...');
+        }
+
+        // Load face mesh data from server CSV for playback (if not already in timeline JSON)
+        if (!timelineData.faceMesh || timelineData.faceMesh.length === 0) {
+            fetch(`/api/session/${sessionIdToLoad}/face-mesh`)
+                .then(r => r.json())
+                .then(fmData => {
+                    if (fmData.success && fmData.data && fmData.data.length > 0) {
+                        timelineData.faceMesh = fmData.data;
+                        addLogEntry('system', `Face mesh loaded: ${fmData.data.length} frames`);
+                    }
+                })
+                .catch(e => console.warn('Face mesh playback data not available:', e));
         }
 
         // Set participant dimensions from export metadata if available (fallback)
@@ -1043,12 +1058,14 @@ function recordTimelineFaceMesh() {
 
     const time = now - startTime;
 
-    // Store a simplified version of landmarks for playback
+    // Store lightweight version for timeline JSON (no full 468 landmarks — those are
+    // saved separately in face_mesh CSV and loaded on-demand via /api/session/{id}/face-mesh)
     timelineData.faceMesh.push({
         time,
-        landmarks: latestLandmarks.landmarks,
         key_points: latestLandmarks.key_points,
-        head_pose: latestLandmarks.head_pose
+        head_pose: latestLandmarks.head_pose,
+        bounding_box: latestLandmarks.bounding_box,
+        landmark_count: latestLandmarks.landmarks ? latestLandmarks.landmarks.length : 0
     });
 }
 
@@ -1522,14 +1539,21 @@ function applyTimelineState() {
 
     const time = timelinePlaybackTime;
 
-    // Apply face mesh data
+    // Apply face mesh data (supports both full landmarks from server CSV and lightweight timeline entries)
     const faceMeshData = findDataAtTime(timelineData.faceMesh, time);
     if (faceMeshData) {
-        latestLandmarks = {
-            landmarks: faceMeshData.landmarks,
-            key_points: faceMeshData.key_points,
-            head_pose: faceMeshData.head_pose
-        };
+        // Update latestLandmarks for renderFaceMesh() — use full landmarks if available
+        if (faceMeshData.landmarks) {
+            latestLandmarks = {
+                landmarks: faceMeshData.landmarks,
+                key_points: faceMeshData.key_points,
+                head_pose: faceMeshData.head_pose,
+                bounding_box: faceMeshData.bounding_box
+            };
+        } else {
+            // Lightweight timeline entry — no full landmarks for rendering
+            latestLandmarks = null;
+        }
 
         // Update head pose display
         if (faceMeshData.head_pose) {
@@ -1537,9 +1561,22 @@ function applyTimelineState() {
             const yaw = faceMeshData.head_pose.yaw.toFixed(1);
             document.getElementById('head-pose').textContent = `P:${pitch} Y:${yaw}`;
         }
-        if (faceMeshData.landmarks) {
-            document.getElementById('landmark-count').textContent = faceMeshData.landmarks.length;
+        // Update landmark count from whichever source has it
+        const lmCount = faceMeshData.landmark_count ||
+            (faceMeshData.landmarks ? faceMeshData.landmarks.length : 0);
+        if (lmCount > 0) {
+            document.getElementById('landmark-count').textContent = lmCount;
         }
+
+        // Update tracking quality indicators from face mesh data
+        updateCalibrationStatus(faceMeshData);
+    } else {
+        latestLandmarks = null;
+        // Reset tracking quality when no face mesh data at this time
+        setCalibDot('calib-face-detected', false);
+        setCalibDot('calib-face-centered', false);
+        setCalibDot('calib-face-size', false);
+        setCalibDot('calib-head-pose', false);
     }
 
     // Apply cognitive states
