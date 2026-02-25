@@ -53,12 +53,16 @@ class Session:
 
     # Data counts
     gaze_samples: int = 0
+    l2cs_gaze_samples: int = 0
     face_mesh_samples: int = 0
     emotion_samples: int = 0
     mouse_events: int = 0
     keyboard_events: int = 0
     answer_count: int = 0
     hover_events: int = 0
+    calibration_clicks: int = 0
+    calibration_validations: int = 0
+    experiment_events: int = 0
 
     @property
     def is_active(self) -> bool:
@@ -82,12 +86,16 @@ class Session:
             "metadata": self.metadata,
             "experiment_config": self.experiment_config,
             "gaze_samples": self.gaze_samples,
+            "l2cs_gaze_samples": self.l2cs_gaze_samples,
             "face_mesh_samples": self.face_mesh_samples,
             "emotion_samples": self.emotion_samples,
             "mouse_events": self.mouse_events,
             "keyboard_events": self.keyboard_events,
             "answer_count": self.answer_count,
             "hover_events": self.hover_events,
+            "calibration_clicks": self.calibration_clicks,
+            "calibration_validations": self.calibration_validations,
+            "experiment_events": self.experiment_events,
         }
 
 
@@ -192,6 +200,8 @@ class SessionManager:
 
         if data_type == "gaze":
             session.gaze_samples += count
+        elif data_type == "l2cs_gaze":
+            session.l2cs_gaze_samples += count
         elif data_type == "face_mesh":
             session.face_mesh_samples += count
         elif data_type == "emotion":
@@ -204,6 +214,12 @@ class SessionManager:
             session.answer_count += count
         elif data_type == "hover":
             session.hover_events += count
+        elif data_type == "calibration_click":
+            session.calibration_clicks += count
+        elif data_type == "calibration_validation":
+            session.calibration_validations += count
+        elif data_type == "experiment_event":
+            session.experiment_events += count
 
     def set_calibrated(self, session_id: str, calibrated: bool = True):
         """Mark session as calibrated."""

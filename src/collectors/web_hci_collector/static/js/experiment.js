@@ -35,6 +35,9 @@ let mediaRecorder = null;
 let recordedChunks = [];
 let recordingStartTime = 0;
 let recordingMimeType = 'video/webm';
+let pendingVideoReaders = 0;
+let recorderStopped = false;
+let videoCompleteResolver = null;
 const VIDEO_CHUNK_INTERVAL = 1000; // Send video chunk every 1 second
 
 // L2CS gaze frame capture
@@ -102,15 +105,30 @@ function connectWebSocket() {
 }
 
 /**
- * Send data to the server
+ * Send data to the server.
+ * Buffers messages while WebSocket is disconnected (up to MAX_BUFFER_SIZE).
+ * Flushes buffered messages in FIFO order on reconnect.
  */
+const DATA_SEND_BUFFER = [];
+const MAX_BUFFER_SIZE = 500;
+
 function sendData(type, data) {
+    const msg = JSON.stringify({
+        type: type,
+        timestamp: performance.now(),
+        data: data
+    });
     if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({
-            type: type,
-            timestamp: performance.now(),
-            data: data
-        }));
+        // Flush any buffered messages first (FIFO order)
+        while (DATA_SEND_BUFFER.length > 0) {
+            ws.send(DATA_SEND_BUFFER.shift());
+        }
+        ws.send(msg);
+    } else {
+        // Buffer data while disconnected (bounded to prevent memory leak)
+        if (DATA_SEND_BUFFER.length < MAX_BUFFER_SIZE) {
+            DATA_SEND_BUFFER.push(msg);
+        }
     }
 }
 
@@ -1064,45 +1082,63 @@ async function startScreenRecording() {
         });
 
         recordedChunks = [];
-        recordingStartTime = Date.now();
+        recordingStartTime = performance.now();
+        pendingVideoReaders = 0;
+        recorderStopped = false;
 
-        // Handle data available event - send chunks to server
-        mediaRecorder.ondataavailable = async (event) => {
-            if (event.data && event.data.size > 0) {
-                recordedChunks.push(event.data);
-
-                // Convert chunk to base64 and send
-                const reader = new FileReader();
-                reader.onloadend = () => {
-                    const base64Data = reader.result.split(',')[1];
-                    const currentTime = Date.now() - recordingStartTime;
-
-                    sendData('video_chunk', {
-                        data: base64Data,
-                        mimeType: mimeType,
-                        chunkIndex: recordedChunks.length - 1,
-                        timestamp: currentTime,
-                        size: event.data.size
-                    });
-
-                    console.log(`Video chunk #${recordedChunks.length} sent (${(event.data.size / 1024).toFixed(1)} KB)`);
-                };
-                reader.readAsDataURL(event.data);
-            }
-        };
-
-        // Handle recording stop
-        mediaRecorder.onstop = () => {
-            console.log('Screen recording stopped');
-            // Send final video blob info
+        function sendVideoComplete() {
             if (recordedChunks.length > 0) {
                 const totalSize = recordedChunks.reduce((acc, chunk) => acc + chunk.size, 0);
                 sendData('video_complete', {
                     totalChunks: recordedChunks.length,
                     totalSize: totalSize,
-                    duration: Date.now() - recordingStartTime,
+                    duration: performance.now() - recordingStartTime,
                     mimeType: mimeType
                 });
+            }
+            if (videoCompleteResolver) {
+                videoCompleteResolver();
+                videoCompleteResolver = null;
+            }
+        }
+
+        // Handle data available event - send chunks to server
+        mediaRecorder.ondataavailable = (event) => {
+            if (event.data && event.data.size > 0) {
+                recordedChunks.push(event.data);
+                const capturedIndex = recordedChunks.length - 1;
+
+                // Convert chunk to base64 and send
+                pendingVideoReaders++;
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    const base64Data = reader.result.split(',')[1];
+                    const currentTime = performance.now() - recordingStartTime;
+
+                    sendData('video_chunk', {
+                        data: base64Data,
+                        mimeType: mimeType,
+                        chunkIndex: capturedIndex,
+                        timestamp: currentTime,
+                        size: event.data.size
+                    });
+
+                    console.log(`Video chunk #${capturedIndex + 1} sent (${(event.data.size / 1024).toFixed(1)} KB)`);
+                    pendingVideoReaders--;
+                    if (recorderStopped && pendingVideoReaders === 0) {
+                        sendVideoComplete();
+                    }
+                };
+                reader.readAsDataURL(event.data);
+            }
+        };
+
+        // Handle recording stop — wait for all pending chunks before sending video_complete
+        mediaRecorder.onstop = () => {
+            console.log('Screen recording stopped');
+            recorderStopped = true;
+            if (pendingVideoReaders === 0) {
+                sendVideoComplete();
             }
         };
 
@@ -1166,29 +1202,15 @@ function stopScreenRecordingAsync() {
             return;
         }
 
-        // Wait for the onstop event before resolving
-        mediaRecorder.onstop = () => {
+        // videoCompleteResolver will be called after all chunks are sent
+        videoCompleteResolver = () => {
             console.log('Screen recording stopped, total chunks:', recordedChunks.length);
-
-            // Send final video blob info
-            if (recordedChunks.length > 0) {
-                const totalSize = recordedChunks.reduce((acc, chunk) => acc + chunk.size, 0);
-                sendData('video_complete', {
-                    totalChunks: recordedChunks.length,
-                    totalSize: totalSize,
-                    duration: Date.now() - recordingStartTime,
-                    mimeType: recordingMimeType
-                });
-            }
-
             if (screenStream) {
                 screenStream.getTracks().forEach(track => track.stop());
                 screenStream = null;
             }
             mediaRecorder = null;
-
-            // Small delay to ensure data is sent
-            setTimeout(resolve, 500);
+            setTimeout(resolve, 200);
         };
 
         mediaRecorder.stop();

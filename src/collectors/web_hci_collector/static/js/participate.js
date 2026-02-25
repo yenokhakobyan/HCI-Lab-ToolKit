@@ -31,6 +31,9 @@ let mediaRecorder = null;
 let recordedChunks = [];
 let recordingStartTime = 0;
 let recordingMimeType = 'video/webm';
+let pendingVideoReaders = 0;
+let recorderStopped = false;
+let videoCompleteResolver = null;
 const VIDEO_CHUNK_INTERVAL = 1000;
 
 // L2CS gaze
@@ -158,9 +161,22 @@ function connectWebSocket() {
     ws.onerror = (e) => console.error('WS error:', e);
 }
 
+const DATA_SEND_BUFFER = [];
+const MAX_BUFFER_SIZE = 500;
+
 function sendData(type, data) {
+    const msg = JSON.stringify({ type, timestamp: performance.now(), data });
     if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type, timestamp: performance.now(), data }));
+        // Flush any buffered messages first (FIFO order)
+        while (DATA_SEND_BUFFER.length > 0) {
+            ws.send(DATA_SEND_BUFFER.shift());
+        }
+        ws.send(msg);
+    } else {
+        // Buffer data while disconnected (bounded to prevent memory leak)
+        if (DATA_SEND_BUFFER.length < MAX_BUFFER_SIZE) {
+            DATA_SEND_BUFFER.push(msg);
+        }
     }
 }
 
@@ -1083,7 +1099,9 @@ function injectIframeMouseTracking(iframe, iDoc) {
 }
 
 function injectHoverTracking(iDoc) {
-    iDoc.querySelectorAll('[data-aoi]').forEach(el => {
+    function attachHoverListeners(el) {
+        if (el._hoverTracked) return;
+        el._hoverTracked = true;
         let enterTime = null;
         el.addEventListener('mouseenter', () => {
             enterTime = performance.now();
@@ -1094,7 +1112,27 @@ function injectHoverTracking(iDoc) {
             sendData('hover', { event: 'leave', aoi: el.dataset.aoi, dwell_time_ms: dwell });
             enterTime = null;
         });
-    });
+    }
+
+    // Track existing AOI elements
+    iDoc.querySelectorAll('[data-aoi]').forEach(attachHoverListeners);
+
+    // Watch for dynamically added AOI elements (AJAX, SPA navigation, etc.)
+    if (iDoc.body) {
+        const observer = new MutationObserver((mutations) => {
+            for (const m of mutations) {
+                for (const node of m.addedNodes) {
+                    if (node.nodeType === 1) {
+                        if (node.matches && node.matches('[data-aoi]')) attachHoverListeners(node);
+                        if (node.querySelectorAll) {
+                            node.querySelectorAll('[data-aoi]').forEach(attachHoverListeners);
+                        }
+                    }
+                }
+            }
+        });
+        observer.observe(iDoc.body, { childList: true, subtree: true });
+    }
 }
 
 // ── Screen Recording ──────────────────────────────────────
@@ -1117,32 +1155,52 @@ async function startScreenRecording() {
         recordingMimeType = mimeType;
         mediaRecorder = new MediaRecorder(screenStream, { mimeType, videoBitsPerSecond: 1000000 });
         recordedChunks = [];
-        recordingStartTime = Date.now();
+        recordingStartTime = performance.now();
+
+        pendingVideoReaders = 0;
+        recorderStopped = false;
+
+        function sendVideoComplete() {
+            if (recordedChunks.length) {
+                sendData('video_complete', {
+                    totalChunks: recordedChunks.length,
+                    totalSize: recordedChunks.reduce((a, c) => a + c.size, 0),
+                    duration: performance.now() - recordingStartTime,
+                    mimeType,
+                });
+            }
+            if (videoCompleteResolver) {
+                videoCompleteResolver();
+                videoCompleteResolver = null;
+            }
+        }
 
         mediaRecorder.ondataavailable = (event) => {
             if (event.data?.size > 0) {
                 recordedChunks.push(event.data);
+                const capturedIndex = recordedChunks.length - 1;
+                pendingVideoReaders++;
                 const reader = new FileReader();
                 reader.onloadend = () => {
                     sendData('video_chunk', {
                         data: reader.result.split(',')[1],
-                        mimeType, chunkIndex: recordedChunks.length - 1,
-                        timestamp: Date.now() - recordingStartTime,
+                        mimeType, chunkIndex: capturedIndex,
+                        timestamp: performance.now() - recordingStartTime,
                         size: event.data.size,
                     });
+                    pendingVideoReaders--;
+                    if (recorderStopped && pendingVideoReaders === 0) {
+                        sendVideoComplete();
+                    }
                 };
                 reader.readAsDataURL(event.data);
             }
         };
 
         mediaRecorder.onstop = () => {
-            if (recordedChunks.length) {
-                sendData('video_complete', {
-                    totalChunks: recordedChunks.length,
-                    totalSize: recordedChunks.reduce((a, c) => a + c.size, 0),
-                    duration: Date.now() - recordingStartTime,
-                    mimeType,
-                });
+            recorderStopped = true;
+            if (pendingVideoReaders === 0) {
+                sendVideoComplete();
             }
         };
 
@@ -1174,18 +1232,11 @@ function stopScreenRecordingAsync() {
             if (screenStream) { screenStream.getTracks().forEach(t => t.stop()); screenStream = null; }
             resolve(); return;
         }
-        mediaRecorder.onstop = () => {
-            if (recordedChunks.length) {
-                sendData('video_complete', {
-                    totalChunks: recordedChunks.length,
-                    totalSize: recordedChunks.reduce((a, c) => a + c.size, 0),
-                    duration: Date.now() - recordingStartTime,
-                    mimeType: recordingMimeType,
-                });
-            }
+        // videoCompleteResolver will be called after all chunks are sent
+        videoCompleteResolver = () => {
             if (screenStream) { screenStream.getTracks().forEach(t => t.stop()); screenStream = null; }
             mediaRecorder = null;
-            setTimeout(resolve, 500);
+            setTimeout(resolve, 200);
         };
         mediaRecorder.stop();
     });

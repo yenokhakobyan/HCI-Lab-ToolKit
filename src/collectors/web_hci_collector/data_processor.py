@@ -4,6 +4,7 @@ Data Processor for Web HCI Collector
 Handles data storage, synchronization, and export.
 """
 
+import atexit
 import csv
 import json
 from datetime import datetime
@@ -75,8 +76,13 @@ class DataProcessor:
 
         # Periodic save tracking
         self._flush_indices: Dict[str, Dict[str, int]] = defaultdict(lambda: defaultdict(int))
+        # Track known CSV fieldnames per session/data_type to prevent schema drift
+        self._known_fields: Dict[str, Dict[str, List[str]]] = defaultdict(lambda: defaultdict(list))
         self._save_timer: Optional[threading.Timer] = None
         self._save_running = False
+
+        # Defense-in-depth: flush all data on process exit (complements server shutdown)
+        atexit.register(self._flush_all_on_exit)
 
     def add_data(self, session_id: str, data_type: str, timestamp: float, data: Dict[str, Any]):
         """
@@ -126,6 +132,9 @@ class DataProcessor:
         Returns:
             Path to exported file(s)
         """
+        # Flush any pending in-memory data before export so nothing is missed
+        self.flush_session_to_disk(session_id)
+
         data = self.get_session_data(session_id)
 
         if not any(data.values()):
@@ -210,6 +219,15 @@ class DataProcessor:
             self._save_timer.cancel()
             self._save_timer = None
 
+    def _flush_all_on_exit(self):
+        """Flush all session buffers on process exit (atexit handler)."""
+        self.stop_periodic_save()
+        for sid in list(self.buffers.keys()):
+            try:
+                self.flush_session_to_disk(sid)
+            except Exception as e:
+                print(f"Exit flush error for {sid}: {e}")
+
     def _schedule_save(self, interval: int):
         """Schedule the next save."""
         if not self._save_running:
@@ -277,15 +295,30 @@ class DataProcessor:
                         flat_records.append(flat)
 
                     if flat_records:
-                        fieldnames = list(flat_records[0].keys())
-                        # Collect all possible fieldnames from all records
+                        # Collect fieldnames from this batch
+                        batch_fields = list(flat_records[0].keys())
                         for rec in flat_records[1:]:
                             for k in rec:
-                                if k not in fieldnames:
-                                    fieldnames.append(k)
+                                if k not in batch_fields:
+                                    batch_fields.append(k)
+
+                        # Merge with known fields to maintain stable schema
+                        known = self._known_fields[session_id][data_type]
+                        if not known:
+                            # First flush — establish the schema
+                            known.extend(batch_fields)
+                        else:
+                            # Subsequent flushes — append any new fields
+                            for f_name in batch_fields:
+                                if f_name not in known:
+                                    known.append(f_name)
+                                    print(f"CSV schema expanded: {data_type} gained field '{f_name}' mid-session")
 
                         with open(filepath, "a", newline="") as f:
-                            writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
+                            writer = csv.DictWriter(
+                                f, fieldnames=known,
+                                extrasaction="ignore", restval=""
+                            )
                             if not file_exists:
                                 writer.writeheader()
                             writer.writerows(flat_records)
@@ -299,6 +332,8 @@ class DataProcessor:
                 self.buffers[session_id].clear()
             if session_id in self._flush_indices:
                 del self._flush_indices[session_id]
+            if session_id in self._known_fields:
+                del self._known_fields[session_id]
 
     def get_statistics(self, session_id: str) -> Dict[str, Any]:
         """Get statistics for a session."""

@@ -120,6 +120,12 @@ class WebHCICollectorServer:
         # Background task for emotion detection broadcasting
         self._emotion_broadcast_task = None
 
+        # Guard against duplicate finalization from beacon + WS disconnect race.
+        # Bounded to prevent unbounded growth; old entries are safe to evict
+        # because the race window is only seconds, not hours.
+        self._finalized_sessions: set = set()
+        self._max_finalized_cache = 200
+
         # Setup routes and lifecycle
         self._setup_routes()
         self._setup_static_files()
@@ -136,7 +142,14 @@ class WebHCICollectorServer:
                 self.async_emotion_detector.stop()
             if self.gaze_estimator:
                 self.gaze_estimator.stop()
-            print("Background processors stopped.")
+            # Stop periodic save and flush all remaining in-memory data
+            self.data_processor.stop_periodic_save()
+            for sid in list(self.data_processor.buffers.keys()):
+                try:
+                    self.data_processor.flush_session_to_disk(sid)
+                except Exception as e:
+                    print(f"Shutdown flush error for {sid}: {e}")
+            print("Background processors stopped and data flushed.")
 
     def _setup_static_files(self):
         """Mount static files directory."""
@@ -301,10 +314,19 @@ class WebHCICollectorServer:
             beforeunload/pagehide, ensuring the server knows the session ended
             even if the WebSocket message was lost.
             """
+            # Guard: only finalize once (beacon and WS disconnect can race)
+            if session_id in self._finalized_sessions:
+                return {"success": True}
+
+            # Prevent unbounded growth of the finalized set
+            if len(self._finalized_sessions) > self._max_finalized_cache:
+                self._finalized_sessions.clear()
+
             session = self.session_manager.get_session(session_id)
             if session and session.status not in (
                 SessionStatus.COMPLETED, SessionStatus.ABANDONED
             ):
+                self._finalized_sessions.add(session_id)
                 self.session_manager.end_session(session_id)
                 self.data_processor.flush_session_to_disk(session_id)
                 await self._finalize_video(session_id)
@@ -495,17 +517,21 @@ class WebHCICollectorServer:
                 print(f"[{datetime.now().strftime('%H:%M:%S')}] Client disconnected: {session_id}")
                 self.connected_clients.pop(session_id, None)
                 self.session_start_cache.pop(session_id, None)
-                self.session_manager.end_session(session_id)
-                # Flush data to disk on disconnect
-                self.data_processor.flush_session_to_disk(session_id)
-                # Finalize video and save session metadata with duration
-                await self._finalize_video(session_id)
-                await self._save_session_metadata(session_id)
-                # Notify dashboard
-                await self._broadcast_to_dashboard(session_id, {
-                    "type": "session_status",
-                    "data": {"status": "abandoned", "session_id": session_id},
-                })
+
+                # Guard: only finalize once (beacon and WS disconnect can race)
+                if session_id not in self._finalized_sessions:
+                    self._finalized_sessions.add(session_id)
+                    self.session_manager.end_session(session_id)
+                    # Flush data to disk on disconnect
+                    self.data_processor.flush_session_to_disk(session_id)
+                    # Finalize video and save session metadata with duration
+                    await self._finalize_video(session_id)
+                    await self._save_session_metadata(session_id)
+                    # Notify dashboard
+                    await self._broadcast_to_dashboard(session_id, {
+                        "type": "session_status",
+                        "data": {"status": "abandoned", "session_id": session_id},
+                    })
             except Exception as e:
                 print(f"WebSocket error: {e}")
                 self.connected_clients.pop(session_id, None)
@@ -555,17 +581,22 @@ class WebHCICollectorServer:
         # Update session counts
         self.session_manager.update_session_counts(session_id, data_type)
 
-        # Skip storing webcam preview frames (display-only, not research data)
-        if data_type == "webcam_frame":
-            return
+        # Only store data types that have a matching DataBuffer field.
+        # Types like session, step_transition, video_chunk, etc. are handled
+        # for side effects below but don't need persistent storage.
+        _NON_STORABLE_TYPES = {
+            "webcam_frame", "session", "step_transition",
+            "calibration_complete", "gaze_frame", "l2cs_calibration",
+            "video_chunk", "video_complete",
+        }
 
-        # Add to session data
-        self.data_processor.add_data(
-            session_id=session_id,
-            data_type=data_type,
-            timestamp=timestamp,
-            data=payload
-        )
+        if data_type not in _NON_STORABLE_TYPES:
+            self.data_processor.add_data(
+                session_id=session_id,
+                data_type=data_type,
+                timestamp=timestamp,
+                data=payload
+            )
 
         # Handle video chunks - save to file
         if data_type == "video_chunk" and payload.get("data"):
