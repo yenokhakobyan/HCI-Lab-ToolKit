@@ -310,6 +310,9 @@
             <div class="nav-item" data-section="behavioral" onclick="showSection('behavioral')">
                 <span class="nav-icon">&#x1f5b1;</span> Behavioral
             </div>
+            <div class="nav-item" data-section="coordination" onclick="showSection('coordination')">
+                <span class="nav-icon">&#x1f517;</span> Coordination
+            </div>
             <div class="nav-item" data-section="emotion" onclick="showSection('emotion')">
                 <span class="nav-icon">&#x1f60a;</span> Emotion &amp; Facial
             </div>
@@ -425,10 +428,22 @@
             <div id="section-behavioral" class="section">
                 <h2 class="section-title">Behavioral Analysis</h2>
                 <div id="behavioral-stats-cards" class="card-grid"></div>
+                <h3 class="section-subtitle">Mouse Path &amp; Patterns</h3>
+                <div id="behavioral-pattern-cards" class="card-grid"></div>
                 <div class="chart-row">
+                    <div class="chart-box">
+                        <div class="chart-title">Mouse Trajectory</div>
+                        <div id="chart-mouse-trajectory" class="plotly-chart"></div>
+                    </div>
                     <div class="chart-box">
                         <div class="chart-title">Mouse Velocity Over Time</div>
                         <div id="chart-mouse-velocity" class="plotly-chart"></div>
+                    </div>
+                </div>
+                <div class="chart-row">
+                    <div class="chart-box">
+                        <div class="chart-title">Jitter Detection Over Time</div>
+                        <div id="chart-jitter-timeline" class="plotly-chart"></div>
                     </div>
                     <div class="chart-box">
                         <div class="chart-title">Typing Speed (chars/min)</div>
@@ -443,6 +458,41 @@
                     <div class="chart-box">
                         <div class="chart-title">Click Positions</div>
                         <div id="chart-click-scatter" class="plotly-chart"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- COORDINATION (Gaze x Mouse x Emotion) -->
+            <div id="section-coordination" class="section">
+                <h2 class="section-title">Cross-Stream Coordination</h2>
+                <h3 class="section-subtitle">Gaze-Mouse Lag Analysis</h3>
+                <div id="coordination-lag-cards" class="card-grid"></div>
+                <div class="chart-row">
+                    <div class="chart-box">
+                        <div class="chart-title">Gaze-Mouse Cross-Correlation by Lag</div>
+                        <div id="chart-lag-correlation" class="plotly-chart"></div>
+                    </div>
+                    <div class="chart-box">
+                        <div class="chart-title">Coordination Score Over Time</div>
+                        <div id="chart-coord-timeline" class="plotly-chart"></div>
+                    </div>
+                </div>
+                <h3 class="section-subtitle">Emotion &times; Gaze &amp; Mouse Correlations</h3>
+                <div class="chart-row">
+                    <div class="chart-box">
+                        <div class="chart-title">Emotion &times; Gaze Metrics</div>
+                        <div id="chart-emotion-gaze-matrix" class="plotly-chart"></div>
+                    </div>
+                    <div class="chart-box">
+                        <div class="chart-title">Emotion &times; Mouse Metrics</div>
+                        <div id="chart-emotion-mouse-matrix" class="plotly-chart"></div>
+                    </div>
+                </div>
+                <h3 class="section-subtitle">Combined State Timeline</h3>
+                <div class="chart-row single">
+                    <div class="chart-box">
+                        <div class="chart-title">Coordination + Cognitive Load + Dominant Emotion</div>
+                        <div id="chart-combined-timeline" class="plotly-chart"></div>
                     </div>
                 </div>
             </div>

@@ -134,6 +134,7 @@ function renderCurrentSection() {
         case 'gaze': renderGaze(analyticsData.gaze); break;
         case 'attention': renderAttention(analyticsData.attention); break;
         case 'behavioral': renderBehavioral(analyticsData.behavioral); break;
+        case 'coordination': renderCoordination(analyticsData.coordination, analyticsData.behavioral); break;
         case 'emotion': renderEmotion(analyticsData.emotion); break;
         case 'temporal': renderTemporal(analyticsData.temporal); break;
         case 'questions': renderQuestions(analyticsData.questions); break;
@@ -275,16 +276,55 @@ function renderBehavioral(b) {
     const kd = b.keystroke_dynamics || {};
     const gm = b.gaze_mouse_coordination || {};
     const idle = b.idle_periods || [];
+    const ps = b.mouse_path_stats || {};
+    const bp = b.behavioral_patterns || {};
 
     document.getElementById('behavioral-stats-cards').innerHTML = `
         ${statCard('Total Clicks', cp.total_clicks || 0)}
         ${statCard('Key Events', kd.total_events || 0)}
         ${statCard('Gaze-Mouse Corr.', gm.available ? (gm.correlation || 0).toFixed(2) : 'N/A')}
-        ${statCard('Mean G-M Dist.', gm.available ? Math.round(gm.mean_distance || 0) + ' px' : 'N/A')}
+        ${statCard('Coordination', gm.available ? (gm.coordination_score || 0).toFixed(2) : 'N/A', gm.coordination_score > 0.7 ? 'success' : 'warning')}
         ${statCard('Idle Periods', idle.length)}
     `;
 
+    // Mouse path & pattern cards
+    document.getElementById('behavioral-pattern-cards').innerHTML = `
+        ${statCard('Path Distance', ps.total_distance_px ? fmtNum(ps.total_distance_px) + ' px' : 'N/A')}
+        ${statCard('Dir. Changes', ps.direction_changes || 0)}
+        ${statCard('Avg Speed', ps.avg_speed_px_ms ? ps.avg_speed_px_ms.toFixed(2) + ' px/ms' : 'N/A')}
+        ${statCard('Hesitations', bp.hesitation_count || 0, bp.hesitation_count > 10 ? 'warning' : '')}
+        ${statCard('Jitter Events', bp.jitter_events || 0, bp.jitter_events > 5 ? 'warning' : '')}
+        ${statCard('Backtracks', bp.backtrack_count || 0)}
+    `;
+
+    // Mouse trajectory
+    const traj = b.mouse_trajectory;
+    if (traj && traj.available && traj.points && traj.points.length > 0) {
+        const pts = traj.points;
+        Plotly.newPlot('chart-mouse-trajectory', [{
+            x: pts.map(p => p.x), y: pts.map(p => p.y),
+            mode: 'lines+markers',
+            type: 'scatter',
+            marker: {
+                size: 3,
+                color: pts.map(p => p.time / 1000),
+                colorscale: [[0, '#4ecca3'], [0.5, '#ffd93d'], [1, '#e94560']],
+                colorbar: { title: 'Time (s)', titlefont: { color: PLOT_TEXT }, tickfont: { color: PLOT_TEXT } },
+            },
+            line: { color: 'rgba(255,255,255,0.15)', width: 1 },
+        }], plotLayout('', { yaxis: { autorange: 'reversed' }, xaxis: { title: 'X (px)' }, yaxis2: { title: 'Y (px)' } }), PLOT_CONFIG);
+    }
+
     plotTimeline('chart-mouse-velocity', b.mouse_velocity_timeline, 'Velocity (px/ms)', ACCENT);
+
+    // Jitter timeline
+    const jt = bp.jitter_timeline || [];
+    if (jt.length > 0) {
+        plotTimeline('chart-jitter-timeline', jt, 'Direction Changes / Window', WARNING);
+    } else {
+        clearChart('chart-jitter-timeline');
+    }
+
     plotTimeline('chart-typing-speed', kd.typing_speed_timeline, 'Chars/min', SUCCESS);
     plotTimeline('chart-gaze-mouse-dist', gm.available ? gm.distance_timeline : [], 'Distance (px)', WARNING);
 
@@ -297,6 +337,136 @@ function renderBehavioral(b) {
             type: 'scatter',
         }], plotLayout('', { yaxis: { autorange: 'reversed' } }), PLOT_CONFIG);
     }
+}
+
+// ── Cross-Stream Coordination ─────────────────────────────────────────
+
+function renderCoordination(coord, behavioral) {
+    if (!coord || !coord.available) {
+        showEmpty('section-coordination', 'No cross-stream coordination data available. Both gaze and mouse+emotion data required.');
+        return;
+    }
+
+    // Lag analysis cards
+    const gm = (behavioral || {}).gaze_mouse_coordination || {};
+    const lag = gm.lag_analysis || {};
+    const lagCardsEl = document.getElementById('coordination-lag-cards');
+    if (lag.available) {
+        lagCardsEl.innerHTML = `
+            ${statCard('Best Lag', lag.best_lag + ' samples')}
+            ${statCard('Lag Correlation', (lag.best_correlation || 0).toFixed(3))}
+            ${statCard('Who Leads?', lag.gaze_leads_mouse ? 'Gaze' : lag.best_lag < 0 ? 'Mouse' : 'Sync', lag.gaze_leads_mouse ? 'accent' : 'success')}
+            ${statCard('Coordination', gm.available ? (gm.coordination_score || 0).toFixed(2) : 'N/A', gm.coordination_score > 0.7 ? 'success' : 'warning')}
+        `;
+
+        // Lag cross-correlation bar chart
+        const corrs = lag.correlations || [];
+        if (corrs.length > 0) {
+            Plotly.newPlot('chart-lag-correlation', [{
+                x: corrs.map(c => c.lag),
+                y: corrs.map(c => c.correlation),
+                type: 'bar',
+                marker: {
+                    color: corrs.map(c => c.lag === lag.best_lag ? ACCENT : 'rgba(78,204,163,0.6)'),
+                },
+            }], plotLayout('', {
+                xaxis: { title: 'Lag (samples)', dtick: 2 },
+                yaxis: { title: 'Pearson r', range: [-1, 1] },
+                shapes: [{ type: 'line', y0: 0, y1: 0, x0: corrs[0].lag, x1: corrs[corrs.length-1].lag,
+                           line: { color: 'rgba(255,255,255,0.3)', dash: 'dash', width: 1 } }],
+            }), PLOT_CONFIG);
+        }
+    } else {
+        lagCardsEl.innerHTML = statCard('Lag Analysis', 'Insufficient data', 'warning');
+        clearChart('chart-lag-correlation');
+    }
+
+    // Coordination score timeline
+    const ct = gm.coordination_timeline || [];
+    if (ct.length > 0) {
+        plotTimeline('chart-coord-timeline', ct, 'Score (0-1)', SUCCESS);
+    } else {
+        clearChart('chart-coord-timeline');
+    }
+
+    // Emotion × Gaze correlation heatmap
+    renderCorrelationMatrix('chart-emotion-gaze-matrix', coord.emotion_gaze);
+
+    // Emotion × Mouse correlation heatmap
+    renderCorrelationMatrix('chart-emotion-mouse-matrix', coord.emotion_mouse);
+
+    // Combined state timeline
+    const combined = coord.combined_timeline;
+    if (combined && combined.available && combined.times) {
+        const traces = [];
+        const t = combined.times.map(v => v / 1000);
+
+        if (combined.coordination) {
+            traces.push({
+                x: t, y: combined.coordination,
+                name: 'Coordination', type: 'scatter', mode: 'lines',
+                line: { color: SUCCESS, width: 2 },
+            });
+        }
+        if (combined.cognitive_load) {
+            traces.push({
+                x: t, y: combined.cognitive_load,
+                name: 'Cognitive Load', type: 'scatter', mode: 'lines',
+                line: { color: WARNING, width: 2 },
+            });
+        }
+        if (traces.length > 0) {
+            Plotly.newPlot('chart-combined-timeline', traces, plotLayout('', {
+                xaxis: { title: 'Time (s)', gridcolor: PLOT_GRID },
+                yaxis: { title: 'Score (0-1)', range: [0, 1], gridcolor: PLOT_GRID },
+                showlegend: true,
+                legend: { font: { color: PLOT_TEXT, size: 10 }, bgcolor: 'transparent' },
+            }), PLOT_CONFIG);
+        }
+    } else {
+        clearChart('chart-combined-timeline');
+    }
+}
+
+function renderCorrelationMatrix(divId, matrixData) {
+    if (!matrixData || !matrixData.available) {
+        clearChart(divId);
+        return;
+    }
+    const labelsX = matrixData.labels_x || [];
+    const labelsY = matrixData.labels_y || [];
+    const matrix = matrixData.matrix || {};
+
+    // Build 2D array
+    const z = labelsY.map(em => labelsX.map(gm => (matrix[em] || {})[gm] || 0));
+
+    // Annotate text
+    const annotations = [];
+    labelsY.forEach((em, i) => {
+        labelsX.forEach((gm, j) => {
+            annotations.push({
+                x: gm, y: capitalize(em),
+                text: z[i][j].toFixed(2),
+                font: { color: Math.abs(z[i][j]) > 0.3 ? '#fff' : PLOT_TEXT, size: 13 },
+                showarrow: false,
+            });
+        });
+    });
+
+    Plotly.newPlot(divId, [{
+        z: z,
+        x: labelsX.map(capitalize),
+        y: labelsY.map(capitalize),
+        type: 'heatmap',
+        colorscale: [[0, '#0f3460'], [0.25, '#1a4a7a'], [0.5, '#2a2a4e'], [0.75, '#e94560'], [1, '#ff6b6b']],
+        zmin: -1, zmax: 1,
+        showscale: true,
+        colorbar: { title: 'r', titlefont: { color: PLOT_TEXT }, tickfont: { color: PLOT_TEXT } },
+    }], plotLayout('', {
+        annotations: annotations,
+        xaxis: { side: 'bottom' },
+        margin: { l: 100, r: 60, t: 10, b: 60 },
+    }), PLOT_CONFIG);
 }
 
 // ── Emotion & Facial ───────────────────────────────────────────────────
@@ -433,21 +603,20 @@ function renderQuestions(qData) {
 
     // Summary table
     const tableEl = document.getElementById('question-summary-table');
-    let html = '<table class="compare-table"><thead><tr><th>Q#</th><th>Title</th><th>Time</th><th>Answer</th><th>Fixations</th><th>Cog. Load</th><th>K Coeff</th><th>Clicks</th><th>Emotion</th><th>Calc</th></tr></thead><tbody>';
+    let html = '<table class="compare-table"><thead><tr><th>Q#</th><th>Title</th><th>Time</th><th>Ans</th><th>Fix</th><th>Load</th><th>Coord</th><th>Hesit.</th><th>Clicks</th><th>Emotion</th></tr></thead><tbody>';
     questions.forEach(q => {
-        const emMeans = q.emotion_means || {};
         const domEm = q.dominant_emotion || 'N/A';
         html += `<tr>
             <td>${q.question_id.toUpperCase()}</td>
-            <td style="text-align:left;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${q.title}">${q.title}</td>
+            <td style="text-align:left;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${q.title}">${q.title}</td>
             <td>${q.duration_formatted}</td>
             <td><strong>${q.selected_answer || '-'}</strong></td>
             <td>${q.fixation_count}</td>
             <td>${(q.cognitive_load || 0).toFixed(2)}</td>
-            <td>${(q.k_coefficient || 0).toFixed(2)}</td>
+            <td>${(q.coordination_score || 0).toFixed(2)}</td>
+            <td>${q.hesitation_count || 0}</td>
             <td>${q.click_count}</td>
             <td>${capitalize(domEm)}</td>
-            <td>${q.calc_used ? '✓' : '-'}</td>
         </tr>`;
     });
     html += '</tbody></table>';

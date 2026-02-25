@@ -161,6 +161,11 @@ class AnalyticsEngine:
             experiment_events,
         )
 
+        # Cross-stream correlations (emotion × gaze × mouse)
+        coordination = self.compute_cross_stream_metrics(
+            gaze_df, mouse_df, emotion_df, gaze.get("fixations_df"),
+        )
+
         # Per-question analysis, answer tracking, survey
         questions = self.analyze_per_question(
             answer_records, experiment_events,
@@ -181,6 +186,7 @@ class AnalyticsEngine:
             "behavioral": behavioral,
             "emotion": emotion,
             "temporal": temporal,
+            "coordination": coordination,
             "questions": questions,
             "answers": answers,
             "survey": survey,
@@ -648,13 +654,22 @@ class AnalyticsEngine:
         mouse_velocity = self._mouse_velocity_timeline(mouse_df)
         result["mouse_velocity_timeline"] = mouse_velocity
 
+        # Mouse trajectory analysis
+        result["mouse_trajectory"] = self._mouse_trajectory(mouse_df)
+
+        # Mouse path stats
+        result["mouse_path_stats"] = self._mouse_path_stats(mouse_df)
+
+        # Behavioral patterns (hesitations, jitter, backtracking)
+        result["behavioral_patterns"] = self._detect_behavioral_patterns(mouse_df)
+
         # Click patterns
         result["click_patterns"] = self._click_patterns(mouse_df)
 
         # Keystroke dynamics
         result["keystroke_dynamics"] = self._keystroke_dynamics(keyboard_df)
 
-        # Gaze-mouse coordination
+        # Gaze-mouse coordination (enhanced with lag detection)
         result["gaze_mouse_coordination"] = self._gaze_mouse_coordination(gaze_df, mouse_df)
 
         # Idle periods
@@ -682,6 +697,155 @@ class AnalyticsEngine:
             chunk = vel[i : i + step]
             timeline.append({"time": float(ts[i + 1] - t0), "value": float(np.mean(chunk))})
         return timeline
+
+    def _mouse_trajectory(self, mouse_df: pd.DataFrame, max_points: int = 500) -> Dict:
+        """Downsampled mouse trajectory for visualization."""
+        if mouse_df.empty or "x" not in mouse_df.columns:
+            return {"available": False}
+        df = mouse_df.dropna(subset=["x", "y", "timestamp"]).sort_values("timestamp").reset_index(drop=True)
+        if len(df) < 2:
+            return {"available": False}
+        step = max(1, len(df) // max_points)
+        t0 = df["timestamp"].iloc[0]
+        points = []
+        for i in range(0, len(df), step):
+            points.append({
+                "x": float(df.iloc[i]["x"]),
+                "y": float(df.iloc[i]["y"]),
+                "time": float(df.iloc[i]["timestamp"] - t0),
+            })
+        return {"available": True, "points": points}
+
+    def _mouse_path_stats(self, mouse_df: pd.DataFrame) -> Dict:
+        """Compute mouse path statistics: distance, direction changes, speed."""
+        if mouse_df.empty or "x" not in mouse_df.columns:
+            return {}
+        df = mouse_df.dropna(subset=["x", "y", "timestamp"]).sort_values("timestamp").reset_index(drop=True)
+        if len(df) < 3:
+            return {}
+
+        xs = df["x"].values.astype(float)
+        ys = df["y"].values.astype(float)
+        ts = df["timestamp"].values.astype(float)
+
+        dx = np.diff(xs)
+        dy = np.diff(ys)
+        seg_dist = np.sqrt(dx ** 2 + dy ** 2)
+        total_distance = float(np.sum(seg_dist))
+
+        dt = np.diff(ts)
+        dt[dt == 0] = 1
+        speeds = seg_dist / dt
+        avg_speed = float(np.mean(speeds))
+        peak_speed = float(np.max(speeds))
+
+        # Direction changes (>45 degrees)
+        angles = np.arctan2(dy, dx)
+        angle_diffs = np.abs(np.diff(angles))
+        # Wrap around
+        angle_diffs = np.minimum(angle_diffs, 2 * np.pi - angle_diffs)
+        direction_changes = int(np.sum(angle_diffs > np.pi / 4))
+
+        duration_s = (ts[-1] - ts[0]) / 1000
+        return {
+            "total_distance_px": round(total_distance),
+            "avg_speed_px_ms": round(avg_speed, 3),
+            "peak_speed_px_ms": round(peak_speed, 3),
+            "direction_changes": direction_changes,
+            "duration_s": round(duration_s, 1),
+            "total_samples": len(df),
+        }
+
+    def _detect_behavioral_patterns(self, mouse_df: pd.DataFrame) -> Dict:
+        """Detect hesitations, jitter, and backtracking in mouse movement."""
+        result = {"hesitations": [], "jitter_events": 0, "backtrack_count": 0,
+                  "rapid_scans": 0, "hesitation_count": 0, "jitter_timeline": []}
+
+        if mouse_df.empty or "x" not in mouse_df.columns:
+            return result
+
+        df = mouse_df.dropna(subset=["x", "y", "timestamp"]).sort_values("timestamp").reset_index(drop=True)
+        if len(df) < 10:
+            return result
+
+        xs = df["x"].values.astype(float)
+        ys = df["y"].values.astype(float)
+        ts = df["timestamp"].values.astype(float)
+        t0 = ts[0]
+
+        # --- Hesitations: cursor stays within 5px for >300ms ---
+        hesitations = []
+        i = 0
+        while i < len(df):
+            j = i + 1
+            while j < len(df):
+                dist = np.sqrt((xs[j] - xs[i]) ** 2 + (ys[j] - ys[i]) ** 2)
+                if dist > 5:
+                    break
+                j += 1
+            duration = ts[min(j, len(ts) - 1)] - ts[i]
+            if duration >= 300:
+                hesitations.append({
+                    "time": float(ts[i] - t0),
+                    "duration_ms": float(duration),
+                    "x": float(xs[i]),
+                    "y": float(ys[i]),
+                })
+            i = max(j, i + 1)
+        result["hesitations"] = hesitations[:100]
+        result["hesitation_count"] = len(hesitations)
+
+        # --- Jitter: rapid direction changes in short windows ---
+        window_ms = 500
+        jitter_events = 0
+        jitter_timeline = []
+        wi = 0
+        for wi_start in range(0, len(df) - 5, 5):
+            t_start = ts[wi_start]
+            # Find end of window
+            wi_end = wi_start
+            while wi_end < len(df) and ts[wi_end] - t_start < window_ms:
+                wi_end += 1
+            if wi_end - wi_start < 4:
+                continue
+            wdx = np.diff(xs[wi_start:wi_end])
+            wdy = np.diff(ys[wi_start:wi_end])
+            wangles = np.arctan2(wdy, wdx)
+            wangle_diffs = np.abs(np.diff(wangles))
+            wangle_diffs = np.minimum(wangle_diffs, 2 * np.pi - wangle_diffs)
+            dir_changes = int(np.sum(wangle_diffs > np.pi / 4))
+            if dir_changes >= 4:
+                jitter_events += 1
+            jitter_timeline.append({"time": float(t_start - t0), "value": dir_changes})
+        result["jitter_events"] = jitter_events
+        result["jitter_timeline"] = jitter_timeline[::max(1, len(jitter_timeline) // 200)]
+
+        # --- Backtracking: cursor returns near a position visited >2s ago ---
+        backtrack_count = 0
+        check_step = max(1, len(df) // 500)
+        for i in range(check_step * 10, len(df), check_step):
+            # Look back at positions from >2s ago
+            lookback_end = i
+            while lookback_end > 0 and ts[i] - ts[lookback_end] < 2000:
+                lookback_end -= 1
+            if lookback_end <= 0:
+                continue
+            # Sample a few past positions
+            for k in range(0, lookback_end, max(1, lookback_end // 5)):
+                dist = np.sqrt((xs[i] - xs[k]) ** 2 + (ys[i] - ys[k]) ** 2)
+                if dist < 30:
+                    backtrack_count += 1
+                    break
+        result["backtrack_count"] = backtrack_count
+
+        # --- Rapid scans: high velocity sweeps ---
+        dt = np.diff(ts)
+        dt[dt == 0] = 1
+        speeds = np.sqrt(np.diff(xs) ** 2 + np.diff(ys) ** 2) / dt
+        rapid_threshold = np.percentile(speeds, 95) if len(speeds) > 10 else 2.0
+        result["rapid_scans"] = int(np.sum(speeds > rapid_threshold))
+
+        return result
 
     def _click_patterns(self, mouse_df: pd.DataFrame) -> Dict:
         if mouse_df.empty or "event" not in mouse_df.columns:
@@ -773,12 +937,87 @@ class AnalyticsEngine:
             except Exception:
                 pass
 
+        # Coordination score: 1 - normalized distance
+        max_screen_dist = 2000  # approximate diagonal
+        coord_score = 1 - min(1.0, float(np.mean(distances)) / max_screen_dist) if distances else 0
+
+        # Lag detection via cross-correlation
+        lag_analysis = self._compute_gaze_mouse_lag(gaze_df, mouse_df)
+
+        # Coordination score timeline (sliding window)
+        coord_timeline = []
+        if len(timeline) > 5:
+            window = max(5, len(timeline) // 20)
+            for i in range(0, len(timeline) - window, max(1, window // 2)):
+                chunk = timeline[i:i + window]
+                mean_d = np.mean([c["value"] for c in chunk])
+                sc = 1 - min(1.0, mean_d / max_screen_dist)
+                coord_timeline.append({"time": chunk[0]["time"], "value": float(sc)})
+
         return {
             "available": True,
             "mean_distance": float(np.mean(distances)) if distances else 0,
             "std_distance": float(np.std(distances)) if distances else 0,
             "correlation": self._safe_float(correlation),
+            "coordination_score": self._safe_float(coord_score),
             "distance_timeline": timeline,
+            "coordination_timeline": coord_timeline,
+            "lag_analysis": lag_analysis,
+        }
+
+    def _compute_gaze_mouse_lag(
+        self, gaze_df: pd.DataFrame, mouse_df: pd.DataFrame, max_lag: int = 10,
+    ) -> Dict:
+        """Cross-correlate gaze and mouse X positions at different lags."""
+        if gaze_df.empty or mouse_df.empty or "x" not in gaze_df.columns:
+            return {"available": False}
+
+        # Downsample to aligned arrays
+        g_x = gaze_df["x"].values.astype(float)
+        m_x = mouse_df["x"].values.astype(float)
+        min_len = min(len(g_x), len(m_x), 500)
+        if min_len < 20:
+            return {"available": False}
+
+        # Subsample to same length
+        g_step = max(1, len(g_x) // min_len)
+        m_step = max(1, len(m_x) // min_len)
+        g_x = g_x[::g_step][:min_len]
+        m_x = m_x[::m_step][:min_len]
+
+        correlations = []
+        for lag in range(-max_lag, max_lag + 1):
+            if lag >= 0:
+                g = g_x[lag:]
+                m = m_x[:len(g)]
+            else:
+                m = m_x[-lag:]
+                g = g_x[:len(m)]
+            n = min(len(g), len(m))
+            if n < 10:
+                continue
+            try:
+                r, _ = stats.pearsonr(g[:n], m[:n])
+                correlations.append({"lag": lag, "correlation": self._safe_float(r)})
+            except Exception:
+                correlations.append({"lag": lag, "correlation": 0})
+
+        if not correlations:
+            return {"available": False}
+
+        best = max(correlations, key=lambda x: abs(x["correlation"]))
+        gaze_leads = best["lag"] > 0
+        return {
+            "available": True,
+            "correlations": correlations,
+            "best_lag": best["lag"],
+            "best_correlation": best["correlation"],
+            "gaze_leads_mouse": gaze_leads,
+            "interpretation": (
+                f"Gaze leads mouse by ~{best['lag']} samples" if gaze_leads
+                else f"Mouse leads gaze by ~{abs(best['lag'])} samples" if best["lag"] < 0
+                else "Gaze and mouse are synchronized"
+            ),
         }
 
     def _detect_idle(
@@ -952,6 +1191,275 @@ class AnalyticsEngine:
         return {"available": True, "eye_openness_timeline": timeline}
 
     # ---- 6. Temporal Patterns ----------------------------------------------
+
+    # ---- 5b. Cross-Stream Correlations --------------------------------------
+
+    def compute_cross_stream_metrics(
+        self,
+        gaze_df: pd.DataFrame,
+        mouse_df: pd.DataFrame,
+        emotion_df: pd.DataFrame,
+        fixations_df: Optional[pd.DataFrame] = None,
+    ) -> Dict:
+        """Compute correlations between emotion, gaze, and mouse streams."""
+        result: Dict[str, Any] = {"available": False}
+
+        emotion_cols = ["confusion", "engagement", "boredom", "frustration"]
+        present_emotions = [c for c in emotion_cols if not emotion_df.empty and c in emotion_df.columns]
+
+        if not present_emotions or (gaze_df.empty and mouse_df.empty):
+            return result
+
+        result["available"] = True
+
+        # --- Emotion × Gaze correlation matrix ---
+        eg_matrix = self._emotion_gaze_correlation(emotion_df, gaze_df, fixations_df, present_emotions)
+        result["emotion_gaze"] = eg_matrix
+
+        # --- Emotion × Mouse correlation matrix ---
+        em_matrix = self._emotion_mouse_correlation(emotion_df, mouse_df, present_emotions)
+        result["emotion_mouse"] = em_matrix
+
+        # --- Combined state timeline ---
+        result["combined_timeline"] = self._combined_state_timeline(
+            gaze_df, mouse_df, emotion_df, present_emotions,
+        )
+
+        return self._make_serializable(result)
+
+    def _emotion_gaze_correlation(
+        self, emotion_df, gaze_df, fixations_df, emotion_cols, window_ms=10000,
+    ) -> Dict:
+        """Correlate each emotion with gaze metrics in time windows."""
+        if emotion_df.empty or gaze_df.empty or "timestamp" not in emotion_df.columns:
+            return {"available": False}
+
+        gaze_metrics = ["dispersion", "velocity"]
+        matrix = {em: {gm: 0.0 for gm in gaze_metrics} for em in emotion_cols}
+
+        e_ts = emotion_df["timestamp"].values.astype(float)
+        g_ts = gaze_df["timestamp"].values.astype(float)
+        t_start = max(e_ts[0], g_ts[0])
+        t_end = min(e_ts[-1], g_ts[-1])
+
+        if t_end - t_start < window_ms * 2:
+            return {"available": False, "matrix": matrix, "labels_x": gaze_metrics, "labels_y": emotion_cols}
+
+        # Build windowed signals
+        windows = np.arange(t_start, t_end, window_ms / 2)
+        emotion_signals = {em: [] for em in emotion_cols}
+        gaze_signals = {gm: [] for gm in gaze_metrics}
+
+        for w_start in windows:
+            w_end = w_start + window_ms
+
+            # Emotion means in window
+            e_mask = (e_ts >= w_start) & (e_ts < w_end)
+            e_win = emotion_df[e_mask]
+            for em in emotion_cols:
+                if len(e_win) > 0:
+                    vals = pd.to_numeric(e_win[em], errors="coerce").dropna()
+                    emotion_signals[em].append(float(vals.mean()) if len(vals) > 0 else 0)
+                else:
+                    emotion_signals[em].append(0)
+
+            # Gaze metrics in window
+            g_mask = (g_ts >= w_start) & (g_ts < w_end)
+            g_win = gaze_df[g_mask]
+            if len(g_win) > 2 and "x" in g_win.columns:
+                gaze_signals["dispersion"].append(
+                    float(g_win["x"].std() + g_win["y"].std()) / 2)
+                dx = np.diff(g_win["x"].values.astype(float))
+                dy = np.diff(g_win["y"].values.astype(float))
+                dt = np.diff(g_win["timestamp"].values.astype(float))
+                dt[dt == 0] = 1
+                gaze_signals["velocity"].append(float(np.mean(np.sqrt(dx**2 + dy**2) / dt)))
+            else:
+                gaze_signals["dispersion"].append(0)
+                gaze_signals["velocity"].append(0)
+
+        # Compute correlations
+        for em in emotion_cols:
+            for gm in gaze_metrics:
+                es = np.array(emotion_signals[em])
+                gs = np.array(gaze_signals[gm])
+                if len(es) > 5 and np.std(es) > 0 and np.std(gs) > 0:
+                    try:
+                        r, _ = stats.pearsonr(es, gs)
+                        matrix[em][gm] = self._safe_float(r)
+                    except Exception:
+                        pass
+
+        return {
+            "available": True,
+            "matrix": matrix,
+            "labels_x": gaze_metrics,
+            "labels_y": emotion_cols,
+        }
+
+    def _emotion_mouse_correlation(
+        self, emotion_df, mouse_df, emotion_cols, window_ms=10000,
+    ) -> Dict:
+        """Correlate each emotion with mouse metrics in time windows."""
+        if emotion_df.empty or mouse_df.empty or "timestamp" not in emotion_df.columns:
+            return {"available": False}
+
+        mouse_metrics = ["velocity", "click_rate"]
+        matrix = {em: {mm: 0.0 for mm in mouse_metrics} for em in emotion_cols}
+
+        e_ts = emotion_df["timestamp"].values.astype(float)
+        m_ts = mouse_df["timestamp"].values.astype(float)
+        t_start = max(e_ts[0], m_ts[0])
+        t_end = min(e_ts[-1], m_ts[-1])
+
+        if t_end - t_start < window_ms * 2:
+            return {"available": False, "matrix": matrix, "labels_x": mouse_metrics, "labels_y": emotion_cols}
+
+        windows = np.arange(t_start, t_end, window_ms / 2)
+        emotion_signals = {em: [] for em in emotion_cols}
+        mouse_signals = {mm: [] for mm in mouse_metrics}
+
+        has_event = "event" in mouse_df.columns
+
+        for w_start in windows:
+            w_end = w_start + window_ms
+
+            # Emotion means
+            e_mask = (e_ts >= w_start) & (e_ts < w_end)
+            e_win = emotion_df[e_mask]
+            for em in emotion_cols:
+                if len(e_win) > 0:
+                    vals = pd.to_numeric(e_win[em], errors="coerce").dropna()
+                    emotion_signals[em].append(float(vals.mean()) if len(vals) > 0 else 0)
+                else:
+                    emotion_signals[em].append(0)
+
+            # Mouse metrics
+            m_mask = (m_ts >= w_start) & (m_ts < w_end)
+            m_win = mouse_df[m_mask]
+            if len(m_win) > 2 and "x" in m_win.columns:
+                dx = np.diff(m_win["x"].values.astype(float))
+                dy = np.diff(m_win["y"].values.astype(float))
+                dt = np.diff(m_win["timestamp"].values.astype(float))
+                dt[dt == 0] = 1
+                mouse_signals["velocity"].append(float(np.mean(np.sqrt(dx**2 + dy**2) / dt)))
+                if has_event:
+                    clicks = m_win[m_win["event"].isin(["click", "mousedown"])]
+                    mouse_signals["click_rate"].append(len(clicks) / (window_ms / 1000))
+                else:
+                    mouse_signals["click_rate"].append(0)
+            else:
+                mouse_signals["velocity"].append(0)
+                mouse_signals["click_rate"].append(0)
+
+        # Compute correlations
+        for em in emotion_cols:
+            for mm in mouse_metrics:
+                es = np.array(emotion_signals[em])
+                ms = np.array(mouse_signals[mm])
+                if len(es) > 5 and np.std(es) > 0 and np.std(ms) > 0:
+                    try:
+                        r, _ = stats.pearsonr(es, ms)
+                        matrix[em][mm] = self._safe_float(r)
+                    except Exception:
+                        pass
+
+        return {
+            "available": True,
+            "matrix": matrix,
+            "labels_x": mouse_metrics,
+            "labels_y": emotion_cols,
+        }
+
+    def _combined_state_timeline(
+        self, gaze_df, mouse_df, emotion_df, emotion_cols, window_ms=10000,
+    ) -> Dict:
+        """Build a combined timeline: coordination score + cognitive load + dominant emotion."""
+        all_ts = []
+        for df in [gaze_df, mouse_df, emotion_df]:
+            if not df.empty and "timestamp" in df.columns:
+                all_ts.extend(df["timestamp"].tolist())
+        if not all_ts:
+            return {"available": False}
+
+        all_ts = sorted(all_ts)
+        t_start = all_ts[0]
+        t_end = all_ts[-1]
+        if t_end - t_start < window_ms:
+            return {"available": False}
+
+        g_ts = gaze_df["timestamp"].values.astype(float) if not gaze_df.empty and "timestamp" in gaze_df.columns else np.array([])
+        m_ts = mouse_df["timestamp"].values.astype(float) if not mouse_df.empty and "timestamp" in mouse_df.columns else np.array([])
+        e_ts = emotion_df["timestamp"].values.astype(float) if not emotion_df.empty and "timestamp" in emotion_df.columns else np.array([])
+
+        windows = np.arange(t_start, t_end, window_ms / 2)
+        coordination = []
+        cognitive_load = []
+        dominant_emotions = []
+        times = []
+
+        for w_start in windows:
+            w_end = w_start + window_ms
+            times.append(float(w_start - t_start))
+
+            # Coordination: gaze-mouse distance
+            if len(g_ts) > 0 and len(m_ts) > 0:
+                g_mask = (g_ts >= w_start) & (g_ts < w_end)
+                m_mask = (m_ts >= w_start) & (m_ts < w_end)
+                g_win = gaze_df[g_mask]
+                m_win = mouse_df[m_mask]
+                if len(g_win) > 0 and len(m_win) > 0 and "x" in g_win.columns and "x" in m_win.columns:
+                    gx = g_win["x"].mean()
+                    gy = g_win["y"].mean()
+                    mx = m_win["x"].mean()
+                    my = m_win["y"].mean()
+                    d = float(np.sqrt((gx - mx) ** 2 + (gy - my) ** 2))
+                    coordination.append(1 - min(1.0, d / 2000))
+                else:
+                    coordination.append(None)
+            else:
+                coordination.append(None)
+
+            # Cognitive load proxy: gaze dispersion
+            if len(g_ts) > 0:
+                g_mask = (g_ts >= w_start) & (g_ts < w_end)
+                g_win = gaze_df[g_mask]
+                if len(g_win) > 2 and "x" in g_win.columns:
+                    disp = float(g_win["x"].std() + g_win["y"].std()) / 2
+                    cognitive_load.append(min(1.0, disp / 300))
+                else:
+                    cognitive_load.append(None)
+            else:
+                cognitive_load.append(None)
+
+            # Dominant emotion
+            if len(e_ts) > 0 and emotion_cols:
+                e_mask = (e_ts >= w_start) & (e_ts < w_end)
+                e_win = emotion_df[e_mask]
+                if len(e_win) > 0:
+                    means = {}
+                    for em in emotion_cols:
+                        if em in e_win.columns:
+                            vals = pd.to_numeric(e_win[em], errors="coerce").dropna()
+                            means[em] = float(vals.mean()) if len(vals) > 0 else 0
+                    if means:
+                        dominant_emotions.append(max(means, key=means.get))
+                    else:
+                        dominant_emotions.append("unknown")
+                else:
+                    dominant_emotions.append("unknown")
+            else:
+                dominant_emotions.append("unknown")
+
+        return {
+            "available": True,
+            "times": times,
+            "coordination": coordination,
+            "cognitive_load": cognitive_load,
+            "dominant_emotions": dominant_emotions,
+        }
+
+    # ---- 6. Temporal Patterns -----------------------------------------------
 
     def compute_temporal_patterns(
         self,
@@ -1277,9 +1785,30 @@ class AnalyticsEngine:
                 metrics["click_count"] = len(clicks)
             else:
                 metrics["click_count"] = 0
+
+            # Mouse path stats per question
+            path = self._mouse_path_stats(m)
+            metrics["mouse_path_distance"] = path.get("total_distance_px", 0)
+            metrics["mouse_direction_changes"] = path.get("direction_changes", 0)
+
+            # Hesitation count per question
+            patterns = self._detect_behavioral_patterns(m)
+            metrics["hesitation_count"] = patterns.get("hesitation_count", 0)
+            metrics["jitter_events"] = patterns.get("jitter_events", 0)
+
+            # Gaze-mouse coordination per question
+            if not g.empty and "x" in g.columns:
+                coord = self._gaze_mouse_coordination(g, m)
+                metrics["coordination_score"] = coord.get("coordination_score", 0)
+            else:
+                metrics["coordination_score"] = 0
         else:
             metrics["mouse_events"] = 0
             metrics["click_count"] = 0
+            metrics["mouse_path_distance"] = 0
+            metrics["hesitation_count"] = 0
+            metrics["jitter_events"] = 0
+            metrics["coordination_score"] = 0
 
         # Keyboard metrics
         if not k.empty:
@@ -1364,6 +1893,9 @@ class AnalyticsEngine:
             "cognitive_load": [q["cognitive_load"] for q in question_metrics],
             "click_count": [q["click_count"] for q in question_metrics],
             "k_coefficient": [q.get("k_coefficient", 0) for q in question_metrics],
+            "coordination_score": [q.get("coordination_score", 0) for q in question_metrics],
+            "hesitation_count": [q.get("hesitation_count", 0) for q in question_metrics],
+            "mouse_path_distance": [q.get("mouse_path_distance", 0) for q in question_metrics],
         }
 
         # Add dominant emotion per question
