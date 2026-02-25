@@ -47,6 +47,40 @@ let lastL2CSFrameTime = 0;
 const L2CS_FRAME_INTERVAL = 100; // Send frame every 100ms (~10Hz) for L2CS processing
 const L2CS_ENABLED = false; // L2CS server-side gaze estimation (optional, default off)
 
+// Adaptive gaze smoothing (velocity-dependent EMA) — matches participate.js
+const GAZE_ALPHA_MIN = 0.15;  // smooth during fixations
+const GAZE_ALPHA_MAX = 0.6;   // responsive during saccades
+const GAZE_SACCADE_THRESHOLD = 80; // px movement that counts as saccade
+let smoothedGazeX = null;
+let smoothedGazeY = null;
+let lastRawGazeX = null;
+let lastRawGazeY = null;
+
+// Face detection state: flag gaze samples when face tracker loses the face
+let faceDetected = false;
+let lastFaceDetectedTime = 0;
+const FACE_LOST_THRESHOLD_MS = 500; // flag gaze as unreliable after 500ms without face
+
+// Drift correction: head-pose compensation
+let calibrationHeadPose = null;  // reference {pitch, yaw, roll} — set via URL param or first FaceMesh frame
+let currentHeadPose = null;      // latest head pose from FaceMesh
+const HEAD_POSE_PX_PER_DEG = 15; // empirical: ~15px gaze shift per degree of head rotation
+let headPoseBaselineCaptured = false;
+
+/**
+ * Apply head-pose compensation to raw gaze coordinates.
+ * Subtracts the estimated gaze shift caused by head rotation since baseline.
+ */
+function correctForHeadPose(gazeX, gazeY) {
+    if (!calibrationHeadPose || !currentHeadPose) return { x: gazeX, y: gazeY };
+    const dyaw = currentHeadPose.yaw - calibrationHeadPose.yaw;
+    const dpitch = currentHeadPose.pitch - calibrationHeadPose.pitch;
+    return {
+        x: gazeX - dyaw * HEAD_POSE_PX_PER_DEG,
+        y: gazeY + dpitch * HEAD_POSE_PX_PER_DEG,
+    };
+}
+
 // DOM Elements
 const connectionStatus = document.getElementById('connection-status');
 const connectionText = document.getElementById('connection-text');
@@ -177,15 +211,44 @@ async function initWebGazer() {
         await webgazer
             .setGazeListener((data, timestamp) => {
                 if (data && isCollecting) {
+                    // Apply head-pose drift correction before smoothing
+                    const corrected = correctForHeadPose(data.x, data.y);
+
+                    // Adaptive EMA smoothing (matches participate.js)
+                    if (smoothedGazeX === null) {
+                        smoothedGazeX = corrected.x;
+                        smoothedGazeY = corrected.y;
+                    } else {
+                        let alpha = GAZE_ALPHA_MIN;
+                        if (lastRawGazeX !== null) {
+                            const dx = corrected.x - lastRawGazeX;
+                            const dy = corrected.y - lastRawGazeY;
+                            const velocity = Math.sqrt(dx * dx + dy * dy);
+                            const t = Math.min(velocity / GAZE_SACCADE_THRESHOLD, 1);
+                            alpha = GAZE_ALPHA_MIN + t * (GAZE_ALPHA_MAX - GAZE_ALPHA_MIN);
+                        }
+                        smoothedGazeX = alpha * corrected.x + (1 - alpha) * smoothedGazeX;
+                        smoothedGazeY = alpha * corrected.y + (1 - alpha) * smoothedGazeY;
+                    }
+                    lastRawGazeX = corrected.x;
+                    lastRawGazeY = corrected.y;
+
                     // Update gaze cursor position
-                    gazeCursor.style.left = `${data.x}px`;
-                    gazeCursor.style.top = `${data.y}px`;
+                    gazeCursor.style.left = `${smoothedGazeX}px`;
+                    gazeCursor.style.top = `${smoothedGazeY}px`;
+
+                    // Flag reliability: face must be detected recently for trustworthy gaze
+                    const faceFresh = faceDetected && (performance.now() - lastFaceDetectedTime < FACE_LOST_THRESHOLD_MS);
 
                     // Send gaze data
                     sendData('gaze', {
-                        x: data.x,
-                        y: data.y,
-                        timestamp: timestamp
+                        x: smoothedGazeX,
+                        y: smoothedGazeY,
+                        raw_x: data.x,
+                        raw_y: data.y,
+                        timestamp: timestamp,
+                        source: 'webgazer',
+                        face_detected: faceFresh,
                     });
                 }
             })
@@ -222,8 +285,8 @@ async function initFaceMesh() {
         faceMesh.setOptions({
             maxNumFaces: 1,
             refineLandmarks: true,  // Includes iris landmarks (468 + 10 = 478 total)
-            minDetectionConfidence: 0.5,
-            minTrackingConfidence: 0.5
+            minDetectionConfidence: 0.7,
+            minTrackingConfidence: 0.7
         });
 
         faceMesh.onResults(onFaceMeshResults);
@@ -363,7 +426,14 @@ function computeBoundingBox(landmarks) {
  * Handle Face Mesh results - sends all 468 landmarks
  */
 function onFaceMeshResults(results) {
-    if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
+    if (!results.multiFaceLandmarks || results.multiFaceLandmarks.length === 0) {
+        faceDetected = false;
+        return;
+    }
+    faceDetected = true;
+    lastFaceDetectedTime = performance.now();
+
+    {
         const landmarks = results.multiFaceLandmarks[0];
 
         // Key landmark indices for reference:
@@ -434,6 +504,16 @@ function onFaceMeshResults(results) {
             // Face bounding box (single-pass, no stack spread)
             bounding_box: computeBoundingBox(landmarks)
         });
+
+        // Update current head pose for drift correction
+        currentHeadPose = headPose;
+
+        // Capture baseline head pose from first FaceMesh frame (experiment.js has no calibration step)
+        if (!headPoseBaselineCaptured) {
+            calibrationHeadPose = { ...headPose };
+            headPoseBaselineCaptured = true;
+            console.log('[DriftCorrection] Baseline head pose captured:', calibrationHeadPose);
+        }
     }
 }
 
@@ -511,6 +591,17 @@ function setupMouseTracking() {
             target: e.target?.tagName || 'unknown',
             source: 'parent'
         });
+
+        // Implicit drift correction: people look where they click
+        if (typeof webgazer !== 'undefined' && smoothedGazeX !== null) {
+            try { webgazer.recordScreenPosition(e.clientX, e.clientY, 'click'); } catch (_) {}
+            sendData('drift_sample', {
+                click_x: e.clientX, click_y: e.clientY,
+                gaze_x: smoothedGazeX, gaze_y: smoothedGazeY,
+                offset: Math.hypot(e.clientX - smoothedGazeX, e.clientY - smoothedGazeY),
+                source: 'parent',
+            });
+        }
     }, true);
 
     // Mouse scroll on parent window
@@ -665,11 +756,13 @@ function injectIframeMouseTracking(iframe, iframeDoc) {
         if (!isCollecting) return;
 
         const rect = getIframeRect();
+        const parentX = rect.left + e.clientX;
+        const parentY = rect.top + e.clientY;
 
         sendData('mouse', {
             event: 'click',
-            x: rect.left + e.clientX,
-            y: rect.top + e.clientY,
+            x: parentX,
+            y: parentY,
             iframeX: e.clientX,
             iframeY: e.clientY,
             button: e.button,
@@ -677,6 +770,17 @@ function injectIframeMouseTracking(iframe, iframeDoc) {
             overIframe: true,
             source: 'iframe_injected'
         });
+
+        // Implicit drift correction: people look where they click
+        if (typeof webgazer !== 'undefined' && smoothedGazeX !== null) {
+            try { webgazer.recordScreenPosition(parentX, parentY, 'click'); } catch (_) {}
+            sendData('drift_sample', {
+                click_x: parentX, click_y: parentY,
+                gaze_x: smoothedGazeX, gaze_y: smoothedGazeY,
+                offset: Math.hypot(parentX - smoothedGazeX, parentY - smoothedGazeY),
+                source: 'iframe',
+            });
+        }
     }, true);
 
     // Scroll in iframe

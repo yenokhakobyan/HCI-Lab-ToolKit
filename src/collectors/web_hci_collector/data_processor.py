@@ -32,6 +32,7 @@ class DataBuffer:
     hover: List[Dict] = field(default_factory=list)
     calibration_click: List[Dict] = field(default_factory=list)
     calibration_validation: List[Dict] = field(default_factory=list)
+    drift_sample: List[Dict] = field(default_factory=list)
 
     def clear(self):
         self.gaze.clear()
@@ -45,13 +46,14 @@ class DataBuffer:
         self.hover.clear()
         self.calibration_click.clear()
         self.calibration_validation.clear()
+        self.drift_sample.clear()
 
 
 # All data types stored in the buffer
 _DATA_TYPES = [
     "gaze", "l2cs_gaze", "face_mesh", "emotion",
     "mouse", "keyboard", "experiment_event", "answer", "hover",
-    "calibration_click", "calibration_validation",
+    "calibration_click", "calibration_validation", "drift_sample",
 ]
 
 
@@ -334,6 +336,62 @@ class DataProcessor:
                 del self._flush_indices[session_id]
             if session_id in self._known_fields:
                 del self._known_fields[session_id]
+
+    def correct_drift_offline(self, session_id: str) -> Optional[pd.DataFrame]:
+        """
+        Post-hoc drift correction using mouse-click/gaze offset as anchor points.
+
+        Uses drift_sample data (collected from implicit mouse-click recalibration)
+        to estimate and subtract a rolling bias from gaze coordinates.
+        The correction interpolates drift linearly between click anchor points.
+
+        Returns:
+            A corrected gaze DataFrame with 'corrected_x' and 'corrected_y' columns,
+            or None if no corrections can be made (no gaze or drift data).
+        """
+        data = self.get_session_data(session_id)
+        gaze_records = data.get("gaze", [])
+        drift_records = data.get("drift_sample", [])
+
+        if not gaze_records or not drift_records:
+            return None
+
+        gaze_df = pd.DataFrame(gaze_records)
+        drift_df = pd.DataFrame(drift_records)
+
+        # Validate required columns exist
+        for col in ("timestamp",):
+            if col not in gaze_df.columns or col not in drift_df.columns:
+                return None
+        for col in ("click_x", "click_y", "gaze_x", "gaze_y"):
+            if col not in drift_df.columns:
+                return None
+
+        # Sort by timestamp
+        gaze_df = gaze_df.sort_values("timestamp").reset_index(drop=True)
+        drift_df = drift_df.sort_values("timestamp").reset_index(drop=True)
+
+        # Compute drift vectors at each anchor point (gaze - click = error to subtract)
+        anchors_t = drift_df["timestamp"].values
+        drift_x = (drift_df["gaze_x"] - drift_df["click_x"]).values
+        drift_y = (drift_df["gaze_y"] - drift_df["click_y"]).values
+
+        if len(anchors_t) < 2:
+            # Single anchor: apply uniform correction
+            gaze_df["corrected_x"] = gaze_df["x"] - float(drift_x[0])
+            gaze_df["corrected_y"] = gaze_df["y"] - float(drift_y[0])
+        else:
+            # Interpolate drift between anchor points (extrapolate at edges)
+            gaze_df["corrected_x"] = gaze_df["x"] - np.interp(
+                gaze_df["timestamp"].values, anchors_t, drift_x
+            )
+            gaze_df["corrected_y"] = gaze_df["y"] - np.interp(
+                gaze_df["timestamp"].values, anchors_t, drift_y
+            )
+
+        gaze_df["drift_corrected"] = True
+
+        return gaze_df
 
     def get_statistics(self, session_id: str) -> Dict[str, Any]:
         """Get statistics for a session."""

@@ -69,6 +69,31 @@ function collectValidationGaze(x, y) {
     }
 }
 
+// ── Face Detection & Drift Correction ─────────────────────
+// Face detection state: flag gaze samples when face tracker loses the face
+let faceDetected = false;
+let lastFaceDetectedTime = 0;
+const FACE_LOST_THRESHOLD_MS = 500; // flag gaze as unreliable after 500ms without face
+
+// Head-pose compensation: correct gaze for head movement since calibration
+let calibrationHeadPose = null;  // reference {pitch, yaw, roll} at calibration end
+let currentHeadPose = null;      // latest head pose from FaceMesh
+const HEAD_POSE_PX_PER_DEG = 15; // empirical: ~15px gaze shift per degree of head rotation
+
+/**
+ * Apply head-pose compensation to raw gaze coordinates.
+ * Subtracts the estimated gaze shift caused by head rotation since calibration.
+ */
+function correctForHeadPose(gazeX, gazeY) {
+    if (!calibrationHeadPose || !currentHeadPose) return { x: gazeX, y: gazeY };
+    const dyaw = currentHeadPose.yaw - calibrationHeadPose.yaw;
+    const dpitch = currentHeadPose.pitch - calibrationHeadPose.pitch;
+    return {
+        x: gazeX - dyaw * HEAD_POSE_PX_PER_DEG,
+        y: gazeY + dpitch * HEAD_POSE_PX_PER_DEG,
+    };
+}
+
 // Calibration — 9-point grid (3×3), standard for webcam eye tracking
 const CAL_POINTS = [
     { x: 10, y: 15 }, { x: 50, y: 15 }, { x: 90, y: 15 },
@@ -76,9 +101,22 @@ const CAL_POINTS = [
     { x: 10, y: 85 }, { x: 50, y: 85 }, { x: 90, y: 85 },
 ];
 const CLICKS_PER_POINT = 5;
-let calCurrentPoint = 0;
+let calCurrentPoint = 0;   // index into calPointOrder
 let calCurrentClicks = 0;
 let calPointElements = [];
+let calPointOrder = [];     // randomized visit order (indices into CAL_POINTS)
+
+/**
+ * Fisher-Yates shuffle: randomize calibration point order
+ * to reduce systematic bias from fatigue/learning.
+ */
+function shufflePointOrder() {
+    calPointOrder = CAL_POINTS.map((_, i) => i);
+    for (let i = calPointOrder.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [calPointOrder[i], calPointOrder[j]] = [calPointOrder[j], calPointOrder[i]];
+    }
+}
 
 // DOM
 const gazeCursor = document.getElementById('gaze-cursor');
@@ -265,27 +303,32 @@ function buildCalibrationUI() {
 function startCalibration() {
     calCurrentPoint = 0;
     calCurrentClicks = 0;
-    showCalPoint(0);
+    shufflePointOrder();
+    showCalPoint(calPointOrder[0]);
 }
 
-function showCalPoint(idx) {
+function showCalPoint(pointIdx) {
+    // pointIdx = actual index into CAL_POINTS/calPointElements
     calPointElements.forEach((el, i) => {
         el.classList.remove('active');
-        if (i === idx) {
+        if (i === pointIdx) {
             el.classList.add('active');
         }
     });
+    // Progress dots track visit sequence, not spatial position
     CAL_POINTS.forEach((_, i) => {
         const pd = document.getElementById(`cal-pdot-${i}`);
         pd.classList.remove('cur', 'done');
-        if (i < idx) pd.classList.add('done');
-        if (i === idx) pd.classList.add('cur');
+        if (i < calCurrentPoint) pd.classList.add('done');
+        if (i === calCurrentPoint) pd.classList.add('cur');
     });
-    document.getElementById('cal-sub').textContent = `Point ${idx + 1} of ${CAL_POINTS.length} — click ${CLICKS_PER_POINT} times`;
+    document.getElementById('cal-sub').textContent = `Point ${calCurrentPoint + 1} of ${CAL_POINTS.length} — click ${CLICKS_PER_POINT} times`;
 }
 
 function handleCalClick(idx) {
-    if (idx !== calCurrentPoint) return;
+    // idx = point index from DOM onclick; only accept the currently expected point
+    const expectedIdx = calPointOrder[calCurrentPoint];
+    if (idx !== expectedIdx) return;
     calCurrentClicks++;
 
     // Send calibration click data to server
@@ -295,6 +338,7 @@ function handleCalClick(idx) {
     const targetY = rect.top + rect.height / 2;
     sendData('calibration_click', {
         point_index: idx,
+        visit_order: calCurrentPoint,
         click_number: calCurrentClicks,
         total_clicks: CLICKS_PER_POINT,
         target_pct: CAL_POINTS[idx],
@@ -319,14 +363,14 @@ function handleCalClick(idx) {
     const remaining = CLICKS_PER_POINT - calCurrentClicks;
     document.getElementById('cal-sub').textContent =
         remaining > 0
-            ? `Point ${idx + 1} of ${CAL_POINTS.length} — click ${remaining} more`
+            ? `Point ${calCurrentPoint + 1} of ${CAL_POINTS.length} — click ${remaining} more`
             : 'Moving to next point...';
 
     if (calCurrentClicks >= CLICKS_PER_POINT) {
         pt.classList.remove('active');
         pt.classList.add('done');
-        document.getElementById(`cal-pdot-${idx}`).classList.add('done');
-        document.getElementById(`cal-pdot-${idx}`).classList.remove('cur');
+        document.getElementById(`cal-pdot-${calCurrentPoint}`).classList.add('done');
+        document.getElementById(`cal-pdot-${calCurrentPoint}`).classList.remove('cur');
 
         calCurrentClicks = 0;
         calCurrentPoint++;
@@ -335,7 +379,7 @@ function handleCalClick(idx) {
             finishCalibration();
         } else {
             // Brief pause between points for smoother transitions
-            setTimeout(() => showCalPoint(calCurrentPoint), 300);
+            setTimeout(() => showCalPoint(calPointOrder[calCurrentPoint]), 300);
         }
     }
 }
@@ -344,6 +388,12 @@ async function finishCalibration() {
     localStorage.setItem('webgazer_calibrated', 'true');
     localStorage.setItem('webgazer_calibrated_at', new Date().toISOString());
     sendData('calibration_complete', { points: CAL_POINTS.length, clicks_per_point: CLICKS_PER_POINT });
+
+    // Capture reference head pose for drift correction during content viewing
+    if (currentHeadPose) {
+        calibrationHeadPose = { ...currentHeadPose };
+        console.log('[DriftCorrection] Reference head pose captured:', calibrationHeadPose);
+    }
 
     document.getElementById('cal-instruction').textContent = 'Calibration complete!';
     document.getElementById('cal-sub').textContent = 'Validating accuracy...';
@@ -400,6 +450,7 @@ function restartCalibration() {
     smoothedGazeY = null;
     lastRawGazeX = null;
     lastRawGazeY = null;
+    calibrationHeadPose = null;
     startCalibration();
 }
 
@@ -476,9 +527,9 @@ async function runCalibrationValidation() {
         : Infinity;
 
     let quality;
-    if (avgOffset < 200) quality = 'good';
-    else if (avgOffset < 350) quality = 'fair';
-    else quality = 'poor';
+    if (avgOffset < 100) quality = 'good';       // ~2.5° at 60cm — research grade
+    else if (avgOffset < 200) quality = 'fair';   // ~5° — usable for AOI analysis
+    else quality = 'poor';                         // >5° — recalibration recommended
 
     const validationData = { quality, avgOffset, points: results, timestamp: performance.now() };
     sendData('calibration_validation', validationData);
@@ -695,32 +746,40 @@ async function initWebGazer() {
                 webgazerGazeReceived = true;
                 collectValidationGaze(data.x, data.y);
 
+                // Apply head-pose drift correction before smoothing
+                const corrected = correctForHeadPose(data.x, data.y);
+
                 // Adaptive EMA smoothing: responsive during saccades, smooth during fixations
                 if (smoothedGazeX === null) {
-                    smoothedGazeX = data.x;
-                    smoothedGazeY = data.y;
+                    smoothedGazeX = corrected.x;
+                    smoothedGazeY = corrected.y;
                 } else {
                     let alpha = GAZE_ALPHA_MIN;
                     if (lastRawGazeX !== null) {
-                        const dx = data.x - lastRawGazeX;
-                        const dy = data.y - lastRawGazeY;
+                        const dx = corrected.x - lastRawGazeX;
+                        const dy = corrected.y - lastRawGazeY;
                         const velocity = Math.sqrt(dx * dx + dy * dy);
                         const t = Math.min(velocity / GAZE_SACCADE_THRESHOLD, 1);
                         alpha = GAZE_ALPHA_MIN + t * (GAZE_ALPHA_MAX - GAZE_ALPHA_MIN);
                     }
-                    smoothedGazeX = alpha * data.x + (1 - alpha) * smoothedGazeX;
-                    smoothedGazeY = alpha * data.y + (1 - alpha) * smoothedGazeY;
+                    smoothedGazeX = alpha * corrected.x + (1 - alpha) * smoothedGazeX;
+                    smoothedGazeY = alpha * corrected.y + (1 - alpha) * smoothedGazeY;
                 }
-                lastRawGazeX = data.x;
-                lastRawGazeY = data.y;
+                lastRawGazeX = corrected.x;
+                lastRawGazeY = corrected.y;
 
                 if (isCollecting) {
                     gazeCursor.style.left = `${smoothedGazeX}px`;
                     gazeCursor.style.top = `${smoothedGazeY}px`;
+
+                    // Flag reliability: face must be detected recently for trustworthy gaze
+                    const faceFresh = faceDetected && (performance.now() - lastFaceDetectedTime < FACE_LOST_THRESHOLD_MS);
+
                     sendData('gaze', {
                         x: smoothedGazeX, y: smoothedGazeY,
                         raw_x: data.x, raw_y: data.y,
                         timestamp, source: 'webgazer',
+                        face_detected: faceFresh,
                     });
                 }
             }
@@ -916,7 +975,12 @@ function computeBoundingBox(landmarks) {
 }
 
 function onFaceMeshResults(results) {
-    if (!results.multiFaceLandmarks?.length) return;
+    if (!results.multiFaceLandmarks?.length) {
+        faceDetected = false;
+        return;
+    }
+    faceDetected = true;
+    lastFaceDetectedTime = performance.now();
     const landmarks = results.multiFaceLandmarks[0];
 
     const noseTip = landmarks[1];
@@ -940,6 +1004,13 @@ function onFaceMeshResults(results) {
         z: (leftEyeCenter.z + rightEyeCenter.z) / 2,
     };
 
+    // Update current head pose for drift correction
+    currentHeadPose = {
+        pitch: (noseTip.y - eyeCenter.y) * 100,
+        yaw: (noseTip.x - eyeCenter.x) * 100,
+        roll: (leftEyeCenter.y - rightEyeCenter.y) * 100,
+    };
+
     sendData('face_mesh', {
         landmarks: landmarks.map(l => ({ x: l.x, y: l.y, z: l.z })),
         landmark_count: landmarks.length,
@@ -951,11 +1022,7 @@ function onFaceMeshResults(results) {
             forehead: { x: forehead.x, y: forehead.y, z: forehead.z },
             chin: { x: chin.x, y: chin.y, z: chin.z },
         },
-        head_pose: {
-            pitch: (noseTip.y - eyeCenter.y) * 100,
-            yaw: (noseTip.x - eyeCenter.x) * 100,
-            roll: (leftEyeCenter.y - rightEyeCenter.y) * 100,
-        },
+        head_pose: currentHeadPose,
         bounding_box: computeBoundingBox(landmarks),
     });
 }
@@ -1009,6 +1076,19 @@ function setupMouseTracking() {
     document.addEventListener('click', (e) => {
         if (!isCollecting) return;
         sendData('mouse', { event: 'click', x: e.clientX, y: e.clientY, button: e.button, target: e.target?.tagName || '', source: 'parent' });
+
+        // Implicit drift correction: people look where they click
+        if (webgazerActive && webgazerGazeReceived) {
+            try { webgazer.recordScreenPosition(e.clientX, e.clientY, 'click'); } catch (_) {}
+            if (smoothedGazeX !== null) {
+                sendData('drift_sample', {
+                    click_x: e.clientX, click_y: e.clientY,
+                    gaze_x: smoothedGazeX, gaze_y: smoothedGazeY,
+                    offset: Math.hypot(e.clientX - smoothedGazeX, e.clientY - smoothedGazeY),
+                    source: 'parent',
+                });
+            }
+        }
     }, true);
 
     document.addEventListener('wheel', (e) => {
@@ -1083,7 +1163,22 @@ function injectIframeMouseTracking(iframe, iDoc) {
     iDoc.addEventListener('click', (e) => {
         if (!isCollecting) return;
         const r = rect();
-        sendData('mouse', { event: 'click', x: r.left + e.clientX, y: r.top + e.clientY, iframeX: e.clientX, iframeY: e.clientY, button: e.button, target: e.target?.tagName || '', overIframe: true, source: 'iframe_injected' });
+        const parentX = r.left + e.clientX;
+        const parentY = r.top + e.clientY;
+        sendData('mouse', { event: 'click', x: parentX, y: parentY, iframeX: e.clientX, iframeY: e.clientY, button: e.button, target: e.target?.tagName || '', overIframe: true, source: 'iframe_injected' });
+
+        // Implicit drift correction: people look where they click
+        if (webgazerActive && webgazerGazeReceived) {
+            try { webgazer.recordScreenPosition(parentX, parentY, 'click'); } catch (_) {}
+            if (smoothedGazeX !== null) {
+                sendData('drift_sample', {
+                    click_x: parentX, click_y: parentY,
+                    gaze_x: smoothedGazeX, gaze_y: smoothedGazeY,
+                    offset: Math.hypot(parentX - smoothedGazeX, parentY - smoothedGazeY),
+                    source: 'iframe',
+                });
+            }
+        }
     }, true);
 
     iDoc.addEventListener('wheel', (e) => {
