@@ -7,6 +7,7 @@ Collects: eye gaze, face mesh, cognitive states, mouse, keyboard events.
 
 import asyncio
 import json
+import logging
 import os
 import uuid
 import base64
@@ -28,6 +29,7 @@ from .session_manager import SessionManager, Session, SessionStatus
 from .data_processor import DataProcessor
 from .emotion_detector import EmotionDetector, AsyncEmotionDetector
 from .gaze_estimator import L2CSGazeEstimator, AsyncGazeEstimator, create_gaze_estimator
+from .analytics_engine import AnalyticsEngine
 
 
 @dataclass
@@ -183,6 +185,48 @@ class WebHCICollectorServer:
             if html_path.exists():
                 return FileResponse(html_path)
             return HTMLResponse("<h1>Dashboard</h1><p>Dashboard not found.</p>")
+
+        # --- Analytics ---
+
+        @self.app.get("/analytics", response_class=HTMLResponse)
+        async def analytics_page():
+            """Serve the analytics toolbox page."""
+            html_path = Path(__file__).parent / "static" / "analytics.html"
+            if html_path.exists():
+                return FileResponse(html_path)
+            return HTMLResponse("<h1>Analytics</h1><p>Analytics page not found.</p>")
+
+        @self.app.get("/analytics/{session_id}", response_class=HTMLResponse)
+        async def analytics_session_page(session_id: str):
+            """Serve the analytics page for a specific session."""
+            html_path = Path(__file__).parent / "static" / "analytics.html"
+            if html_path.exists():
+                return FileResponse(html_path)
+            return HTMLResponse("<h1>Analytics</h1><p>Analytics page not found.</p>")
+
+        @self.app.get("/api/session/{session_id}/analytics")
+        async def compute_analytics(session_id: str):
+            """Compute and return comprehensive HCI analytics for a session."""
+            engine = AnalyticsEngine(self.data_processor)
+            try:
+                result = engine.analyze_session(session_id)
+                return result
+            except Exception as e:
+                logging.error(f"Analytics computation failed: {e}", exc_info=True)
+                return {"error": str(e)}
+
+        @self.app.get("/api/sessions/compare")
+        async def compare_sessions(ids: str = ""):
+            """Compare metrics across multiple sessions."""
+            session_ids = [s.strip() for s in ids.split(",") if s.strip()]
+            if len(session_ids) < 2:
+                return {"error": "Provide at least 2 session IDs (comma-separated)"}
+            engine = AnalyticsEngine(self.data_processor)
+            try:
+                return engine.compare_sessions(session_ids)
+            except Exception as e:
+                logging.error(f"Session comparison failed: {e}", exc_info=True)
+                return {"error": str(e)}
 
         @self.app.get("/participate/{session_id}", response_class=HTMLResponse)
         async def participate(session_id: str):
@@ -857,6 +901,7 @@ class WebHCICollectorServer:
         print(f"  Dashboard:    {protocol}://{self.config.host}:{self.config.port}/dashboard")
         print(f"  Experiment:   {protocol}://{self.config.host}:{self.config.port}/")
         print(f"  Calibration:  {protocol}://{self.config.host}:{self.config.port}/calibration")
+        print(f"  Analytics:    {protocol}://{self.config.host}:{self.config.port}/analytics")
         print(f"  Output:       {self.config.output_dir}")
         if use_https:
             print(f"\n  NOTE: You may need to accept the self-signed certificate")
