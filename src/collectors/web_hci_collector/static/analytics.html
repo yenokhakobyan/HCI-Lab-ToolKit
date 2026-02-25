@@ -238,6 +238,39 @@
         .compare-table th { background: var(--bg-secondary); color: var(--text-secondary); }
         .compare-table td:first-child { text-align: left; font-weight: 500; }
 
+        /* Question pills */
+        .q-pill {
+            padding: 6px 14px;
+            border-radius: 20px;
+            border: 1px solid var(--border);
+            background: var(--bg-card);
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-size: 0.82em;
+            transition: all 0.2s;
+        }
+        .q-pill:hover { background: var(--bg-card-hover); color: var(--text-primary); }
+        .q-pill.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+        /* Answer table */
+        .answer-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: var(--bg-card);
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        .answer-table th, .answer-table td {
+            padding: 10px 14px;
+            text-align: center;
+            border: 1px solid var(--border);
+            font-size: 0.85em;
+        }
+        .answer-table th { background: var(--bg-secondary); color: var(--text-secondary); font-size: 0.78em; }
+        .answer-table td:first-child { text-align: left; font-weight: 500; }
+        .answer-table .calc-yes { color: var(--success); }
+        .answer-table .calc-no { color: var(--text-secondary); }
+
         /* Responsive */
         @media (max-width: 900px) {
             .chart-row { grid-template-columns: 1fr; }
@@ -253,6 +286,9 @@
         <div class="header-controls">
             <select id="session-select" onchange="onSessionChange(this.value)">
                 <option value="">Select session...</option>
+            </select>
+            <select id="question-filter" onchange="onQuestionFilter(this.value)" style="min-width:160px;">
+                <option value="all">All Questions</option>
             </select>
             <button onclick="exportReport()">Export Report</button>
             <a href="/dashboard" style="color:var(--text-secondary);text-decoration:none;font-size:0.85em;">Dashboard</a>
@@ -280,6 +316,17 @@
             <div class="nav-item" data-section="temporal" onclick="showSection('temporal')">
                 <span class="nav-icon">&#x23f1;</span> Temporal
             </div>
+            <div style="border-top:1px solid var(--border);margin:8px 16px;"></div>
+            <div class="nav-item" data-section="questions" onclick="showSection('questions')">
+                <span class="nav-icon">&#x2753;</span> Per-Question
+            </div>
+            <div class="nav-item" data-section="answers" onclick="showSection('answers')">
+                <span class="nav-icon">&#x2705;</span> Answers
+            </div>
+            <div class="nav-item" data-section="survey" onclick="showSection('survey')">
+                <span class="nav-icon">&#x1f4cb;</span> Survey
+            </div>
+            <div style="border-top:1px solid var(--border);margin:8px 16px;"></div>
             <div class="nav-item" data-section="compare" onclick="showSection('compare')">
                 <span class="nav-icon">&#x2696;</span> Compare
             </div>
@@ -433,6 +480,89 @@
                     <div class="chart-box">
                         <div class="chart-title">Activity Rate (events/sec)</div>
                         <div id="chart-activity-rate" class="plotly-chart"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PER-QUESTION ANALYSIS -->
+            <div id="section-questions" class="section">
+                <h2 class="section-title">Per-Question Analysis</h2>
+                <div id="question-pills" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px;"></div>
+                <h3 class="section-subtitle">Comparison Across Questions</h3>
+                <div id="question-summary-table" style="margin-bottom:24px;overflow-x:auto;"></div>
+                <div class="chart-row">
+                    <div class="chart-box">
+                        <div class="chart-title">Time Per Question</div>
+                        <div id="chart-q-duration" class="plotly-chart"></div>
+                    </div>
+                    <div class="chart-box">
+                        <div class="chart-title">Cognitive Load Per Question</div>
+                        <div id="chart-q-cogload" class="plotly-chart"></div>
+                    </div>
+                </div>
+                <div class="chart-row">
+                    <div class="chart-box">
+                        <div class="chart-title">Fixations Per Question</div>
+                        <div id="chart-q-fixations" class="plotly-chart"></div>
+                    </div>
+                    <div class="chart-box">
+                        <div class="chart-title">Emotion Per Question</div>
+                        <div id="chart-q-emotion" class="plotly-chart"></div>
+                    </div>
+                </div>
+                <div id="question-detail-area" style="margin-top:24px;"></div>
+            </div>
+
+            <!-- ANSWERS -->
+            <div id="section-answers" class="section">
+                <h2 class="section-title">Answer Tracking</h2>
+                <div id="answer-summary-cards" class="card-grid"></div>
+                <h3 class="section-subtitle">Answers</h3>
+                <div id="answer-table-container" style="margin-bottom:24px;overflow-x:auto;"></div>
+                <div class="chart-row">
+                    <div class="chart-box">
+                        <div class="chart-title">Response Time Per Question</div>
+                        <div id="chart-response-time" class="plotly-chart"></div>
+                    </div>
+                    <div class="chart-box">
+                        <div class="chart-title">Answer Timeline</div>
+                        <div id="chart-answer-timeline" class="plotly-chart"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SURVEY -->
+            <div id="section-survey" class="section">
+                <h2 class="section-title">Post-Study Survey</h2>
+                <div id="survey-demographics-cards" class="card-grid"></div>
+                <div class="chart-row">
+                    <div class="chart-box">
+                        <div class="chart-title">Difficulty &amp; Effort</div>
+                        <div id="chart-survey-difficulty" class="plotly-chart"></div>
+                    </div>
+                    <div class="chart-box">
+                        <div class="chart-title">Information Use</div>
+                        <div id="chart-survey-info" class="plotly-chart"></div>
+                    </div>
+                </div>
+                <div class="chart-row">
+                    <div class="chart-box">
+                        <div class="chart-title">Decision Style</div>
+                        <div id="chart-survey-decision" class="plotly-chart"></div>
+                    </div>
+                    <div class="chart-box">
+                        <div class="chart-title">Experience</div>
+                        <div id="chart-survey-experience" class="plotly-chart"></div>
+                    </div>
+                </div>
+                <div class="chart-row">
+                    <div class="chart-box">
+                        <div class="chart-title">About You</div>
+                        <div id="chart-survey-about" class="plotly-chart"></div>
+                    </div>
+                    <div class="chart-box">
+                        <div class="chart-title">Section Averages</div>
+                        <div id="chart-survey-radar" class="plotly-chart"></div>
                     </div>
                 </div>
             </div>

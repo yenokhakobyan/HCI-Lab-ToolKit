@@ -137,6 +137,7 @@ class AnalyticsEngine:
         emotion_df = self._to_df(data.get("emotion", []))
         face_mesh_records = data.get("face_mesh", [])
         hover_df = self._to_df(data.get("hover", []))
+        answer_records = data.get("answer", [])
         experiment_events = data.get("experiment_event", [])
 
         # Load metadata
@@ -160,6 +161,14 @@ class AnalyticsEngine:
             experiment_events,
         )
 
+        # Per-question analysis, answer tracking, survey
+        questions = self.analyze_per_question(
+            answer_records, experiment_events,
+            gaze_df, mouse_df, keyboard_df, emotion_df, face_mesh_records, hover_df,
+        )
+        answers = self.extract_answers(answer_records, experiment_events)
+        survey = self.parse_survey_data(answer_records, experiment_events)
+
         # Strip internal DataFrames before returning JSON
         gaze.pop("fixations_df", None)
         gaze.pop("saccades_df", None)
@@ -172,6 +181,9 @@ class AnalyticsEngine:
             "behavioral": behavioral,
             "emotion": emotion,
             "temporal": temporal,
+            "questions": questions,
+            "answers": answers,
+            "survey": survey,
         }
 
     # ---- helpers -----------------------------------------------------------
@@ -1028,3 +1040,511 @@ class AnalyticsEngine:
                 results[sid] = {"error": str(e)}
 
         return {"sessions": results}
+
+    # ---- 8. Per-Question Analysis -------------------------------------------
+
+    # Survey question labels from green_energy_v2.1.html
+    SURVEY_LABELS = {
+        "q1": "How difficult was the material to understand?",
+        "q2": "How difficult were the questions to answer?",
+        "q3": "How much mental effort did you invest?",
+        "q4": "How often did you use the written text (left panel)?",
+        "q5": "How often did you use the charts and graphics (middle panel)?",
+        "q6": "How often did you use the calculator?",
+        "q7": "I prefer making decisions based on analysis rather than intuition.",
+        "q8": "I prefer to gather all information before making a decision.",
+        "q9": "I am comfortable making quick decisions under uncertainty.",
+        "q10": "How engaged did you feel during the study?",
+        "q11": "How confident are you in your answers?",
+        "q12": "Prior knowledge of solar energy before this study?",
+        "q13": "How comfortable are you with math calculations?",
+        "q14": "I learn better from visual information than written text.",
+        "q15": "I prefer working independently rather than in groups.",
+        "q16": "Gender",
+        "q17": "Age group",
+        "q18": "Student level",
+        "q19": "Field of study",
+    }
+
+    SURVEY_SECTIONS = {
+        "difficulty_effort": {"label": "Difficulty & Effort", "keys": ["q1", "q2", "q3"]},
+        "information_use": {"label": "Information Use", "keys": ["q4", "q5", "q6"]},
+        "decision_style": {"label": "Decision Style", "keys": ["q7", "q8", "q9"]},
+        "experience": {"label": "Experience", "keys": ["q10", "q11", "q12"]},
+        "about_you": {"label": "About You", "keys": ["q13", "q14", "q15"]},
+        "demographics": {"label": "Demographics", "keys": ["q16", "q17", "q18", "q19"]},
+    }
+
+    QUESTION_TITLES = {
+        "q1": "Understanding Energy Units",
+        "q2": "Solar Panel Basics",
+        "q3": "Solar Cost & Tax Credit",
+        "q4": "Solar Payback Period",
+        "q5": "Daily Energy Production",
+        "q6": "Monthly Electricity Bill",
+        "q7": "Wind Energy Output",
+        "q8": "Battery Storage Sizing",
+        "q9": "Carbon Footprint Reduction",
+        "q10": "Heat Pump Efficiency",
+        "q11": "LED vs Incandescent Savings",
+        "q12": "Home Energy Audit",
+    }
+
+    REFOCUS_DURATION_MS = 5000  # 5-second refocus break between questions
+
+    def detect_question_boundaries(
+        self, answer_records: List[Dict], experiment_events: List[Dict],
+    ) -> List[Dict]:
+        """
+        Detect question time boundaries from answer records and experiment events.
+        Returns sorted list of question dicts with start/end timestamps.
+        """
+        questions = []
+
+        # Strategy 1: Use answer records (most reliable)
+        answer_entries = []
+        for rec in answer_records:
+            qid = rec.get("question_id", "")
+            if qid and qid.startswith("q") and qid != "survey":
+                ts = rec.get("timestamp") or rec.get("response_time_ms")
+                if ts is not None:
+                    answer_entries.append({
+                        "question_id": qid,
+                        "answer_timestamp": float(ts),
+                        "selected_answer": rec.get("selected_answer", ""),
+                        "response_time_ms": float(rec.get("response_time_ms", 0)),
+                        "calc_used": bool(rec.get("calc_used", False)),
+                    })
+
+        # Strategy 2: Fallback to experiment_events answer_submit
+        if not answer_entries:
+            for ev in experiment_events:
+                ev_type = ev.get("type", "")
+                if ev_type == "answer_submit":
+                    qnum = ev.get("question")
+                    ts = ev.get("timestamp") or ev.get("ts")
+                    if qnum is not None and ts is not None:
+                        answer_entries.append({
+                            "question_id": f"q{qnum}",
+                            "answer_timestamp": float(ts),
+                            "selected_answer": ev.get("answer", ""),
+                            "response_time_ms": float(ev.get("timestamp", ts)),
+                            "calc_used": bool(ev.get("calcUsed", False)),
+                        })
+
+        if not answer_entries:
+            return []
+
+        # Sort by timestamp
+        answer_entries.sort(key=lambda x: x["answer_timestamp"])
+
+        # Detect screen_view events for precise start times
+        screen_views = {}
+        for ev in experiment_events:
+            if ev.get("type") == "screen_view":
+                screen = ev.get("screen", "")
+                ts = ev.get("timestamp") or ev.get("ts")
+                if screen and ts is not None:
+                    screen_views[screen] = float(ts)
+
+        # Build question boundaries
+        for i, entry in enumerate(answer_entries):
+            qid = entry["question_id"]
+
+            # Start time: from screen_view if available, else infer
+            if qid in screen_views:
+                start_ms = screen_views[qid]
+            elif i == 0:
+                start_ms = 0  # First question starts at session start
+            else:
+                # After previous answer + refocus break
+                start_ms = answer_entries[i - 1]["answer_timestamp"] + self.REFOCUS_DURATION_MS
+
+            end_ms = entry["answer_timestamp"]
+
+            # Extract question number
+            try:
+                qnum = int(qid.replace("q", ""))
+            except ValueError:
+                qnum = i + 1
+
+            questions.append({
+                "question_id": qid,
+                "question_number": qnum,
+                "title": self.QUESTION_TITLES.get(qid, f"Question {qnum}"),
+                "start_ms": start_ms,
+                "end_ms": end_ms,
+                "duration_ms": max(0, end_ms - start_ms),
+                "selected_answer": entry["selected_answer"],
+                "response_time_ms": entry["response_time_ms"],
+                "calc_used": entry["calc_used"],
+            })
+
+        return questions
+
+    def _slice_df(self, df: pd.DataFrame, start_ms: float, end_ms: float) -> pd.DataFrame:
+        """Slice a DataFrame by timestamp range."""
+        if df is None or df.empty or "timestamp" not in df.columns:
+            return pd.DataFrame()
+        mask = (df["timestamp"] >= start_ms) & (df["timestamp"] <= end_ms)
+        return df[mask].reset_index(drop=True)
+
+    def _compute_question_metrics(
+        self, q: Dict,
+        gaze_df: pd.DataFrame, mouse_df: pd.DataFrame,
+        keyboard_df: pd.DataFrame, emotion_df: pd.DataFrame,
+        hover_df: pd.DataFrame,
+    ) -> Dict:
+        """Compute summary metrics for a single question time slice."""
+        start = q["start_ms"]
+        end = q["end_ms"]
+
+        # Slice all streams
+        g = self._slice_df(gaze_df, start, end)
+        m = self._slice_df(mouse_df, start, end)
+        k = self._slice_df(keyboard_df, start, end)
+        em = self._slice_df(emotion_df, start, end)
+        h = self._slice_df(hover_df, start, end)
+
+        metrics = {
+            "question_id": q["question_id"],
+            "question_number": q["question_number"],
+            "title": q["title"],
+            "start_ms": q["start_ms"],
+            "end_ms": q["end_ms"],
+            "duration_ms": q["duration_ms"],
+            "duration_formatted": f"{q['duration_ms'] / 1000:.1f}s",
+            "selected_answer": q["selected_answer"],
+            "response_time_ms": q["response_time_ms"],
+            "calc_used": q["calc_used"],
+        }
+
+        # Gaze metrics
+        if not g.empty and "x" in g.columns:
+            fixations = detect_fixations_idt(g)
+            metrics["gaze_samples"] = len(g)
+            metrics["fixation_count"] = len(fixations)
+            metrics["fixation_duration_mean"] = self._safe_float(
+                fixations["duration"].mean()) if not fixations.empty else 0
+            metrics["fixation_duration_total"] = self._safe_float(
+                fixations["duration"].sum()) if not fixations.empty else 0
+
+            saccades = detect_saccades(fixations) if not fixations.empty else pd.DataFrame()
+            metrics["saccade_count"] = len(saccades)
+            metrics["saccade_amplitude_mean"] = self._safe_float(
+                saccades["amplitude"].mean()) if not saccades.empty else 0
+
+            # Gaze dispersion
+            metrics["gaze_dispersion_x"] = self._safe_float(g["x"].std())
+            metrics["gaze_dispersion_y"] = self._safe_float(g["y"].std())
+
+            # K coefficient (single value for the question)
+            fc = len(fixations)
+            sc = len(saccades)
+            if fc + sc > 0:
+                metrics["k_coefficient"] = self._safe_float((sc - fc) / (sc + fc))
+            else:
+                metrics["k_coefficient"] = 0
+
+            # Cognitive load (simplified)
+            fix_dur_var = self._safe_float(fixations["duration"].var()) if not fixations.empty else 0
+            sac_rate = sc / max(1, q["duration_ms"] / 1000)
+            disp = (metrics["gaze_dispersion_x"] + metrics["gaze_dispersion_y"]) / 2
+            # Normalize each component to [0,1] range with reasonable defaults
+            norm_var = min(1.0, fix_dur_var / 50000) if fix_dur_var > 0 else 0
+            norm_sac = min(1.0, sac_rate / 5) if sac_rate > 0 else 0
+            norm_disp = min(1.0, disp / 300) if disp > 0 else 0
+            metrics["cognitive_load"] = self._safe_float(
+                (norm_var + norm_sac + norm_disp) / 3)
+
+            # Heatmap for this question
+            heatmap = self._compute_heatmap(g)
+            metrics["heatmap"] = heatmap
+        else:
+            metrics["gaze_samples"] = 0
+            metrics["fixation_count"] = 0
+            metrics["fixation_duration_mean"] = 0
+            metrics["saccade_count"] = 0
+            metrics["k_coefficient"] = 0
+            metrics["cognitive_load"] = 0
+            metrics["heatmap"] = None
+
+        # Mouse metrics
+        if not m.empty:
+            metrics["mouse_events"] = len(m)
+            if "event" in m.columns:
+                clicks = m[m["event"].isin(["click", "mousedown"])]
+                metrics["click_count"] = len(clicks)
+            else:
+                metrics["click_count"] = 0
+        else:
+            metrics["mouse_events"] = 0
+            metrics["click_count"] = 0
+
+        # Keyboard metrics
+        if not k.empty:
+            metrics["key_events"] = len(k)
+        else:
+            metrics["key_events"] = 0
+
+        # Emotion metrics
+        emotion_cols = ["confusion", "engagement", "boredom", "frustration"]
+        if not em.empty:
+            metrics["emotion_samples"] = len(em)
+            present_cols = [c for c in emotion_cols if c in em.columns]
+            emotion_means = {}
+            for col in present_cols:
+                vals = pd.to_numeric(em[col], errors="coerce").dropna()
+                emotion_means[col] = self._safe_float(vals.mean())
+            metrics["emotion_means"] = emotion_means
+
+            # Dominant emotion
+            if emotion_means:
+                metrics["dominant_emotion"] = max(emotion_means, key=emotion_means.get)
+            else:
+                metrics["dominant_emotion"] = "unknown"
+        else:
+            metrics["emotion_samples"] = 0
+            metrics["emotion_means"] = {}
+            metrics["dominant_emotion"] = "unknown"
+
+        # AOI dwell from hover data
+        if not h.empty and "aoi" in h.columns:
+            qid = q["question_id"]
+            prefix = qid + "-"
+            q_hover = h[h["aoi"].str.startswith(prefix, na=False)]
+            aoi_dwell = {}
+            for aoi_name in q_hover["aoi"].unique():
+                aoi_rows = q_hover[q_hover["aoi"] == aoi_name]
+                if "dwell_time_ms" in aoi_rows.columns:
+                    total_dwell = pd.to_numeric(
+                        aoi_rows["dwell_time_ms"], errors="coerce"
+                    ).sum()
+                    short_name = aoi_name.replace(prefix, "")
+                    aoi_dwell[short_name] = self._safe_float(total_dwell)
+            metrics["aoi_dwell"] = aoi_dwell
+        else:
+            metrics["aoi_dwell"] = {}
+
+        return metrics
+
+    def analyze_per_question(
+        self,
+        answer_records: List[Dict],
+        experiment_events: List[Dict],
+        gaze_df: pd.DataFrame,
+        mouse_df: pd.DataFrame,
+        keyboard_df: pd.DataFrame,
+        emotion_df: pd.DataFrame,
+        face_mesh_records: List[Dict],
+        hover_df: pd.DataFrame,
+    ) -> Dict:
+        """
+        Segment session by questions and compute metrics for each.
+        Returns per-question metrics + summary comparison data.
+        """
+        boundaries = self.detect_question_boundaries(answer_records, experiment_events)
+
+        if not boundaries:
+            return {"available": False, "questions": [], "comparison": {}}
+
+        question_metrics = []
+        for q in boundaries:
+            m = self._compute_question_metrics(
+                q, gaze_df, mouse_df, keyboard_df, emotion_df, hover_df,
+            )
+            question_metrics.append(self._make_serializable(m))
+
+        # Build comparison charts data
+        comparison = {
+            "question_ids": [q["question_id"] for q in question_metrics],
+            "titles": [q["title"] for q in question_metrics],
+            "duration_ms": [q["duration_ms"] for q in question_metrics],
+            "fixation_count": [q["fixation_count"] for q in question_metrics],
+            "cognitive_load": [q["cognitive_load"] for q in question_metrics],
+            "click_count": [q["click_count"] for q in question_metrics],
+            "k_coefficient": [q.get("k_coefficient", 0) for q in question_metrics],
+        }
+
+        # Add dominant emotion per question
+        comparison["dominant_emotions"] = [
+            q.get("dominant_emotion", "unknown") for q in question_metrics
+        ]
+
+        # Emotion means per state across questions
+        emotion_cols = ["confusion", "engagement", "boredom", "frustration"]
+        for col in emotion_cols:
+            comparison[f"mean_{col}"] = [
+                q.get("emotion_means", {}).get(col, 0) for q in question_metrics
+            ]
+
+        return {
+            "available": True,
+            "count": len(question_metrics),
+            "questions": question_metrics,
+            "comparison": comparison,
+        }
+
+    # ---- 9. Answer Tracking ------------------------------------------------
+
+    def extract_answers(
+        self, answer_records: List[Dict], experiment_events: List[Dict],
+    ) -> Dict:
+        """Extract answer data for display — selected answers, response times, calc usage."""
+        answers = []
+
+        # From answer records
+        for rec in answer_records:
+            qid = rec.get("question_id", "")
+            if qid and qid.startswith("q") and qid != "survey":
+                try:
+                    qnum = int(qid.replace("q", ""))
+                except ValueError:
+                    continue
+                answers.append({
+                    "question_id": qid,
+                    "question_number": qnum,
+                    "title": self.QUESTION_TITLES.get(qid, f"Question {qnum}"),
+                    "selected_answer": rec.get("selected_answer", ""),
+                    "response_time_ms": self._safe_float(rec.get("response_time_ms", 0)),
+                    "calc_used": bool(rec.get("calc_used", False)),
+                    "timestamp": self._safe_float(rec.get("timestamp", 0)),
+                })
+
+        # Fallback: from experiment_events
+        if not answers:
+            for ev in experiment_events:
+                if ev.get("type") == "answer_submit":
+                    qnum = ev.get("question")
+                    if qnum is not None:
+                        qid = f"q{qnum}"
+                        answers.append({
+                            "question_id": qid,
+                            "question_number": int(qnum),
+                            "title": self.QUESTION_TITLES.get(qid, f"Question {qnum}"),
+                            "selected_answer": ev.get("answer", ""),
+                            "response_time_ms": self._safe_float(ev.get("timestamp", 0)),
+                            "calc_used": bool(ev.get("calcUsed", False)),
+                            "timestamp": self._safe_float(ev.get("ts", 0)),
+                        })
+
+        # Deduplicate by question_id, keep latest
+        seen = {}
+        for a in answers:
+            seen[a["question_id"]] = a
+        answers = sorted(seen.values(), key=lambda x: x["question_number"])
+
+        if not answers:
+            return {"available": False, "answers": [], "summary": {}}
+
+        # Compute summary stats
+        response_times = [a["response_time_ms"] for a in answers if a["response_time_ms"] > 0]
+        calc_count = sum(1 for a in answers if a["calc_used"])
+
+        return {
+            "available": True,
+            "total_answered": len(answers),
+            "total_questions": 12,
+            "calc_usage_count": calc_count,
+            "calc_usage_rate": round(calc_count / max(1, len(answers)) * 100),
+            "avg_response_time_ms": self._safe_float(
+                np.mean(response_times)) if response_times else 0,
+            "avg_response_time_formatted": f"{np.mean(response_times) / 1000:.1f}s" if response_times else "N/A",
+            "response_times": [
+                {"question_id": a["question_id"], "time_ms": a["response_time_ms"]}
+                for a in answers
+            ],
+            "answers": answers,
+            "summary": {
+                "answered": len(answers),
+                "skipped": 12 - len(answers),
+                "calc_used": calc_count,
+            },
+        }
+
+    # ---- 10. Survey Data ---------------------------------------------------
+
+    def parse_survey_data(
+        self, answer_records: List[Dict], experiment_events: List[Dict],
+    ) -> Dict:
+        """Parse post-study survey responses from answer or experiment_event data."""
+        survey_raw = {}
+
+        # Strategy 1: From answer records with question_id='survey'
+        for rec in answer_records:
+            if rec.get("question_id") == "survey":
+                sd = rec.get("survey_data", {})
+                if isinstance(sd, dict):
+                    survey_raw = sd
+                # Also capture all_responses (question answers embedded in survey)
+                break
+
+        # Strategy 2: From experiment_events survey_complete
+        if not survey_raw:
+            for ev in experiment_events:
+                if ev.get("type") == "survey_complete":
+                    sd = ev.get("surveyData", {})
+                    if isinstance(sd, dict):
+                        survey_raw = sd
+                    break
+
+        if not survey_raw:
+            return {"available": False}
+
+        # Parse responses into structured format
+        ratings = {}  # q1-q15 (numeric 1-5)
+        demographics = {}  # q16-q19 (text values)
+
+        for key, val in survey_raw.items():
+            if not key.startswith("q"):
+                continue
+            try:
+                qnum = int(key.replace("q", ""))
+            except ValueError:
+                continue
+
+            if qnum <= 15:
+                try:
+                    ratings[key] = int(val)
+                except (ValueError, TypeError):
+                    ratings[key] = val
+            else:
+                demographics[key] = str(val)
+
+        # Group by section
+        sections = {}
+        for sec_id, sec_info in self.SURVEY_SECTIONS.items():
+            sec_data = {}
+            for k in sec_info["keys"]:
+                if k in ratings:
+                    sec_data[k] = ratings[k]
+                elif k in demographics:
+                    sec_data[k] = demographics[k]
+            if sec_data:
+                sections[sec_id] = {
+                    "label": sec_info["label"],
+                    "responses": sec_data,
+                    "labels": {k: self.SURVEY_LABELS.get(k, k) for k in sec_data},
+                }
+
+        # Compute section averages (for rating sections only)
+        section_averages = {}
+        for sec_id in ["difficulty_effort", "information_use", "decision_style",
+                        "experience", "about_you"]:
+            sec = sections.get(sec_id, {})
+            vals = [v for v in sec.get("responses", {}).values() if isinstance(v, (int, float))]
+            if vals:
+                section_averages[sec_id] = {
+                    "label": self.SURVEY_SECTIONS[sec_id]["label"],
+                    "mean": round(float(np.mean(vals)), 2),
+                    "values": vals,
+                }
+
+        return {
+            "available": True,
+            "ratings": ratings,
+            "demographics": demographics,
+            "sections": sections,
+            "section_averages": section_averages,
+            "labels": self.SURVEY_LABELS,
+        }

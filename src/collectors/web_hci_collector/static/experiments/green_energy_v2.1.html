@@ -2756,6 +2756,20 @@
             btn.textContent = '✓ Submitted'; btn.disabled = true; btn.style.background = '#4CAF50';
             logEvent('answer_submit', { question: qNum, ...responses[qNum] });
 
+            // Send structured answer to server
+            if (window.parent !== window) {
+                window.parent.postMessage({
+                    type: 'hci_answer',
+                    data: {
+                        question_id: `q${qNum}`,
+                        selected_answer: responses[qNum].answer,
+                        response_time_ms: responses[qNum].timestamp,
+                        calc_used: responses[qNum].calcUsed,
+                        question_number: qNum,
+                    }
+                }, '*');
+            }
+
             setTimeout(() => {
                 if (qNum < 12) {
                     const nextRefocus = 'refocus' + qNum;
@@ -2777,11 +2791,30 @@
                 if (el && el.value) surveyData['q' + i] = el.value;
             }
             logEvent('survey_complete', { surveyData, responses, totalTime: Date.now() - startTime });
+
+            // Send survey data as structured answer to server
+            if (window.parent !== window) {
+                window.parent.postMessage({
+                    type: 'hci_answer',
+                    data: {
+                        question_id: 'survey',
+                        survey_data: surveyData,
+                        all_responses: responses,
+                        total_time_ms: Date.now() - startTime,
+                    }
+                }, '*');
+            }
+
             showScreen('completion');
         }
 
         function logEvent(type, data) {
-            console.log('EVENT:', { type, ts: Date.now() - startTime, ...data });
+            const payload = { type, ts: Date.now() - startTime, ...data };
+            console.log('EVENT:', payload);
+            // Send to parent (participate.js) for server recording
+            if (window.parent !== window) {
+                window.parent.postMessage({ type: 'hci_experiment_event', data: payload }, '*');
+            }
         }
 
         document.querySelectorAll('.panel').forEach(p => {
