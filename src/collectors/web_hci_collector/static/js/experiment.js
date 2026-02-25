@@ -1007,7 +1007,22 @@ window.startExperiment = async function() {
         screenHeight: window.screen.height,
         windowWidth: window.innerWidth,
         windowHeight: window.innerHeight,
+        devicePixelRatio: window.devicePixelRatio || 1,
         screenRecording: recordingStarted
+    });
+
+    // Track window resizes so playback can adjust coordinate mapping
+    let resizeDebounce = null;
+    window.addEventListener('resize', () => {
+        if (!isCollecting) return;
+        clearTimeout(resizeDebounce);
+        resizeDebounce = setTimeout(() => {
+            sendData('window_resize', {
+                windowWidth: window.innerWidth,
+                windowHeight: window.innerHeight,
+                devicePixelRatio: window.devicePixelRatio || 1,
+            });
+        }, 300);
     });
 
     if (!recordingStarted) {
@@ -1262,7 +1277,8 @@ async function startScreenRecording() {
             mimeType: mimeType,
             width: screenStream.getVideoTracks()[0].getSettings().width,
             height: screenStream.getVideoTracks()[0].getSettings().height,
-            startTime: recordingStartTime
+            startTime: recordingStartTime,
+            devicePixelRatio: window.devicePixelRatio || 1,
         });
 
         return true;

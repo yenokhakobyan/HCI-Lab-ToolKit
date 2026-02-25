@@ -583,10 +583,25 @@ async function startContent() {
         screenHeight: window.screen.height,
         windowWidth: window.innerWidth,
         windowHeight: window.innerHeight,
+        devicePixelRatio: window.devicePixelRatio || 1,
     });
 
     // Listen for iframe messages
     window.addEventListener('message', handleIframeMessage);
+
+    // Track window resizes so playback can adjust coordinate mapping
+    let resizeDebounce = null;
+    window.addEventListener('resize', () => {
+        if (!isCollecting) return;
+        clearTimeout(resizeDebounce);
+        resizeDebounce = setTimeout(() => {
+            sendData('window_resize', {
+                windowWidth: window.innerWidth,
+                windowHeight: window.innerHeight,
+                devicePixelRatio: window.devicePixelRatio || 1,
+            });
+        }, 300); // debounce 300ms to avoid spam
+    });
 
     // Init MediaPipe + camera in background (non-blocking)
     initFaceMesh().catch(e => console.error('FaceMesh init error:', e));
@@ -1307,6 +1322,7 @@ async function startScreenRecording() {
             width: screenStream.getVideoTracks()[0].getSettings().width,
             height: screenStream.getVideoTracks()[0].getSettings().height,
             startTime: recordingStartTime,
+            devicePixelRatio: window.devicePixelRatio || 1,
         });
         return true;
     } catch (e) {

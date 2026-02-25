@@ -64,6 +64,7 @@ class Session:
     calibration_validations: int = 0
     experiment_events: int = 0
     drift_samples: int = 0
+    window_resize_events: int = 0
 
     @property
     def is_active(self) -> bool:
@@ -98,6 +99,7 @@ class Session:
             "calibration_validations": self.calibration_validations,
             "experiment_events": self.experiment_events,
             "drift_samples": self.drift_samples,
+            "window_resize_events": self.window_resize_events,
         }
 
 
@@ -224,6 +226,8 @@ class SessionManager:
             session.experiment_events += count
         elif data_type == "drift_sample":
             session.drift_samples += count
+        elif data_type == "window_resize":
+            session.window_resize_events += count
 
     def set_calibrated(self, session_id: str, calibrated: bool = True):
         """Mark session as calibrated."""

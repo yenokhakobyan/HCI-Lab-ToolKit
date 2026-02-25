@@ -41,6 +41,9 @@ let participantScreenWidth = 1920;  // Default, updated from session data
 let participantScreenHeight = 1080;
 let participantWindowWidth = 1920;
 let participantWindowHeight = 1080;
+let participantDPR = 1;  // Device pixel ratio (Retina = 2)
+let videoRecordingWidth = 0;   // Actual video track resolution
+let videoRecordingHeight = 0;
 let contentUrl = null;
 
 // Gaze visualization
@@ -182,9 +185,14 @@ function mapCoordinates(rawX, rawY) {
 
     const activeVideo = getActiveVideoElement();
     if (activeVideo && activeVideo.videoWidth > 0 && activeVideo.videoHeight > 0) {
-        // Video is visible — compute its rendered area within the container
-        // (replicating the browser's object-fit:contain algorithm)
-        const videoAR = activeVideo.videoWidth / activeVideo.videoHeight;
+        // Video is in physical pixels (e.g. 2880×1800 on Retina 2×), but gaze
+        // coordinates are in CSS pixels (e.g. 1440×900). Compute the CSS-equivalent
+        // video dimensions so the aspect-ratio math matches the coordinate space.
+        const dpr = participantDPR || 1;
+        const cssVideoW = activeVideo.videoWidth / dpr;
+        const cssVideoH = activeVideo.videoHeight / dpr;
+
+        const videoAR = cssVideoW / cssVideoH;
         const containerAR = cW / cH;
 
         let rW, rH, oX, oY;
@@ -354,6 +362,20 @@ async function loadSavedSession(sessionIdToLoad) {
                 if (timeline.metadata.participantScreenHeight) {
                     participantScreenHeight = timeline.metadata.participantScreenHeight;
                 }
+                if (timeline.metadata.participantDPR) {
+                    participantDPR = timeline.metadata.participantDPR;
+                }
+                if (timeline.metadata.videoRecordingWidth) {
+                    videoRecordingWidth = timeline.metadata.videoRecordingWidth;
+                }
+                if (timeline.metadata.videoRecordingHeight) {
+                    videoRecordingHeight = timeline.metadata.videoRecordingHeight;
+                }
+            }
+
+            // Restore window resize events for playback
+            if (timeline.windowResizes) {
+                timelineData.windowResizes = timeline.windowResizes;
             }
         }
 
@@ -421,6 +443,7 @@ async function loadSavedSession(sessionIdToLoad) {
             const meta = result.files.metadata;
             if (meta.windowWidth) participantWindowWidth = meta.windowWidth;
             if (meta.windowHeight) participantWindowHeight = meta.windowHeight;
+            if (meta.devicePixelRatio) participantDPR = meta.devicePixelRatio;
         }
 
         // Match container aspect ratio to participant window (uses dims from timeline or export metadata)
@@ -1539,6 +1562,21 @@ function applyTimelineState() {
 
     const time = timelinePlaybackTime;
 
+    // Apply window resize events: use the most recent resize before current time
+    // so mapCoordinates() uses the correct participant dimensions at each moment
+    if (timelineData.windowResizes && timelineData.windowResizes.length > 0) {
+        let latestResize = null;
+        for (const r of timelineData.windowResizes) {
+            if (r.time <= time) latestResize = r;
+            else break; // sorted by time
+        }
+        if (latestResize) {
+            if (latestResize.windowWidth) participantWindowWidth = latestResize.windowWidth;
+            if (latestResize.windowHeight) participantWindowHeight = latestResize.windowHeight;
+            if (latestResize.devicePixelRatio) participantDPR = latestResize.devicePixelRatio;
+        }
+    }
+
     // Apply face mesh data (supports both full landmarks from server CSV and lightweight timeline entries)
     const faceMeshData = findDataAtTime(timelineData.faceMesh, time);
     if (faceMeshData) {
@@ -2428,6 +2466,9 @@ function handleIncomingData(data) {
         case 'step_transition':
             handleStepTransition(data.data, data.session_id);
             break;
+        case 'window_resize':
+            handleWindowResize(data.data);
+            break;
     }
 }
 
@@ -2458,6 +2499,24 @@ function handleVideoStart(data) {
     console.log(`[Video] Offset from data start: ${videoOffset}ms`);
     timelineData.videoChunks = [];
 
+    // Store video recording resolution for AR validation
+    if (data.width) videoRecordingWidth = data.width;
+    if (data.height) videoRecordingHeight = data.height;
+    if (data.devicePixelRatio) participantDPR = data.devicePixelRatio;
+
+    // Validate video dimensions match participant viewport (within 5% tolerance)
+    if (videoRecordingWidth > 0 && participantWindowWidth > 0) {
+        const dpr = participantDPR || 1;
+        const expectedWidth = participantWindowWidth * dpr;
+        const mismatch = Math.abs(videoRecordingWidth - expectedWidth) / expectedWidth;
+        if (mismatch > 0.05) {
+            console.warn(`[Video] Dimension mismatch: video=${videoRecordingWidth}x${videoRecordingHeight}, ` +
+                `expected=${expectedWidth}x${Math.round(participantWindowHeight * dpr)} (DPR=${dpr}). ` +
+                `Participant may have shared a different screen/window — overlay accuracy may be reduced.`);
+            addLogEntry('warning', `Video dimensions mismatch viewport (${videoRecordingWidth}×${videoRecordingHeight} vs ${expectedWidth}×${Math.round(participantWindowHeight * dpr)}) — overlay may be offset`);
+        }
+    }
+
     // Clean up any existing video
     if (videoUrl) {
         URL.revokeObjectURL(videoUrl);
@@ -2468,7 +2527,7 @@ function handleVideoStart(data) {
     // Initialize live video streaming via MSE
     initLiveVideo();
 
-    addLogEntry('system', `Screen recording started (${data.width}x${data.height})`);
+    addLogEntry('system', `Screen recording started (${data.width}x${data.height}, DPR=${participantDPR})`);
 }
 
 /**
@@ -3261,6 +3320,34 @@ function handleKeyboardData(data) {
 }
 
 /**
+ * Handle window resize events from participant
+ */
+function handleWindowResize(data) {
+    if (data.windowWidth) participantWindowWidth = data.windowWidth;
+    if (data.windowHeight) participantWindowHeight = data.windowHeight;
+    if (data.devicePixelRatio) participantDPR = data.devicePixelRatio;
+
+    // Update container aspect ratio to match new dimensions
+    const pvContainer = document.getElementById('participant-view-container');
+    if (pvContainer && participantWindowWidth > 0 && participantWindowHeight > 0) {
+        pvContainer.style.aspectRatio = `${participantWindowWidth} / ${participantWindowHeight}`;
+    }
+
+    // Record in timeline for playback
+    if (startTime) {
+        timelineData.windowResizes = timelineData.windowResizes || [];
+        timelineData.windowResizes.push({
+            time: Date.now() - startTime,
+            windowWidth: data.windowWidth,
+            windowHeight: data.windowHeight,
+            devicePixelRatio: data.devicePixelRatio,
+        });
+    }
+
+    console.log(`[Resize] Participant window: ${participantWindowWidth}x${participantWindowHeight} (DPR=${participantDPR})`);
+}
+
+/**
  * Handle session events
  */
 async function handleSessionEvent(data) {
@@ -3288,6 +3375,7 @@ async function handleSessionEvent(data) {
         if (data.screenHeight) participantScreenHeight = data.screenHeight;
         if (data.windowWidth) participantWindowWidth = data.windowWidth;
         if (data.windowHeight) participantWindowHeight = data.windowHeight;
+        if (data.devicePixelRatio) participantDPR = data.devicePixelRatio;
 
         // Match container aspect ratio to participant window
         const pvContainer = document.getElementById('participant-view-container');
@@ -3388,12 +3476,16 @@ async function saveTimelineData() {
             mouse: timelineData.mouse,
             scroll: timelineData.scroll,
             navigation: timelineData.navigation,
+            windowResizes: timelineData.windowResizes || [],
             metadata: {
                 sessionId: sessionId,
                 participantWindowWidth: participantWindowWidth,
                 participantWindowHeight: participantWindowHeight,
                 participantScreenWidth: participantScreenWidth,
                 participantScreenHeight: participantScreenHeight,
+                participantDPR: participantDPR,
+                videoRecordingWidth: videoRecordingWidth,
+                videoRecordingHeight: videoRecordingHeight,
                 duration: sessionEndDuration || (startTime ? Date.now() - startTime : 0),
                 videoOffset: videoOffset,
                 savedAt: new Date().toISOString()
