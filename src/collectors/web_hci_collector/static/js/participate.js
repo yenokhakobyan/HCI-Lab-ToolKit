@@ -30,6 +30,7 @@ let screenStream = null;
 let mediaRecorder = null;
 let recordedChunks = [];
 let recordingStartTime = 0;
+let recordingMimeType = 'video/webm';
 const VIDEO_CHUNK_INTERVAL = 1000;
 
 // L2CS gaze
@@ -882,6 +883,22 @@ async function initFaceMeshFallback() {
     }
 }
 
+/**
+ * Compute bounding box from landmarks in a single pass (avoids spreading 468 elements)
+ */
+function computeBoundingBox(landmarks) {
+    let minX = landmarks[0].x, maxX = minX;
+    let minY = landmarks[0].y, maxY = minY;
+    for (let i = 1; i < landmarks.length; i++) {
+        const lx = landmarks[i].x, ly = landmarks[i].y;
+        if (lx < minX) minX = lx;
+        else if (lx > maxX) maxX = lx;
+        if (ly < minY) minY = ly;
+        else if (ly > maxY) maxY = ly;
+    }
+    return { min_x: minX, max_x: maxX, min_y: minY, max_y: maxY };
+}
+
 function onFaceMeshResults(results) {
     if (!results.multiFaceLandmarks?.length) return;
     const landmarks = results.multiFaceLandmarks[0];
@@ -923,12 +940,7 @@ function onFaceMeshResults(results) {
             yaw: (noseTip.x - eyeCenter.x) * 100,
             roll: (leftEyeCenter.y - rightEyeCenter.y) * 100,
         },
-        bounding_box: {
-            min_x: Math.min(...landmarks.map(l => l.x)),
-            max_x: Math.max(...landmarks.map(l => l.x)),
-            min_y: Math.min(...landmarks.map(l => l.y)),
-            max_y: Math.max(...landmarks.map(l => l.y)),
-        },
+        bounding_box: computeBoundingBox(landmarks),
     });
 }
 
@@ -1102,6 +1114,7 @@ async function startScreenRecording() {
                 ? 'video/webm;codecs=vp8'
                 : 'video/webm';
 
+        recordingMimeType = mimeType;
         mediaRecorder = new MediaRecorder(screenStream, { mimeType, videoBitsPerSecond: 1000000 });
         recordedChunks = [];
         recordingStartTime = Date.now();
@@ -1167,6 +1180,7 @@ function stopScreenRecordingAsync() {
                     totalChunks: recordedChunks.length,
                     totalSize: recordedChunks.reduce((a, c) => a + c.size, 0),
                     duration: Date.now() - recordingStartTime,
+                    mimeType: recordingMimeType,
                 });
             }
             if (screenStream) { screenStream.getTracks().forEach(t => t.stop()); screenStream = null; }

@@ -176,6 +176,12 @@ class L2CSGazeEstimator:
         if self.mode == 'demo':
             print("Using demo mode for gaze estimation (install: pip install inference inference-sdk)")
 
+        # Pre-load face cascade for 'simple' mode
+        self._face_cascade = None
+        if self.mode == 'simple' and CV2_AVAILABLE:
+            cascade_path = cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
+            self._face_cascade = cv2.CascadeClassifier(cascade_path)
+
         self._demo_gaze = {'x': screen_width / 2, 'y': screen_height / 2}
 
     def estimate_from_frame(self, frame: np.ndarray, timestamp: float) -> Optional[GazeEstimate]:
@@ -285,9 +291,10 @@ class L2CSGazeEstimator:
         """Simple geometric estimation using face detection."""
         try:
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-            cascade_path = cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
-            face_cascade = cv2.CascadeClassifier(cascade_path)
-            faces = face_cascade.detectMultiScale(gray, 1.1, 4)
+            if self._face_cascade is None:
+                cascade_path = cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
+                self._face_cascade = cv2.CascadeClassifier(cascade_path)
+            faces = self._face_cascade.detectMultiScale(gray, 1.1, 4)
 
             if len(faces) == 0:
                 return None
@@ -475,15 +482,18 @@ class AsyncGazeEstimator:
             self._thread.join(timeout=2.0)
 
     def submit_frame(self, frame_data: str, timestamp: float):
-        """Submit a frame for processing."""
+        """Submit a frame for processing. Drops oldest frame if queue is full."""
         try:
             self._queue.put_nowait((frame_data, timestamp))
         except queue.Full:
             try:
                 self._queue.get_nowait()
-                self._queue.put_nowait((frame_data, timestamp))
             except queue.Empty:
                 pass
+            try:
+                self._queue.put_nowait((frame_data, timestamp))
+            except queue.Full:
+                print("Gaze frame dropped: queue contention")
 
     def get_latest_result(self) -> Optional[GazeEstimate]:
         """Get the most recent gaze estimate."""

@@ -13,6 +13,7 @@ This module provides:
 2. Integration with pre-trained DAiSEE models when available
 """
 
+import logging
 import numpy as np
 from typing import Dict, Optional, Tuple, List
 from dataclasses import dataclass
@@ -409,7 +410,12 @@ class EmotionDetector:
         Returns:
             CognitiveState with predictions
         """
-        if self.backend == "demo" or self.backend == "landmarks":
+        if self.backend == "landmarks":
+            logging.getLogger(__name__).warning(
+                "predict() called with 'landmarks' backend — use predict_from_landmarks() instead. Returning demo data."
+            )
+            return self._demo_predict()
+        elif self.backend == "demo":
             return self._demo_predict()
         elif self.backend == "onnx":
             return self._onnx_predict(face_image)

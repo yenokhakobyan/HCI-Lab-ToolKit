@@ -26,6 +26,7 @@ let isCollecting = false;
 
 // Trackers
 let faceMesh = null;
+let faceMeshLoopRunning = false;
 let camera = null;
 
 // Screen recording using MediaRecorder API
@@ -33,6 +34,7 @@ let screenStream = null;
 let mediaRecorder = null;
 let recordedChunks = [];
 let recordingStartTime = 0;
+let recordingMimeType = 'video/webm';
 const VIDEO_CHUNK_INTERVAL = 1000; // Send video chunk every 1 second
 
 // L2CS gaze frame capture
@@ -268,9 +270,10 @@ function waitForWebGazerVideo(timeoutMs = 5000) {
  */
 function startFaceMeshLoop(videoElement) {
     let processing = false;
+    faceMeshLoopRunning = true;
 
     async function processFrame() {
-        if (!faceMesh) return;
+        if (!faceMeshLoopRunning || !faceMesh) return;
 
         if (isCollecting && !processing && videoElement.readyState >= 2) {
             processing = true;
@@ -320,6 +323,22 @@ async function initFaceMeshWithOwnCamera() {
     }
 
     console.log('MediaPipe Face Mesh initialized (own camera — fallback)');
+}
+
+/**
+ * Compute bounding box from landmarks in a single pass (avoids spreading 468 elements)
+ */
+function computeBoundingBox(landmarks) {
+    let minX = landmarks[0].x, maxX = minX;
+    let minY = landmarks[0].y, maxY = minY;
+    for (let i = 1; i < landmarks.length; i++) {
+        const lx = landmarks[i].x, ly = landmarks[i].y;
+        if (lx < minX) minX = lx;
+        else if (lx > maxX) maxX = lx;
+        if (ly < minY) minY = ly;
+        else if (ly > maxY) maxY = ly;
+    }
+    return { min_x: minX, max_x: maxX, min_y: minY, max_y: maxY };
 }
 
 /**
@@ -394,13 +413,8 @@ function onFaceMeshResults(results) {
             // Computed head pose
             head_pose: headPose,
 
-            // Face bounding box (approximate)
-            bounding_box: {
-                min_x: Math.min(...landmarks.map(l => l.x)),
-                max_x: Math.max(...landmarks.map(l => l.x)),
-                min_y: Math.min(...landmarks.map(l => l.y)),
-                max_y: Math.max(...landmarks.map(l => l.y))
-            }
+            // Face bounding box (single-pass, no stack spread)
+            bounding_box: computeBoundingBox(landmarks)
         });
     }
 }
@@ -920,12 +934,23 @@ window.endExperiment = async function() {
     }
 
     // Stop FaceMesh processing loop
-    faceMesh = null;
+    faceMeshLoopRunning = false;
+    if (faceMesh) {
+        try { faceMesh.close(); } catch (e) { console.error('FaceMesh close error:', e); }
+        faceMesh = null;
+    }
 
     // Stop MediaPipe camera if using fallback
     if (camera) {
         camera.stop();
         camera = null;
+    }
+
+    // Stop webcam-video srcObject tracks (fallback camera cleanup)
+    const webcamVideo = document.getElementById('webcam-video');
+    if (webcamVideo && webcamVideo.srcObject) {
+        webcamVideo.srcObject.getTracks().forEach(track => track.stop());
+        webcamVideo.srcObject = null;
     }
 
     // Stop WebGazer (releases the shared camera stream)
@@ -1031,6 +1056,7 @@ async function startScreenRecording() {
             : MediaRecorder.isTypeSupported('video/webm;codecs=vp8')
                 ? 'video/webm;codecs=vp8'
                 : 'video/webm';
+        recordingMimeType = mimeType;
 
         mediaRecorder = new MediaRecorder(screenStream, {
             mimeType: mimeType,
@@ -1151,7 +1177,7 @@ function stopScreenRecordingAsync() {
                     totalChunks: recordedChunks.length,
                     totalSize: totalSize,
                     duration: Date.now() - recordingStartTime,
-                    mimeType: mediaRecorder ? 'video/webm' : 'video/webm'
+                    mimeType: recordingMimeType
                 });
             }
 
@@ -1175,12 +1201,23 @@ function stopScreenRecordingAsync() {
  */
 function releaseAllMedia() {
     // Stop FaceMesh processing loop
-    faceMesh = null;
+    faceMeshLoopRunning = false;
+    if (faceMesh) {
+        try { faceMesh.close(); } catch (e) {}
+        faceMesh = null;
+    }
 
     // Stop MediaPipe camera if using fallback
     if (camera) {
         try { camera.stop(); } catch (e) {}
         camera = null;
+    }
+
+    // Stop webcam-video srcObject tracks
+    const webcamVideo = document.getElementById('webcam-video');
+    if (webcamVideo && webcamVideo.srcObject) {
+        webcamVideo.srcObject.getTracks().forEach(track => track.stop());
+        webcamVideo.srcObject = null;
     }
 
     // Stop WebGazer (releases the shared camera stream)
