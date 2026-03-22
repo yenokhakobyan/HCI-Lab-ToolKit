@@ -8,6 +8,10 @@ venv/
 env/
 .venv/
 ENV/
+*.egg-info/
+dist/
+build/
+.pip-cache/
 
 # Data files (keep structure, ignore data)
 data/raw/
@@ -18,7 +22,6 @@ data/processed/**/*.h5
 *.csv
 *.parquet
 *.h5
-*.webm
 *.json
 
 # Jupyter
@@ -42,8 +45,10 @@ logs/
 # Environment
 .env
 *.env
-# Video recortings
+# Video recordings
 *.webm
+*.mp4
+*.avi
 
 # SSL certificates
 certs/
