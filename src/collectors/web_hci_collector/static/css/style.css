@@ -499,7 +499,7 @@ body {
     width: 20px;
     height: 20px;
     border-radius: 50%;
-    background: radial-gradient(circle, rgba(233, 69, 96, 0.9) 0%, rgba(233, 69, 96, 0.3) 40%, transparent 70%);
+    background: transparent;
     pointer-events: none;
     transform: translate(-50%, -50%);
     z-index: 999;

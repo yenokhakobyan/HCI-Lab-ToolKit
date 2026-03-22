@@ -30,7 +30,8 @@ let camera = null;
 // Screen recording
 let screenStream = null;
 let mediaRecorder = null;
-let recordedChunks = [];
+let recordedChunkCount = 0;
+let recordedChunkTotalSize = 0;
 let recordingStartTime = 0;
 let recordingStartTimeUnix = 0;
 let recordingMimeType = 'video/webm';
@@ -82,6 +83,9 @@ let faceDetected = false;
 let lastFaceDetectedTime = 0;
 const FACE_LOST_THRESHOLD_MS = 500; // flag gaze as unreliable after 500ms without face
 
+// MutationObserver for iframe AOI hover tracking — stored so it can be disconnected on cleanup
+let _hoverObserver = null;
+
 // Head-pose compensation: correct gaze for head movement since calibration
 let calibrationHeadPose = null;  // reference {pitch, yaw, roll} at calibration end
 let currentHeadPose = null;      // latest head pose from FaceMesh
@@ -130,6 +134,14 @@ const gazeCursor = document.getElementById('gaze-cursor');
 const contentFrame = document.getElementById('content-frame');
 const floatingControls = document.getElementById('floating-controls');
 
+// Cached iframe rect — updated on resize to avoid layout reflow on every mouse event
+let _contentFrameRect = null;
+function getContentFrameRect() {
+    if (!_contentFrameRect) _contentFrameRect = contentFrame?.getBoundingClientRect() || { left: 0, top: 0 };
+    return _contentFrameRect;
+}
+window.addEventListener('resize', () => { _contentFrameRect = null; });
+
 // ── Initialization ────────────────────────────────────────
 
 async function init() {
@@ -169,14 +181,18 @@ async function init() {
 // ── WebSocket ─────────────────────────────────────────────
 
 let wsClosedIntentionally = false;
+let wsRetryDelay = 3000;
 
 function connectWebSocket() {
     if (wsClosedIntentionally) return;
     ws = new WebSocket(WS_URL);
-    ws.onopen = () => console.log('WS connected');
+    ws.onopen = () => { wsRetryDelay = 3000; console.log('WS connected'); };
     ws.onclose = () => {
         console.log('WS disconnected');
-        if (!wsClosedIntentionally) setTimeout(connectWebSocket, 3000);
+        if (!wsClosedIntentionally) {
+            setTimeout(connectWebSocket, wsRetryDelay);
+            wsRetryDelay = Math.min(wsRetryDelay * 2, 30000);
+        }
     };
     ws.onerror = (e) => {
         console.error('WS error:', e);
@@ -640,8 +656,7 @@ function handleIframeMessage(e) {
 
     // Mouse events from iframe
     if (e.data?.type === 'hci_mouse_event') {
-        const iframe = contentFrame;
-        const rect = iframe.getBoundingClientRect();
+        const rect = getContentFrameRect();
         const d = e.data.data;
         sendData('mouse', {
             event: d.event,
@@ -727,6 +742,9 @@ window.endExperiment = async function () {
 
     // Stop FaceMesh loop
     faceMeshLoopRunning = false;
+
+    // Disconnect hover MutationObserver
+    if (_hoverObserver) { _hoverObserver.disconnect(); _hoverObserver = null; }
 
     // Stop MediaPipe camera (only used in fallback mode)
     if (camera) {
@@ -966,23 +984,21 @@ async function initFaceMesh() {
             l2csCtx = l2csCanvas.getContext('2d');
         }
 
-        // Use requestAnimationFrame loop to feed WebGazer's video to FaceMesh
-        // Throttled to FACE_MESH_INTERVAL (~15Hz) to reduce CPU load
+        // Use setTimeout loop at exactly FACE_MESH_INTERVAL — avoids ~60Hz RAF overhead
         faceMeshLoopRunning = true;
-        async function faceMeshLoop() {
+        async function faceMeshLoopTick() {
             if (!faceMeshLoopRunning || !faceMesh) return;
-            const now = performance.now();
-            if (isCollecting && videoEl && videoEl.readyState >= 2 && now - lastFaceMeshTime >= FACE_MESH_INTERVAL) {
-                lastFaceMeshTime = now;
+            if (isCollecting && videoEl && videoEl.readyState >= 2) {
+                lastFaceMeshTime = performance.now();
                 try {
                     await faceMesh.send({ image: videoEl });
                     if (L2CS_ENABLED) sendL2CSFrame(videoEl);
                     sendWebcamFrame(videoEl);
                 } catch (e) { /* ignore frame errors */ }
             }
-            requestAnimationFrame(faceMeshLoop);
+            if (faceMeshLoopRunning) setTimeout(faceMeshLoopTick, FACE_MESH_INTERVAL);
         }
-        requestAnimationFrame(faceMeshLoop);
+        setTimeout(faceMeshLoopTick, FACE_MESH_INTERVAL);
 
         console.log('Face Mesh initialized (sharing WebGazer camera)');
     } catch (e) {
@@ -1221,20 +1237,21 @@ function setupIframeTracking() {
 
 function injectIframeMouseTracking(iframe, iDoc) {
     let lastMove = 0;
-    const rect = () => iframe.getBoundingClientRect();
+    // Cache rect — reflow is expensive; update only on resize (debounced 300ms in parent)
+    let cachedRect = iframe.getBoundingClientRect();
+    window.addEventListener('resize', () => { cachedRect = iframe.getBoundingClientRect(); });
 
     iDoc.addEventListener('mousemove', (e) => {
         if (!isCollecting) return;
         const now = performance.now();
         if (now - lastMove < 50) return;
         lastMove = now;
-        const r = rect();
-        sendData('mouse', { event: 'move', x: r.left + e.clientX, y: r.top + e.clientY, iframeX: e.clientX, iframeY: e.clientY, overIframe: true, source: 'iframe_injected' });
+        sendData('mouse', { event: 'move', x: cachedRect.left + e.clientX, y: cachedRect.top + e.clientY, iframeX: e.clientX, iframeY: e.clientY, overIframe: true, source: 'iframe_injected' });
     }, true);
 
     iDoc.addEventListener('click', (e) => {
         if (!isCollecting) return;
-        const r = rect();
+        const r = cachedRect;
         const parentX = r.left + e.clientX;
         const parentY = r.top + e.clientY;
         sendData('mouse', { event: 'click', x: parentX, y: parentY, iframeX: e.clientX, iframeY: e.clientY, button: e.button, target: e.target?.tagName || '', overIframe: true, source: 'iframe_injected' });
@@ -1255,8 +1272,7 @@ function injectIframeMouseTracking(iframe, iDoc) {
 
     iDoc.addEventListener('wheel', (e) => {
         if (!isCollecting) return;
-        const r = rect();
-        sendData('mouse', { event: 'wheel', x: r.left + e.clientX, y: r.top + e.clientY, deltaX: e.deltaX, deltaY: e.deltaY, overIframe: true, source: 'iframe_injected' });
+        sendData('mouse', { event: 'wheel', x: cachedRect.left + e.clientX, y: cachedRect.top + e.clientY, deltaX: e.deltaX, deltaY: e.deltaY, overIframe: true, source: 'iframe_injected' });
     }, true);
 
     iframe.contentWindow.addEventListener('scroll', () => {
@@ -1286,7 +1302,7 @@ function injectHoverTracking(iDoc) {
 
     // Watch for dynamically added AOI elements (AJAX, SPA navigation, etc.)
     if (iDoc.body) {
-        const observer = new MutationObserver((mutations) => {
+        _hoverObserver = new MutationObserver((mutations) => {
             for (const m of mutations) {
                 for (const node of m.addedNodes) {
                     if (node.nodeType === 1) {
@@ -1298,7 +1314,7 @@ function injectHoverTracking(iDoc) {
                 }
             }
         });
-        observer.observe(iDoc.body, { childList: true, subtree: true });
+        _hoverObserver.observe(iDoc.body, { childList: true, subtree: true });
     }
 }
 
@@ -1321,7 +1337,8 @@ async function startScreenRecording() {
 
         recordingMimeType = mimeType;
         mediaRecorder = new MediaRecorder(screenStream, { mimeType, videoBitsPerSecond: 1000000 });
-        recordedChunks = [];
+        recordedChunkCount = 0;
+        recordedChunkTotalSize = 0;
         recordingStartTime = performance.now();
         recordingStartTimeUnix = Date.now(); // Unix ms — used for video_start sync
 
@@ -1329,10 +1346,10 @@ async function startScreenRecording() {
         recorderStopped = false;
 
         function sendVideoComplete() {
-            if (recordedChunks.length) {
+            if (recordedChunkCount > 0) {
                 sendData('video_complete', {
-                    totalChunks: recordedChunks.length,
-                    totalSize: recordedChunks.reduce((a, c) => a + c.size, 0),
+                    totalChunks: recordedChunkCount,
+                    totalSize: recordedChunkTotalSize,
                     duration: performance.now() - recordingStartTime,
                     mimeType,
                 });
@@ -1345,14 +1362,15 @@ async function startScreenRecording() {
 
         mediaRecorder.ondataavailable = (event) => {
             if (event.data?.size > 0) {
-                recordedChunks.push(event.data);
-                const capturedIndex = recordedChunks.length - 1;
+                // Track counters without storing the Blob — lets Chrome GC it after FileReader reads it
+                const chunkIndex = recordedChunkCount++;
+                recordedChunkTotalSize += event.data.size;
                 pendingVideoReaders++;
                 const reader = new FileReader();
                 reader.onloadend = () => {
                     sendData('video_chunk', {
                         data: reader.result.split(',')[1],
-                        mimeType, chunkIndex: capturedIndex,
+                        mimeType, chunkIndex,
                         timestamp: performance.now() - recordingStartTime,
                         size: event.data.size,
                     });
@@ -1445,6 +1463,7 @@ function cleanupOnUnload() {
     wsClosedIntentionally = true;
     // Stop all media tracks regardless of state
     faceMeshLoopRunning = false;
+    if (_hoverObserver) { try { _hoverObserver.disconnect(); } catch(e) {} _hoverObserver = null; }
     stopScreenRecording();
     if (camera) { try { camera.stop(); } catch (e) { /* ignore */ } }
     try { webgazer.end(); } catch (e) { /* ignore */ }

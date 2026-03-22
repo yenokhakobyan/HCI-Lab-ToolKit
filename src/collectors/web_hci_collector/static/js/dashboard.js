@@ -413,7 +413,9 @@ async function loadSavedSession(sessionIdToLoad) {
                         videoElement.currentTime = 1e9;
                     }
                 };
-                videoElement.onseeked = () => {
+                const onSeekedScan = () => {
+                    // Remove immediately so scrubbing/rewind don't re-trigger this handler
+                    videoElement.removeEventListener('seeked', onSeekedScan);
                     // After the forced seek, currentTime is clamped to the real end
                     if (!isFinite(videoElement.duration) && videoElement.currentTime > 0) {
                         loadedSessionDuration = videoElement.currentTime * 1000;
@@ -422,6 +424,8 @@ async function loadSavedSession(sessionIdToLoad) {
                         updateTimeline();
                     }
                 };
+                videoElement.onseeked = null;
+                videoElement.addEventListener('seeked', onSeekedScan);
                 videoElement.onerror = (e) => {
                     console.error('Video load error:', e);
                     addLogEntry('system', 'Video failed to load');
@@ -552,6 +556,9 @@ async function loadSavedSession(sessionIdToLoad) {
 
         addLogEntry('system', `Session loaded: ${stats.totalSamples} data points`);
         addLogEntry('system', 'Use timeline to replay session');
+
+        // Trigger immediate display update now that duration is known
+        updateTimeline();
 
     } catch (error) {
         console.error('Error loading session:', error);

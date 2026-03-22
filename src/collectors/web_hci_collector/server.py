@@ -264,7 +264,10 @@ class WebHCICollectorServer:
             """Compute and return comprehensive HCI analytics for a session."""
             engine = AnalyticsEngine(self.data_processor)
             try:
-                result = engine.analyze_session(session_id)
+                loop = asyncio.get_event_loop()
+                result = await loop.run_in_executor(
+                    None, engine.analyze_session, session_id
+                )
                 return result
             except Exception as e:
                 logging.error(f"Analytics computation failed: {e}", exc_info=True)
