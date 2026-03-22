@@ -60,7 +60,7 @@ def main():
     ║    - Mouse movement and clicks                           ║
     ║    - Keyboard events                                     ║
     ║                                                           ║
-    ║  Listening: {protocol}://{config.host}:{config.port:<26s}║
+    ║  Listening: {f"{protocol}://{config.host}:{config.port}":<46s}║
     ║  Data dir:  {config.output_dir[:45]:<46s}║
     ║                                                           ║
     ╚═══════════════════════════════════════════════════════════╝

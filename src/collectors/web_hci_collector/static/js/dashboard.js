@@ -17,6 +17,7 @@ const WS_URL = `${WS_PROTOCOL}//${window.location.host}/ws/dashboard`;
 // State
 let ws = null;
 let isCollecting = false;
+let timelineSaved = false;  // Guard against duplicate saves at session end
 let sessionId = null;
 let startTime = null;
 let sessionEndDuration = 0;
@@ -395,17 +396,29 @@ async function loadSavedSession(sessionIdToLoad) {
         // Load video if available
         if (result.files.video) {
             videoUrl = result.files.video;
+            // Create the element without loading yet (videoUrl not set yet in ensureVideoElement)
             ensureVideoElement();
             if (videoElement) {
-                // Add event listeners for video loading
+                // Wire up event handlers BEFORE setting src to avoid race condition
                 videoElement.onloadedmetadata = () => {
-                    addLogEntry('system', `Video ready: ${Math.round(videoElement.duration)}s`);
-                    // Update loaded session duration from video (most authoritative source)
-                    // Guard against Infinity — Chrome's MediaRecorder produces WebM files
-                    // without duration metadata, causing videoElement.duration = Infinity
                     if (videoElement.duration && isFinite(videoElement.duration) && videoElement.duration > 0) {
-                        loadedSessionDuration = videoElement.duration * 1000; // Convert to ms
-                        // Refresh timeline display with correct duration
+                        // Normal WebM with duration metadata
+                        loadedSessionDuration = videoElement.duration * 1000;
+                        addLogEntry('system', `Video ready: ${Math.round(videoElement.duration)}s`);
+                        updateTimeline();
+                    } else {
+                        // Chrome MediaRecorder WebM has no duration — seek to a large value
+                        // to force the browser to scan to the end and report real duration
+                        addLogEntry('system', 'Video loaded (scanning duration...)');
+                        videoElement.currentTime = 1e9;
+                    }
+                };
+                videoElement.onseeked = () => {
+                    // After the forced seek, currentTime is clamped to the real end
+                    if (!isFinite(videoElement.duration) && videoElement.currentTime > 0) {
+                        loadedSessionDuration = videoElement.currentTime * 1000;
+                        videoElement.currentTime = 0; // rewind to start
+                        addLogEntry('system', `Video ready: ${Math.round(loadedSessionDuration / 1000)}s (scanned)`);
                         updateTimeline();
                     }
                 };
@@ -415,6 +428,7 @@ async function loadSavedSession(sessionIdToLoad) {
                 };
 
                 videoElement.src = videoUrl;
+                videoSourceSet = true;  // Prevent ensureVideoElement from re-loading
                 videoElement.load();
                 // Make video visible for playback mode
                 videoElement.style.display = 'block';
@@ -436,6 +450,59 @@ async function loadSavedSession(sessionIdToLoad) {
                     }
                 })
                 .catch(e => console.warn('Face mesh playback data not available:', e));
+        }
+
+        // Load gaze data from server CSV for playback (if not already in timeline JSON)
+        if (!timelineData.gaze || timelineData.gaze.length === 0) {
+            fetch(`/api/session/${sessionIdToLoad}/gaze-data`)
+                .then(r => r.json())
+                .then(gzData => {
+                    if (gzData.success && gzData.data && gzData.data.length > 0) {
+                        timelineData.gaze = gzData.data;
+                        stats.gazeSamples = gzData.data.length;
+                        addLogEntry('system', `Gaze loaded: ${gzData.data.length} points`);
+                        updateTimeline();
+                    }
+                })
+                .catch(e => console.warn('Gaze playback data not available:', e));
+        }
+
+        // Load mouse/keyboard/answer data from CSVs if not already in the timeline JSON
+        const needsMouse = !timelineData.mouse || timelineData.mouse.length === 0;
+        const needsKeys = !timelineData.keys || timelineData.keys.length === 0;
+        const needsAnswers = !timelineData.events || timelineData.events.filter(e => e.type === 'answer').length === 0;
+        if (needsMouse || needsKeys || needsAnswers) {
+            fetch(`/api/session/${sessionIdToLoad}/timeline-data`)
+                .then(r => r.json())
+                .then(td => {
+                    if (!td.success) return;
+                    if (needsMouse && td.mouse && td.mouse.length > 0) {
+                        timelineData.mouse = td.mouse;
+                        // Separate clicks out — they're already split server-side
+                        if (td.clicks && td.clicks.length > 0) {
+                            timelineData.clicks = td.clicks;
+                        }
+                        stats.mouseEvents = timelineData.mouse.length;
+                        stats.clickCount = timelineData.clicks.length;
+                        addLogEntry('system', `Mouse loaded: ${td.mouse.length} moves, ${(td.clicks||[]).length} clicks`);
+                    }
+                    if (needsKeys && td.keys && td.keys.length > 0) {
+                        timelineData.keys = td.keys;
+                        stats.keyboardEvents = td.keys.length;
+                        addLogEntry('system', `Keyboard loaded: ${td.keys.length} events`);
+                    }
+                    if (needsAnswers && td.events && td.events.length > 0) {
+                        // Merge answer events without duplicating existing events
+                        const existingTimes = new Set(timelineData.events.map(e => e.time + e.type));
+                        td.events.forEach(e => {
+                            if (!existingTimes.has(e.time + e.type)) timelineData.events.push(e);
+                        });
+                        addLogEntry('system', `Answers loaded: ${td.events.length} events`);
+                    }
+                    // Refresh timeline display with updated data
+                    updateTimeline();
+                })
+                .catch(e => console.warn('Timeline data not available:', e));
         }
 
         // Set participant dimensions from export metadata if available (fallback)
@@ -3417,6 +3484,7 @@ async function handleSessionEvent(data) {
 
         // Reset timeline data for new session
         resetTimelineData();
+        timelineSaved = false;  // Allow saving when this session ends
 
     } else if (data.event === 'end') {
         isCollecting = false;
@@ -3427,8 +3495,11 @@ async function handleSessionEvent(data) {
         if (startTime) sessionEndDuration = Date.now() - startTime;
         startTime = null;
 
-        // Save timeline data to server
-        await saveTimelineData();
+        // Save timeline data to server (once only — guard against duplicate session_end + status events)
+        if (!timelineSaved) {
+            timelineSaved = true;
+            await saveTimelineData();
+        }
 
         // Update URL display
         const urlDisplay = document.getElementById('participant-url');
@@ -4143,8 +4214,11 @@ function handleSessionStatusUpdate(data, sid) {
         if (startTime) sessionEndDuration = Date.now() - startTime;
         startTime = null;
 
-        // Save timeline data
-        saveTimelineData();
+        // Save timeline data (once only)
+        if (!timelineSaved) {
+            timelineSaved = true;
+            saveTimelineData();
+        }
 
         // Switch to playback mode
         timelineMode = 'playback';

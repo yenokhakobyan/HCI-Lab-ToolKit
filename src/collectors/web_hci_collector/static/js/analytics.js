@@ -5,6 +5,18 @@
  * interactive Plotly.js charts across 7 analysis sections.
  */
 
+// ── Helpers ────────────────────────────────────────────────────────────
+
+/** Escape HTML special chars to prevent XSS when inserting into innerHTML. */
+function escHtml(str) {
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
 // ── State ──────────────────────────────────────────────────────────────
 let sessionId = null;
 let analyticsData = null;
@@ -59,8 +71,12 @@ async function loadSessionList() {
         const compareSelect = document.getElementById('compare-session-select');
         allSessions.forEach(s => {
             const label = `${s.session_id.slice(0, 8)}... (${s.status || 'unknown'})`;
-            select.innerHTML += `<option value="${s.session_id}">${label}</option>`;
-            compareSelect.innerHTML += `<option value="${s.session_id}">${label}</option>`;
+            [select, compareSelect].forEach(el => {
+                const opt = document.createElement('option');
+                opt.value = s.session_id;
+                opt.textContent = label;
+                el.appendChild(opt);
+            });
         });
     } catch (e) {
         console.error('Failed to load sessions:', e);
@@ -894,7 +910,10 @@ function populateQuestionFilter() {
     if (analyticsData && analyticsData.questions && analyticsData.questions.available) {
         const questions = analyticsData.questions.questions || [];
         questions.forEach(q => {
-            select.innerHTML += `<option value="${q.question_id}">${q.question_id.toUpperCase()} - ${q.title}</option>`;
+            const opt = document.createElement('option');
+            opt.value = q.question_id;
+            opt.textContent = `${q.question_id.toUpperCase()} - ${q.title}`;
+            select.appendChild(opt);
         });
     }
 }

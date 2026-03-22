@@ -1136,11 +1136,56 @@
     </header>
 
     <!-- INTRO -->
+    <!-- Page 1: Welcome & Tutorial Video -->
     <section class="screen active" id="intro">
         <div class="intro-screen">
             <div class="intro-card" style="max-width: min(95vw, 750px);">
                 <h2 class="intro-title">Welcome to the Green Energy Study</h2>
                 <p class="intro-text">Watch this short tutorial to learn how the interface works.</p>
+
+                <!-- Tutorial Video -->
+                <div style="display:flex; justify-content:center; margin: clamp(10px,1.5vh,20px) 0;">
+                    <iframe id="guidde-video" width="700px" height="400px" src="https://embed.app.guidde.com/playbooks/bpT4ueF8PfqNxZQ1RrSMv2?mode=videoOnly" title="Complete Energy Usage Study Workflow in Green Energy App" frameborder="0" referrerpolicy="unsafe-url" allowfullscreen="true" allow="clipboard-write" sandbox="allow-popups allow-popups-to-escape-sandbox allow-scripts allow-forms allow-same-origin allow-presentation" style="border-radius:10px; max-width:100%;"></iframe>
+                </div>
+                <div style="display: none">
+                    <p>00:02: Welcome, let's walk through how to complete the green energy learning study.</p>
+                    <p>00:07: We appreciate your participation and the time you're taking to complete this study.</p>
+                    <p>00:12: Your privacy is important to us and no personally.</p>
+                    <p>00:15: Identifiable information will be collected or recorded.</p>
+                    <p>00:19: This tutorial will guide you through completing the green energy learning study,</p>
+                    <p>00:22: helping you understand, energy usage, and make informed decisions.</p>
+                    <p>00:27: Throughout the study, you will go through 12 case study presentations each followed</p>
+                    <p>00:31: by a question at the end, you will also be asked to complete a short survey.</p>
+                    <p>00:36: Please try to remain still and avoid unnecessary movement during the study to ensure</p>
+                    <p>00:41: accurate data collection results.</p>
+                    <p>00:44: In this tutorial, you will learn how to navigate the study, enter your data and</p>
+                    <p>00:48: submit your answers effectively.</p>
+                    <p>00:50: After the tutorial, when you're ready, click begin study to start the energy usage</p>
+                    <p>00:54: study and assess.</p>
+                    <p>00:55: The first question.</p>
+                    <p>00:57: On the right side you'll find the survey question along with four answer choices.</p>
+                    <p>01:03: On the left side, you'll find information presented in both Visual and textual forms</p>
+                    <p>01:07: to help you answer the questions.</p>
+                    <p>01:09: If you need help with calculations, simply click the button to open the calculator.</p>
+                    <p>01:14: When you're ready, choose the option? You think best answers the question?</p>
+                    <p>01:19: Click submit answer to record your answer and proceed to the next question.</p>
+                    <p>01:23: You've now completed the tutorial.</p>
+                    <p>01:25: When you're ready, you can proceed to the study.</p>
+                    <p>01:30: Once you've completed the survey, please feel free to contact us if needed.</p>
+                    <p>01:33: Thank you for your participation.</p>
+                </div>
+
+                <button class="intro-btn" onclick="showScreen('intro2')" style="margin-top: clamp(10px, 1.5vh, 18px);">Next →</button>
+            </div>
+        </div>
+    </section>
+
+    <!-- Page 2: Interface Tutorial Animation & Begin Study -->
+    <section class="screen" id="intro2">
+        <div class="intro-screen">
+            <div class="intro-card" style="max-width: min(95vw, 750px);">
+                <h2 class="intro-title">Interface Overview</h2>
+                <p class="intro-text">Here's a quick look at how the study interface is laid out.</p>
 
                 <!-- Tutorial Animation -->
                 <div class="tutorial-container">
@@ -1189,6 +1234,7 @@
                                     <div class="tutorial-panel-line"></div>
                                     <div class="tutorial-panel-btn" id="tutSubmitBtn"></div>
                                     <div class="tutorial-calc" id="tutCalc">
+                                        <div class="tutorial-calc-btn"></div>
                                         <div class="tutorial-calc-btn"></div>
                                         <div class="tutorial-calc-btn"></div>
                                         <div class="tutorial-calc-btn"></div>
@@ -2695,6 +2741,12 @@
 
         function showScreen(id) {
             if (activeTimer) { clearInterval(activeTimer); activeTimer = null; }
+            pauseTutorial();  // Stop tutorial playback whenever the page changes
+            // Stop Guidde video when navigating away from the intro page
+            if (id !== 'intro') {
+                const guiddeIframe = document.getElementById('guidde-video');
+                if (guiddeIframe) guiddeIframe.src = '';
+            }
             document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
             document.getElementById(id).classList.add('active');
 

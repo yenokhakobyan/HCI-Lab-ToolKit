@@ -135,7 +135,14 @@ class AnalyticsEngine:
         mouse_df = self._to_df(data.get("mouse", []))
         keyboard_df = self._to_df(data.get("keyboard", []))
         emotion_df = self._to_df(data.get("emotion", []))
-        face_mesh_records = data.get("face_mesh", [])
+        face_mesh_records_all = data.get("face_mesh", [])
+        # Sample face_mesh to avoid OOM/hang on large sessions (keep every Nth record)
+        _FM_MAX = 2000
+        if len(face_mesh_records_all) > _FM_MAX:
+            step = len(face_mesh_records_all) // _FM_MAX
+            face_mesh_records = face_mesh_records_all[::step][:_FM_MAX]
+        else:
+            face_mesh_records = face_mesh_records_all
         hover_df = self._to_df(data.get("hover", []))
         answer_records = data.get("answer", [])
         experiment_events = data.get("experiment_event", [])
@@ -256,7 +263,7 @@ class AnalyticsEngine:
     ) -> Dict:
         # Duration
         duration_ms = metadata.get("duration_ms", 0)
-        if not duration_ms and not gaze_df.empty:
+        if not duration_ms and not gaze_df.empty and len(gaze_df) > 1:
             duration_ms = float(gaze_df["timestamp"].max() - gaze_df["timestamp"].min())
 
         # Sample counts
@@ -2006,9 +2013,14 @@ class AnalyticsEngine:
         for rec in answer_records:
             if rec.get("question_id") == "survey":
                 sd = rec.get("survey_data", {})
-                if isinstance(sd, dict):
+                # CSV round-trip serializes dicts to JSON strings — deserialize if needed
+                if isinstance(sd, str):
+                    try:
+                        sd = json.loads(sd)
+                    except (ValueError, TypeError):
+                        sd = {}
+                if isinstance(sd, dict) and sd:
                     survey_raw = sd
-                # Also capture all_responses (question answers embedded in survey)
                 break
 
         # Strategy 2: From experiment_events survey_complete
@@ -2016,7 +2028,13 @@ class AnalyticsEngine:
             for ev in experiment_events:
                 if ev.get("type") == "survey_complete":
                     sd = ev.get("surveyData", {})
-                    if isinstance(sd, dict):
+                    # CSV round-trip serializes dicts to JSON strings — deserialize if needed
+                    if isinstance(sd, str):
+                        try:
+                            sd = json.loads(sd)
+                        except (ValueError, TypeError):
+                            sd = {}
+                    if isinstance(sd, dict) and sd:
                         survey_raw = sd
                     break
 

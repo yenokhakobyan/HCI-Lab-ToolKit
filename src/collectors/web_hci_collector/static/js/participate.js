@@ -18,6 +18,8 @@ const WS_URL = `${WS_PROTOCOL}//${window.location.host}/ws/collect/${SESSION_ID}
 // ── State ─────────────────────────────────────────────────
 let ws = null;
 let isCollecting = false;
+let endExperimentCalled = false;
+const recentHciAnswerKeys = new Set();  // Dedup: prevent legacy event path duplicating hci_answer
 let experimentConfig = {};
 let currentStep = 'welcome';
 
@@ -30,6 +32,7 @@ let screenStream = null;
 let mediaRecorder = null;
 let recordedChunks = [];
 let recordingStartTime = 0;
+let recordingStartTimeUnix = 0;
 let recordingMimeType = 'video/webm';
 let pendingVideoReaders = 0;
 let recorderStopped = false;
@@ -43,11 +46,15 @@ let lastL2CSFrameTime = 0;
 const L2CS_FRAME_INTERVAL = 100;
 const L2CS_ENABLED = false;
 
+// FaceMesh frame throttle — 5Hz for head-pose landmarks; WebGazer runs its own gaze loop
+let lastFaceMeshTime = 0;
+const FACE_MESH_INTERVAL = 200; // ~5Hz (was 15Hz) — head-pose only, WebGazer handles gaze
+
 // Webcam frame streaming to dashboard
 let webcamFrameCanvas = null;
 let webcamFrameCtx = null;
 let lastWebcamFrameTime = 0;
-const WEBCAM_FRAME_INTERVAL = 200; // ~5Hz for dashboard preview
+const WEBCAM_FRAME_INTERVAL = 1000; // ~1Hz dashboard preview (was 2Hz)
 
 // Adaptive gaze smoothing (velocity-dependent EMA)
 const GAZE_ALPHA_MIN = 0.15;  // smooth during fixations
@@ -155,32 +162,7 @@ async function init() {
     // Connect WebSocket
     connectWebSocket();
 
-    // Show webcam status on welcome card
-    const beginBtn = document.getElementById('begin-btn');
-    if (beginBtn) {
-        beginBtn.disabled = true;
-        beginBtn.textContent = 'Initializing webcam...';
-    }
-
-    // Pre-init WebGazer
-    await initWebGazer();
-
-    // Update button with webcam status
-    if (beginBtn) {
-        beginBtn.disabled = false;
-        if (webgazerActive) {
-            beginBtn.textContent = 'Begin Study';
-        } else {
-            beginBtn.textContent = 'Begin Study (mouse fallback)';
-            // Show reason below the button
-            const reason = document.createElement('p');
-            reason.style.cssText = 'color: var(--error); font-size: 0.75rem; margin-top: 8px;';
-            reason.textContent = `Webcam: ${webgazerFailReason || 'unknown error'}`;
-            beginBtn.parentElement.appendChild(reason);
-        }
-    }
-
-    // Build calibration UI
+    // Build calibration UI (no webcam needed yet)
     buildCalibrationUI();
 }
 
@@ -196,7 +178,16 @@ function connectWebSocket() {
         console.log('WS disconnected');
         if (!wsClosedIntentionally) setTimeout(connectWebSocket, 3000);
     };
-    ws.onerror = (e) => console.error('WS error:', e);
+    ws.onerror = (e) => {
+        console.error('WS error:', e);
+        if (!document.getElementById('ws-error-banner')) {
+            const banner = document.createElement('div');
+            banner.id = 'ws-error-banner';
+            banner.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#c0392b;color:#fff;text-align:center;padding:8px;font-size:0.85rem;z-index:9999';
+            banner.textContent = 'Connection error — data may not be saving. Please notify the researcher.';
+            document.body.prepend(banner);
+        }
+    };
 }
 
 const DATA_SEND_BUFFER = [];
@@ -214,6 +205,8 @@ function sendData(type, data) {
         // Buffer data while disconnected (bounded to prevent memory leak)
         if (DATA_SEND_BUFFER.length < MAX_BUFFER_SIZE) {
             DATA_SEND_BUFFER.push(msg);
+        } else {
+            console.warn(`[WS] Data buffer full (${MAX_BUFFER_SIZE} msgs) — discarding data. Check connection.`);
         }
     }
 }
@@ -264,7 +257,30 @@ function updateProgressBar(step) {
 
 // ── Step 1: Welcome → Begin ───────────────────────────────
 
-window.beginStudy = function () {
+window.beginStudy = async function () {
+    const beginBtn = document.getElementById('begin-btn');
+    if (beginBtn) {
+        beginBtn.disabled = true;
+        beginBtn.textContent = 'Starting webcam...';
+    }
+
+    await initWebGazer();
+
+    if (beginBtn) {
+        beginBtn.disabled = false;
+        if (!webgazerActive) {
+            beginBtn.textContent = 'Begin Study (mouse fallback)';
+            // Show reason below the button (only once)
+            if (!document.getElementById('webcam-fail-reason')) {
+                const reason = document.createElement('p');
+                reason.id = 'webcam-fail-reason';
+                reason.style.cssText = 'color: var(--error); font-size: 0.75rem; margin-top: 8px;';
+                reason.textContent = `Webcam: ${webgazerFailReason || 'unknown error'}`;
+                beginBtn.parentElement.appendChild(reason);
+            }
+        }
+    }
+
     const requireCal = experimentConfig.require_calibration !== false;
     if (requireCal) {
         showStep('calibration');
@@ -303,6 +319,7 @@ function buildCalibrationUI() {
 function startCalibration() {
     calCurrentPoint = 0;
     calCurrentClicks = 0;
+    calibrationHeadPose = null;  // Reset from any previous session
     shufflePointOrder();
     showCalPoint(calPointOrder[0]);
 }
@@ -617,6 +634,10 @@ async function startContent() {
 function handleIframeMessage(e) {
     if (!isCollecting) return;
 
+    // Only process HCI messages — and only from the content iframe's origin or same origin.
+    // Guard against other extensions or cross-origin pages injecting fake events.
+    if (e.source !== contentFrame?.contentWindow) return;
+
     // Mouse events from iframe
     if (e.data?.type === 'hci_mouse_event') {
         const iframe = contentFrame;
@@ -638,6 +659,11 @@ function handleIframeMessage(e) {
     // Structured answer from experiment content
     if (e.data?.type === 'hci_answer') {
         sendData('answer', e.data.data);
+        // Track this answer so the legacy hci_experiment_event path doesn't duplicate it
+        const d = e.data.data;
+        const key = `${d.selected_answer}|${d.response_time_ms}`;
+        recentHciAnswerKeys.add(key);
+        setTimeout(() => recentHciAnswerKeys.delete(key), 500);
     }
 
     // Generic experiment event
@@ -645,22 +671,30 @@ function handleIframeMessage(e) {
         const ev = e.data.data;
         sendData('experiment_event', ev);
 
-        // Detect answer submission from legacy events
-        if (ev.type === 'answer_submit' || ev.type === 'answer_select') {
-            sendData('answer', {
-                question_id: ev.question_id || `${ev.session || 'unknown'}_q`,
-                selected_answer: ev.answer,
-                response_time_ms: ev.timestamp || ev.ts,
-                step: String(ev.session || ''),
-                raw_event: ev,
-            });
+        // Detect answer submission from legacy events — only if experiment did NOT
+        // also send a structured hci_answer (to avoid duplicate answer records).
+        // Use a 500 ms dedup window keyed on the answer value + response_time.
+        if (ev.type === 'answer_submit') {
+            const key = `${ev.answer}|${ev.timestamp || ev.ts}`;
+            if (!recentHciAnswerKeys.has(key)) {
+                sendData('answer', {
+                    question_id: ev.question_id || `${ev.session || 'unknown'}_q`,
+                    selected_answer: ev.answer,
+                    response_time_ms: ev.timestamp || ev.ts,
+                    step: String(ev.session || ''),
+                    raw_event: ev,
+                });
+            }
         }
     }
 
     // Experiment complete signal
     if (e.data?.type === 'hci_experiment_complete') {
         sendData('experiment_event', { type: 'experiment_complete', ...e.data.data });
-        endExperiment();
+        if (!endExperimentCalled) {
+            endExperimentCalled = true;
+            endExperiment();
+        }
     }
 }
 
@@ -682,8 +716,14 @@ window.endExperiment = async function () {
         await fetch(`/api/session/${SESSION_ID}/export?format=csv`, { method: 'POST' });
     } catch (e) { console.error('Export error:', e); }
 
-    // Stop WebGazer
+    // Stop WebGazer and release its camera stream
     try { webgazer.end(); } catch (e) { console.error('WebGazer stop error:', e); }
+    // WebGazer may leave its internal video element's stream open — release it explicitly
+    const wgVideo = document.getElementById('webgazerVideoFeed');
+    if (wgVideo && wgVideo.srcObject) {
+        wgVideo.srcObject.getTracks().forEach(t => t.stop());
+        wgVideo.srcObject = null;
+    }
 
     // Stop FaceMesh loop
     faceMeshLoopRunning = false;
@@ -700,12 +740,13 @@ window.endExperiment = async function () {
         faceMesh = null;
     }
 
-    // Stop all webcam media tracks
-    const webcamVideo = document.getElementById('webcam-video');
-    if (webcamVideo && webcamVideo.srcObject) {
-        webcamVideo.srcObject.getTracks().forEach(track => track.stop());
-        webcamVideo.srcObject = null;
-    }
+    // Stop all webcam media tracks (covers all video elements)
+    document.querySelectorAll('video').forEach(vid => {
+        if (vid.srcObject) {
+            vid.srcObject.getTracks().forEach(track => track.stop());
+            vid.srcObject = null;
+        }
+    });
 
     // Close WebSocket after a short delay to ensure final data is sent
     wsClosedIntentionally = true;
@@ -753,6 +794,12 @@ async function initWebGazer() {
 
         webgazer.setRegression('ridge');
         webgazer.saveDataAcrossSessions(false);
+
+        // Throttle WebGazer's internal loops to reduce CPU usage.
+        // moveTickSize: interval (ms) between mouse-regression updates (default 50 → 100).
+        // dataTimestep: interval (ms) between gaze predictions (default ~33 → 100, ~10Hz).
+        webgazer.params.moveTickSize = 100;
+        webgazer.params.dataTimestep = 100;
         webgazer.setGazeListener((data, timestamp) => {
             if (data) {
                 if (!webgazerGazeReceived) {
@@ -868,9 +915,9 @@ async function initFaceMesh() {
         });
         faceMesh.setOptions({
             maxNumFaces: 1,
-            refineLandmarks: true,
-            minDetectionConfidence: 0.7,
-            minTrackingConfidence: 0.7,
+            refineLandmarks: false,  // Iris refinement is expensive and not needed for head pose
+            minDetectionConfidence: 0.5,
+            minTrackingConfidence: 0.5,
         });
         faceMesh.onResults(onFaceMeshResults);
 
@@ -920,10 +967,13 @@ async function initFaceMesh() {
         }
 
         // Use requestAnimationFrame loop to feed WebGazer's video to FaceMesh
+        // Throttled to FACE_MESH_INTERVAL (~15Hz) to reduce CPU load
         faceMeshLoopRunning = true;
         async function faceMeshLoop() {
             if (!faceMeshLoopRunning || !faceMesh) return;
-            if (isCollecting && videoEl.readyState >= 2) {
+            const now = performance.now();
+            if (isCollecting && videoEl && videoEl.readyState >= 2 && now - lastFaceMeshTime >= FACE_MESH_INTERVAL) {
+                lastFaceMeshTime = now;
                 try {
                     await faceMesh.send({ image: videoEl });
                     if (L2CS_ENABLED) sendL2CSFrame(videoEl);
@@ -1026,8 +1076,10 @@ function onFaceMeshResults(results) {
         roll: (leftEyeCenter.y - rightEyeCenter.y) * 100,
     };
 
-    sendData('face_mesh', {
-        landmarks: landmarks.map(l => ({ x: l.x, y: l.y, z: l.z })),
+    // Send key_points + head_pose every frame; send full landmarks only every 5th frame
+    // to keep payload small (~1KB vs ~15KB per message)
+    const faceMeshCount = (window._faceMeshSendCount = ((window._faceMeshSendCount || 0) + 1));
+    const payload = {
         landmark_count: landmarks.length,
         key_points: {
             nose_tip: { x: noseTip.x, y: noseTip.y, z: noseTip.z },
@@ -1039,7 +1091,12 @@ function onFaceMeshResults(results) {
         },
         head_pose: currentHeadPose,
         bounding_box: computeBoundingBox(landmarks),
-    });
+    };
+    if (faceMeshCount % 5 === 0) {
+        // Full landmarks every 5th frame (~3Hz) for playback and analytics
+        payload.landmarks = landmarks.map(l => ({ x: l.x, y: l.y, z: l.z }));
+    }
+    sendData('face_mesh', payload);
 }
 
 // ── L2CS Frame Capture ────────────────────────────────────
@@ -1266,6 +1323,7 @@ async function startScreenRecording() {
         mediaRecorder = new MediaRecorder(screenStream, { mimeType, videoBitsPerSecond: 1000000 });
         recordedChunks = [];
         recordingStartTime = performance.now();
+        recordingStartTimeUnix = Date.now(); // Unix ms — used for video_start sync
 
         pendingVideoReaders = 0;
         recorderStopped = false;
@@ -1314,19 +1372,34 @@ async function startScreenRecording() {
             }
         };
 
-        screenStream.getVideoTracks()[0].onended = () => stopScreenRecording();
+        const videoTrack = screenStream.getVideoTracks()[0];
+        if (!videoTrack) {
+            console.warn('Screen stream has no video track — aborting recording');
+            screenStream.getTracks().forEach(t => t.stop());
+            screenStream = null;
+            return false;
+        }
+        videoTrack.onended = () => stopScreenRecording();
         mediaRecorder.start(VIDEO_CHUNK_INTERVAL);
 
+        const trackSettings = videoTrack.getSettings();
         sendData('video_start', {
             mimeType,
-            width: screenStream.getVideoTracks()[0].getSettings().width,
-            height: screenStream.getVideoTracks()[0].getSettings().height,
-            startTime: recordingStartTime,
+            width: trackSettings.width,
+            height: trackSettings.height,
+            startTime: recordingStartTimeUnix,  // Unix ms — aligns with server_timestamp reference
             devicePixelRatio: window.devicePixelRatio || 1,
         });
         return true;
     } catch (e) {
         console.error('Screen recording error:', e);
+        if (e.name === 'NotAllowedError' || e.name === 'AbortError') {
+            const el = document.createElement('div');
+            el.style.cssText = 'position:fixed;bottom:16px;right:16px;background:#e67e22;color:#fff;padding:10px 14px;border-radius:6px;font-size:0.8rem;z-index:9999;max-width:280px';
+            el.textContent = 'Screen sharing was not enabled. The session will continue without a screen recording.';
+            document.body.appendChild(el);
+            setTimeout(() => el.remove(), 8000);
+        }
         return false;
     }
 }
@@ -1375,8 +1448,13 @@ function cleanupOnUnload() {
     stopScreenRecording();
     if (camera) { try { camera.stop(); } catch (e) { /* ignore */ } }
     try { webgazer.end(); } catch (e) { /* ignore */ }
-    const v = document.getElementById('webcam-video');
-    if (v && v.srcObject) { v.srcObject.getTracks().forEach(t => t.stop()); }
+    // Release all video element streams (covers webcam-video, webgazerVideoFeed, etc.)
+    document.querySelectorAll('video').forEach(vid => {
+        if (vid.srcObject) {
+            try { vid.srcObject.getTracks().forEach(t => t.stop()); } catch (e) { /* ignore */ }
+            vid.srcObject = null;
+        }
+    });
 }
 
 window.addEventListener('beforeunload', cleanupOnUnload);

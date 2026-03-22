@@ -9,6 +9,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 import uuid
 import base64
 from datetime import datetime
@@ -93,9 +94,18 @@ class WebHCICollectorServer:
                 CORSMiddleware,
                 allow_origins=[o.strip() for o in cors_origins.split(",")],
                 allow_credentials=True,
-                allow_methods=["*"],
-                allow_headers=["*"],
+                allow_methods=["GET", "POST", "PATCH", "OPTIONS"],
+                allow_headers=["Content-Type"],
             )
+
+        # Security headers middleware
+        @self.app.middleware("http")
+        async def add_security_headers(request: Request, call_next):
+            response = await call_next(request)
+            response.headers["X-Content-Type-Options"] = "nosniff"
+            response.headers["X-Frame-Options"] = "SAMEORIGIN"
+            response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+            return response
 
         # Initialize components
         self.session_manager = SessionManager()
@@ -184,6 +194,25 @@ class WebHCICollectorServer:
         static_dir = Path(__file__).parent / "static"
         if static_dir.exists():
             self.app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+
+    # Allowed session ID pattern: hex chars and hyphens only (UUID format or short hex)
+    _SESSION_ID_RE = re.compile(r'^[a-f0-9\-]{6,36}$')
+
+    def _valid_session_id(self, session_id: str) -> bool:
+        """Return True if session_id matches the expected format."""
+        return bool(self._SESSION_ID_RE.match(session_id))
+
+    def _safe_session_dir(self, session_id: str) -> Optional[Path]:
+        """Return the resolved session directory only if it stays inside output_dir.
+
+        Guards against path-traversal payloads such as ``../../../etc``.
+        Returns ``None`` if the resolved path would escape the data root.
+        """
+        root = Path(self.config.output_dir).resolve()
+        candidate = (root / session_id).resolve()
+        if root not in candidate.parents and candidate != root:
+            return None
+        return candidate
 
     def _setup_routes(self):
         """Setup FastAPI routes."""
@@ -276,12 +305,54 @@ class WebHCICollectorServer:
 
         @self.app.get("/api/sessions")
         async def get_sessions(active_only: bool = False):
-            """Get all sessions, optionally filtering to active ones."""
+            """Get all sessions, optionally filtering to active ones.
+
+            Merges live in-memory sessions with completed sessions found on disk
+            so that sessions from previous server runs are visible in analytics.
+            """
             if active_only:
                 sessions = self.session_manager.get_active_sessions()
-            else:
-                sessions = self.session_manager.get_all_sessions()
-            return {"sessions": [s.to_dict() for s in sessions]}
+                return {"sessions": [s.to_dict() for s in sessions]}
+
+            # In-memory sessions (current run)
+            live_sessions = {s.session_id: s.to_dict()
+                             for s in self.session_manager.get_all_sessions()}
+
+            # On-disk sessions (previous runs / completed)
+            data_root = Path(self.data_processor.output_dir)
+            all_sessions = dict(live_sessions)
+            if data_root.exists():
+                for session_dir in sorted(data_root.iterdir(), reverse=True):
+                    if not session_dir.is_dir() or session_dir.name in all_sessions:
+                        continue
+                    # Build a minimal session dict from metadata file if present
+                    meta_candidates = sorted(session_dir.glob("metadata_*.json"))
+                    session_meta_path = session_dir / "session_metadata.json"
+                    meta = {}
+                    if session_meta_path.exists():
+                        try:
+                            with open(session_meta_path) as f:
+                                meta = json.load(f)
+                        except Exception:
+                            pass
+                    elif meta_candidates:
+                        try:
+                            with open(meta_candidates[-1]) as f:
+                                meta = json.load(f)
+                        except Exception:
+                            pass
+                    all_sessions[session_dir.name] = {
+                        "session_id": session_dir.name,
+                        "created_at": meta.get("created_at") or meta.get("export_timestamp"),
+                        "ended_at": meta.get("ended_at"),
+                        "status": meta.get("status", "completed"),
+                        "is_active": False,
+                        "participant_id": meta.get("participant_id"),
+                        "metadata": meta,
+                        "from_disk": True,
+                    }
+
+            return {"sessions": list(all_sessions.values())}
 
         @self.app.post("/api/sessions")
         async def create_session(request: Request):
@@ -361,7 +432,9 @@ class WebHCICollectorServer:
             try:
                 data = await request.json()
 
-                session_dir = Path(self.config.output_dir) / session_id
+                session_dir = self._safe_session_dir(session_id)
+                if session_dir is None:
+                    return {"success": False, "error": "Invalid session id"}
                 session_dir.mkdir(parents=True, exist_ok=True)
 
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -410,16 +483,18 @@ class WebHCICollectorServer:
         @self.app.post("/api/session/{session_id}/save-video")
         async def save_video(session_id: str):
             """Save video from request body."""
-            session_dir = Path(self.config.output_dir) / session_id
+            session_dir = self._safe_session_dir(session_id)
+            if session_dir is None:
+                return {"success": False, "error": "Invalid session id"}
             video_path = session_dir / "recording.webm"
             return {"success": True, "filepath": str(video_path)}
 
         @self.app.get("/api/session/{session_id}/data")
         async def get_session_data(session_id: str):
             """Get all saved session data for replay in dashboard."""
-            session_dir = Path(self.config.output_dir) / session_id
+            session_dir = self._safe_session_dir(session_id)
 
-            if not session_dir.exists():
+            if session_dir is None or not session_dir.exists():
                 return {"success": False, "error": "Session data not found"}
 
             result = {
@@ -428,36 +503,156 @@ class WebHCICollectorServer:
                 "files": {}
             }
 
-            # Find all data files
+            # Find all data files.
+            # For JSON files with the same type prefix (e.g. multiple timeline_*.json
+            # from reconnect saves), keep only the largest — it has the most complete data.
+            json_candidates: Dict[str, Path] = {}
             for file_path in session_dir.glob("*"):
-                if file_path.is_file():
-                    file_type = file_path.stem.split("_")[0]
-                    if file_path.suffix == ".json":
-                        try:
-                            with open(file_path, 'r') as f:
-                                result["files"][file_type] = json.load(f)
-                        except:
-                            pass
-                    elif file_path.suffix == ".csv":
-                        result["files"][f"{file_type}_csv"] = str(file_path)
-                    elif file_path.suffix == ".webm":
-                        result["files"]["video"] = f"/api/session/{session_id}/video"
+                if not file_path.is_file():
+                    continue
+                file_type = file_path.stem.split("_")[0]
+                if file_path.suffix == ".json":
+                    existing = json_candidates.get(file_type)
+                    if existing is None or file_path.stat().st_size > existing.stat().st_size:
+                        json_candidates[file_type] = file_path
+                elif file_path.suffix == ".csv":
+                    result["files"][f"{file_type}_csv"] = str(file_path)
+                elif file_path.suffix == ".webm":
+                    result["files"]["video"] = f"/api/session/{session_id}/video"
+
+            for file_type, file_path in json_candidates.items():
+                try:
+                    with open(file_path, 'r') as f:
+                        result["files"][file_type] = json.load(f)
+                except Exception as e:
+                    logging.warning(f"Could not load {file_path.name}: {e}")
 
             return result
 
         @self.app.get("/api/session/{session_id}/video")
         async def get_session_video(session_id: str):
             """Stream the session video file."""
-            session_dir = Path(self.config.output_dir) / session_id
+            session_dir = self._safe_session_dir(session_id)
+            if session_dir is None:
+                return {"error": "Invalid session id"}
             video_path = session_dir / "recording.webm"
 
             if video_path.exists():
                 return FileResponse(
                     video_path,
                     media_type="video/webm",
-                    filename=f"session_{session_id}_recording.webm"
+                    headers={"Content-Disposition": "inline"},
                 )
             return {"error": "Video not found"}
+
+        @self.app.get("/api/session/{session_id}/timeline-data")
+        async def get_session_timeline_data(session_id: str):
+            """Reconstruct timeline-format mouse, clicks, keys, and answer events from CSVs.
+
+            Used by the dashboard when loading old sessions that have no saved timeline JSON.
+            Returns data in the same format as the live timeline so the dashboard can use it
+            directly for playback without any JS-side conversion.
+            """
+            session_dir = self._safe_session_dir(session_id)
+            if session_dir is None or not session_dir.exists():
+                return {"success": False, "error": "Session not found"}
+
+            import csv as csv_mod
+
+            # Find the session-wide earliest server_timestamp as time origin (same as face-mesh)
+            ref_server_ts = None
+            for candidate in session_dir.glob("*_live.csv"):
+                try:
+                    with open(candidate, 'r') as cf:
+                        cr = csv_mod.DictReader(cf)
+                        row = next(cr, None)
+                        if row and row.get('server_timestamp'):
+                            sts = float(row['server_timestamp'])
+                            if ref_server_ts is None or sts < ref_server_ts:
+                                ref_server_ts = sts
+                except Exception:
+                    pass
+            if ref_server_ts is None:
+                return {"success": False, "error": "No reference timestamp found"}
+
+            def _ref_time(row):
+                """Return ms-from-session-start for a CSV row using server_timestamp."""
+                try:
+                    return round(float(row['server_timestamp']) - ref_server_ts)
+                except (KeyError, ValueError, TypeError):
+                    return None
+
+            def _open_csv(data_type):
+                live = session_dir / f"{data_type}_live.csv"
+                if live.exists():
+                    return live
+                candidates = sorted(session_dir.glob(f"{data_type}_*.csv"))
+                return candidates[-1] if candidates else None
+
+            result = {"success": True, "mouse": [], "clicks": [], "keys": [], "events": []}
+
+            # --- Mouse moves and clicks ---
+            mouse_csv = _open_csv("mouse")
+            if mouse_csv:
+                try:
+                    with open(mouse_csv, 'r') as f:
+                        for row in csv_mod.DictReader(f):
+                            t = _ref_time(row)
+                            if t is None or t < 0:
+                                continue
+                            event = row.get('event', '')
+                            try:
+                                x, y = float(row.get('x', 0)), float(row.get('y', 0))
+                            except (ValueError, TypeError):
+                                continue
+                            if event == 'move':
+                                result["mouse"].append({"time": t, "x": x, "y": y})
+                            elif event == 'click':
+                                result["clicks"].append({"time": t, "x": x, "y": y})
+                except Exception as e:
+                    logging.warning(f"Mouse CSV load error for {session_id}: {e}")
+
+            # --- Keyboard events ---
+            keyboard_csv = _open_csv("keyboard")
+            if keyboard_csv:
+                try:
+                    with open(keyboard_csv, 'r') as f:
+                        for row in csv_mod.DictReader(f):
+                            t = _ref_time(row)
+                            if t is None or t < 0:
+                                continue
+                            key = row.get('key') or row.get('code') or '?'
+                            result["keys"].append({"time": t, "key": key})
+                except Exception as e:
+                    logging.warning(f"Keyboard CSV load error for {session_id}: {e}")
+
+            # --- Answer events ---
+            answer_csv = _open_csv("answer")
+            if answer_csv:
+                try:
+                    with open(answer_csv, 'r') as f:
+                        for row in csv_mod.DictReader(f):
+                            t = _ref_time(row)
+                            if t is None or t < 0:
+                                continue
+                            data = {
+                                "question_id": row.get('question_id', '?'),
+                                "answer": row.get('selected_answer', '?'),
+                                "selected_answer": row.get('selected_answer', '?'),
+                                "response_time_ms": row.get('response_time_ms'),
+                                "question_number": row.get('question_number'),
+                                "step": row.get('step'),
+                            }
+                            result["events"].append({"time": t, "type": "answer", "data": data})
+                except Exception as e:
+                    logging.warning(f"Answer CSV load error for {session_id}: {e}")
+
+            logging.info(
+                f"Timeline data for {session_id}: {len(result['mouse'])} mouse, "
+                f"{len(result['clicks'])} clicks, {len(result['keys'])} keys, "
+                f"{len(result['events'])} events"
+            )
+            return result
 
         @self.app.get("/api/session/{session_id}/face-mesh")
         async def get_session_face_mesh(session_id: str):
@@ -467,8 +662,8 @@ class WebHCICollectorServer:
             head_pose and bounding_box aligned to timeline-relative timestamps.
             Subsamples every 2nd row to reduce payload size.
             """
-            session_dir = Path(self.config.output_dir) / session_id
-            if not session_dir.exists():
+            session_dir = self._safe_session_dir(session_id)
+            if session_dir is None or not session_dir.exists():
                 return {"success": False, "error": "Session not found"}
 
             # Find face mesh CSV (prefer live version, fall back to timestamped export)
@@ -483,24 +678,25 @@ class WebHCICollectorServer:
             try:
                 import csv as csv_mod
 
-                # Find the session start reference timestamp from gaze CSV
-                # (gaze is the earliest data stream, and timeline uses the same reference)
-                # The gaze CSV has performance.now() timestamps; the timeline uses
-                # Date.now() - startTime. We align by subtracting gaze's first timestamp
-                # from all CSV timestamps, matching the timeline reference.
-                ref_ts = None
-                gaze_csv = session_dir / "gaze_live.csv"
-                if not gaze_csv.exists():
-                    gaze_candidates = sorted(session_dir.glob("gaze_*.csv"))
-                    if gaze_candidates:
-                        gaze_csv = gaze_candidates[-1]
+                # Use client performance.now() timestamps to align with the saved timeline.
+                # The dashboard records timeline times as (client_perf_now - startTime).
+                # _timeline_start_time() estimates startTime from gaze CSV + timeline JSON.
+                # Fallback: use server_timestamp with earliest-CSV origin (old sessions).
+                start_time_perf = self._timeline_start_time(session_dir, csv_mod)
+                ref_server_ts = None  # only used in server_ts fallback path
 
-                if gaze_csv.exists():
-                    with open(gaze_csv, 'r') as gf:
-                        greader = csv_mod.DictReader(gf)
-                        first_gaze = next(greader, None)
-                        if first_gaze and first_gaze.get('timestamp'):
-                            ref_ts = float(first_gaze['timestamp'])
+                if start_time_perf is None:
+                    # Legacy: find earliest server_timestamp across all live CSVs
+                    for candidate_csv in session_dir.glob("*_live.csv"):
+                        try:
+                            with open(candidate_csv, 'r') as cf:
+                                first_row = next(csv_mod.DictReader(cf), None)
+                                if first_row and first_row.get('server_timestamp'):
+                                    sts = float(first_row['server_timestamp'])
+                                    if ref_server_ts is None or sts < ref_server_ts:
+                                        ref_server_ts = sts
+                        except Exception:
+                            pass
 
                 data = []
 
@@ -511,14 +707,20 @@ class WebHCICollectorServer:
                         if i % 2 != 0:
                             continue
 
-                        ts = float(row['timestamp'])
-                        # Use gaze first timestamp as reference (aligns with timeline)
-                        # Fall back to first face_mesh timestamp if no gaze data
-                        if ref_ts is None:
-                            ref_ts = ts
-
-                        # Convert to timeline-relative time (ms from session start)
-                        timeline_time = round(ts - ref_ts)
+                        if start_time_perf is not None:
+                            try:
+                                client_ts = float(row['timestamp'])
+                                timeline_time = round(client_ts - start_time_perf)
+                            except (KeyError, ValueError, TypeError):
+                                continue
+                        else:
+                            try:
+                                server_ts = float(row['server_timestamp'])
+                            except (KeyError, ValueError, TypeError):
+                                continue
+                            if ref_server_ts is None:
+                                ref_server_ts = server_ts
+                            timeline_time = round(server_ts - ref_server_ts)
 
                         entry = {'time': timeline_time}
 
@@ -559,11 +761,113 @@ class WebHCICollectorServer:
                 print(f"Error loading face mesh data: {e}")
                 return {"success": False, "error": str(e)}
 
+        @self.app.get("/api/session/{session_id}/gaze-data")
+        async def get_session_gaze_data(session_id: str):
+            """Load gaze data from CSV for session playback.
+
+            Returns gaze points with timeline-relative timestamps (ms from session start).
+            Used by the dashboard when loading old sessions that have no saved timeline JSON.
+            Subsamples to keep payload manageable (max 5000 points).
+            """
+            import csv as csv_mod
+
+            session_dir = self._safe_session_dir(session_id)
+            if session_dir is None or not session_dir.exists():
+                return {"success": False, "error": "Session not found"}
+
+            csv_path = session_dir / "gaze_live.csv"
+            if not csv_path.exists():
+                candidates = sorted(session_dir.glob("gaze_*.csv"))
+                if candidates:
+                    csv_path = candidates[-1]
+                else:
+                    return {"success": False, "error": "No gaze data found"}
+
+            try:
+                # Use client performance.now() timestamps (same coordinate as live timeline).
+                start_time_perf = self._timeline_start_time(session_dir, csv_mod)
+                ref_server_ts = None
+                if start_time_perf is None:
+                    # Legacy: earliest server_timestamp across all live CSVs
+                    for candidate_csv in session_dir.glob("*_live.csv"):
+                        try:
+                            with open(candidate_csv, 'r') as cf:
+                                first_row = next(csv_mod.DictReader(cf), None)
+                                if first_row and first_row.get('server_timestamp'):
+                                    sts = float(first_row['server_timestamp'])
+                                    if ref_server_ts is None or sts < ref_server_ts:
+                                        ref_server_ts = sts
+                        except Exception:
+                            pass
+
+                data = []
+                _GAZE_MAX = 5000
+
+                with open(csv_path, 'r') as f:
+                    reader = csv_mod.DictReader(f)
+                    all_rows = list(reader)
+
+                step = max(1, len(all_rows) // _GAZE_MAX)
+                for i, row in enumerate(all_rows):
+                    if i % step != 0:
+                        continue
+                    if start_time_perf is not None:
+                        try:
+                            t = round(float(row['timestamp']) - start_time_perf)
+                        except (KeyError, ValueError, TypeError):
+                            continue
+                    else:
+                        try:
+                            server_ts = float(row['server_timestamp'])
+                        except (KeyError, ValueError, TypeError):
+                            continue
+                        if ref_server_ts is None:
+                            ref_server_ts = server_ts
+                        t = round(server_ts - ref_server_ts)
+                    try:
+                        x = float(row.get('x', 0))
+                        y = float(row.get('y', 0))
+                    except (ValueError, TypeError):
+                        continue
+                    entry = {'time': t, 'x': x, 'y': y}
+                    raw_x = row.get('raw_x')
+                    raw_y = row.get('raw_y')
+                    if raw_x and raw_y:
+                        try:
+                            entry['raw_x'] = float(raw_x)
+                            entry['raw_y'] = float(raw_y)
+                        except (ValueError, TypeError):
+                            pass
+                    data.append(entry)
+
+                logging.info(f"Gaze loaded for {session_id}: {len(data)} points (step={step})")
+                return {"success": True, "data": data}
+
+            except Exception as e:
+                logging.error(f"Error loading gaze data for {session_id}: {e}")
+                return {"success": False, "error": str(e)}
+
         # --- WebSocket endpoints ---
 
         @self.app.websocket("/ws/collect/{session_id}")
         async def websocket_collect(websocket: WebSocket, session_id: str):
             """WebSocket endpoint for data collection."""
+            # Validate session ID format before accepting
+            if not self._valid_session_id(session_id):
+                await websocket.close(code=1008, reason="Invalid session ID")
+                return
+
+            # Validate WebSocket origin (only allow same host)
+            origin = websocket.headers.get("origin", "")
+            host = websocket.headers.get("host", "")
+            if origin and host:
+                # Strip scheme from origin for comparison
+                origin_host = origin.split("//")[-1].rstrip("/")
+                if origin_host != host:
+                    logging.warning(f"[WS] Blocked cross-origin collect from origin={origin} host={host}")
+                    await websocket.close(code=1008, reason="Cross-origin not allowed")
+                    return
+
             await websocket.accept()
 
             # Create or get session
@@ -609,6 +913,16 @@ class WebHCICollectorServer:
         @self.app.websocket("/ws/dashboard")
         async def websocket_dashboard(websocket: WebSocket):
             """WebSocket endpoint for real-time dashboard."""
+            # Validate WebSocket origin (only allow same host)
+            origin = websocket.headers.get("origin", "")
+            host = websocket.headers.get("host", "")
+            if origin and host:
+                origin_host = origin.split("//")[-1].rstrip("/")
+                if origin_host != host:
+                    logging.warning(f"[WS] Blocked cross-origin dashboard from origin={origin} host={host}")
+                    await websocket.close(code=1008, reason="Cross-origin not allowed")
+                    return
+
             await websocket.accept()
             self.dashboard_clients.append(websocket)
 
@@ -803,6 +1117,59 @@ class WebHCICollectorServer:
             size_mb = video_path.stat().st_size / (1024 * 1024)
             print(f"[{datetime.now().strftime('%H:%M:%S')}] Video finalized for session {session_id}: {size_mb:.2f} MB")
 
+    def _timeline_start_time(self, session_dir: Path, csv_mod) -> Optional[float]:
+        """Return the client performance.now() value that corresponds to timeline t=0.
+
+        The dashboard timeline stores times as `client_perf_now - startTime`, where
+        startTime = Date.now() when session.event=start was received.  Because
+        performance.now() and Date.now() share the same epoch on the page, the timeline
+        time for any CSV row is simply:
+
+            timeline_time = row['timestamp'] - startTime_perf
+
+        We estimate startTime_perf using the gaze CSV (which has client timestamps in the
+        same coordinate as face_mesh) and the saved timeline gaze[0].time:
+
+            startTime_perf ≈ gaze_first_client_ts - tl_gaze_first_time
+
+        This works regardless of per-stream server latency differences, because we use the
+        client-side timestamp column directly instead of server_timestamp.
+
+        Returns None when gaze CSV or timeline JSON are unavailable (falls back to caller).
+        """
+        # Find gaze CSV
+        gaze_csv = session_dir / "gaze_live.csv"
+        if not gaze_csv.exists():
+            candidates = sorted(session_dir.glob("gaze_*.csv"))
+            gaze_csv = candidates[-1] if candidates else None
+        if not gaze_csv or not gaze_csv.exists():
+            return None
+
+        # Find largest timeline JSON
+        timeline_path: Optional[Path] = None
+        best_size = 0
+        for p in session_dir.glob("timeline_*.json"):
+            sz = p.stat().st_size
+            if sz > best_size:
+                best_size = sz
+                timeline_path = p
+        if not timeline_path:
+            return None
+
+        try:
+            with open(gaze_csv, 'r') as gf:
+                gaze_first = next(csv_mod.DictReader(gf), None)
+            if not gaze_first or not gaze_first.get('timestamp'):
+                return None
+            gaze_client_ts = float(gaze_first['timestamp'])
+            with open(timeline_path) as tf:
+                tl = json.load(tf)
+            tl_gaze = tl.get('gaze', [])
+            tl_gaze_first_time = float(tl_gaze[0]['time']) if tl_gaze else 0.0
+            return gaze_client_ts - tl_gaze_first_time   # = startTime_perf estimate
+        except Exception:
+            return None
+
     async def _save_session_metadata(self, session_id: str):
         """Save session metadata (duration, status) to disk for later retrieval."""
         session = self.session_manager.get_session(session_id)
@@ -814,7 +1181,9 @@ class WebHCICollectorServer:
 
         # Use tracked start time if available, otherwise fall back to session created_at
         start_time = self.session_start_times.get(session_id, session.created_at)
-        end_time = session.ended_at or datetime.now()
+        # Always capture end_time at write time — session.ended_at may be stale from a
+        # prior reconnect attempt which would make duration_ms negative.
+        end_time = datetime.now()
 
         duration_ms = int((end_time - start_time).total_seconds() * 1000)
 
@@ -852,8 +1221,9 @@ class WebHCICollectorServer:
         for client in self.dashboard_clients:
             try:
                 await client.send_json(message)
-            except:
+            except Exception as e:
                 disconnected.append(client)
+                logging.debug(f"Dashboard broadcast failed ({type(e).__name__}): {e}")
 
         # Remove disconnected clients
         for client in disconnected:

@@ -242,9 +242,9 @@ class SessionManager:
             session.metadata[key] = value
 
     def _unique_id(self) -> str:
-        """Generate a unique 8-character session ID."""
+        """Generate a unique 12-character session ID (48 bits of entropy)."""
         for _ in range(10):
-            candidate = str(uuid.uuid4())[:8]
+            candidate = uuid.uuid4().hex[:12]  # hex only — no hyphens, URL-safe
             if candidate not in self.sessions:
                 return candidate
-        return str(uuid.uuid4())[:12]
+        return uuid.uuid4().hex[:16]  # fallback with more entropy

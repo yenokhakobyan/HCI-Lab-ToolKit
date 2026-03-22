@@ -121,10 +121,136 @@ class DataProcessor:
                 buf_list.append(record)
 
     def get_session_data(self, session_id: str) -> Dict[str, List[Dict]]:
-        """Get all data for a session."""
+        """Get all data for a session.
+
+        If the session is still live, returns from the in-memory buffer.
+        If the session only exists on disk (e.g. after a server restart),
+        loads from the *_live.csv files written by flush_session_to_disk().
+        """
         with self._lock:
-            buffer = self.buffers.get(session_id, DataBuffer())
-            return {dt: list(getattr(buffer, dt)) for dt in _DATA_TYPES}
+            buffer = self.buffers.get(session_id)
+            if buffer is not None:
+                return {dt: list(getattr(buffer, dt)) for dt in _DATA_TYPES}
+
+        # Session not in memory — try to load from disk CSVs
+        return self._load_session_from_disk(session_id)
+
+    def _load_session_from_disk(self, session_id: str) -> Dict[str, List[Dict]]:
+        """Load session data from on-disk CSV files (live or timestamped exports).
+
+        Normalizes all stream timestamps to ms-from-session-start using the same
+        coordinate system as the live dashboard timeline:
+            timeline_time = client_perf_now - startTime_perf
+
+        Strategy:
+        1. Estimate startTime_perf = gaze_first_client_ts - timeline_gaze_first_time
+           (the client performance.now() value at session t=0).
+        2. For streams with valid performance.now() client timestamps, use
+           timestamp = client_ts - startTime_perf.
+        3. For emotion (whose client timestamp is time.time() in Unix seconds, not
+           performance.now()), use gaze server_ts as a bridge:
+           gaze_server_anchor = gaze_first_server_ts - gaze_first_timeline_time
+           emotion_timeline_time = emotion_server_ts - gaze_server_anchor
+        4. Legacy fallback (no gaze CSV or no timeline JSON): use
+           server_ts - ref_server_ts as before.
+        """
+        session_dir = self.output_dir / session_id
+        if not session_dir.exists():
+            return {}
+
+        result: Dict[str, List[Dict]] = {dt: [] for dt in _DATA_TYPES}
+
+        # --- Compute time-alignment anchors ---
+        startTime_perf: Optional[float] = None   # client performance.now() at t=0
+        gaze_server_anchor: Optional[float] = None  # server_ts that corresponds to t=0
+
+        gaze_csv = session_dir / "gaze_live.csv"
+        if not gaze_csv.exists():
+            gaze_candidates = sorted(session_dir.glob("gaze_*.csv"))
+            gaze_csv = gaze_candidates[-1] if gaze_candidates else None
+
+        # Find largest timeline JSON (multiple files exist when the session reconnected)
+        timeline_path: Optional[Path] = None
+        best_size = 0
+        for p in session_dir.glob("timeline_*.json"):
+            sz = p.stat().st_size
+            if sz > best_size:
+                best_size = sz
+                timeline_path = p
+
+        if gaze_csv and gaze_csv.exists() and timeline_path:
+            try:
+                chunk = pd.read_csv(gaze_csv, nrows=1)
+                if not chunk.empty and 'timestamp' in chunk.columns and 'server_timestamp' in chunk.columns:
+                    gaze_client_ts = float(chunk['timestamp'].iloc[0])
+                    gaze_server_ts = float(chunk['server_timestamp'].iloc[0])
+                    with open(timeline_path) as tf:
+                        tl = json.load(tf)
+                    tl_gaze = tl.get('gaze', [])
+                    tl_gaze_first_time = float(tl_gaze[0]['time']) if tl_gaze else 0.0
+                    startTime_perf = gaze_client_ts - tl_gaze_first_time
+                    gaze_server_anchor = gaze_server_ts - tl_gaze_first_time
+            except Exception:
+                pass
+
+        # Legacy fallback ref (earliest server_timestamp across all live CSVs)
+        ref_server_ts: Optional[float] = None
+        if startTime_perf is None:
+            for data_type in _DATA_TYPES:
+                live_path = session_dir / f"{data_type}_live.csv"
+                candidates = sorted(session_dir.glob(f"{data_type}_*.csv"))
+                csv_path = live_path if live_path.exists() else (candidates[-1] if candidates else None)
+                if csv_path is None:
+                    continue
+                try:
+                    chunk = pd.read_csv(csv_path, nrows=1)
+                    if 'server_timestamp' in chunk.columns and not chunk.empty:
+                        sts = float(chunk['server_timestamp'].iloc[0])
+                        if ref_server_ts is None or sts < ref_server_ts:
+                            ref_server_ts = sts
+                except Exception:
+                    pass
+
+        for data_type in _DATA_TYPES:
+            # Prefer the live incremental file; fall back to latest timestamped export
+            live_path = session_dir / f"{data_type}_live.csv"
+            if live_path.exists():
+                csv_path = live_path
+            else:
+                candidates = sorted(session_dir.glob(f"{data_type}_*.csv"))
+                csv_path = candidates[-1] if candidates else None
+
+            if csv_path is None:
+                continue
+
+            try:
+                df = pd.read_csv(csv_path, engine='python', on_bad_lines='skip')
+
+                if 'server_timestamp' not in df.columns:
+                    result[data_type] = df.to_dict(orient="records")
+                    continue
+
+                server_ts_col = pd.to_numeric(df['server_timestamp'], errors='coerce')
+
+                if startTime_perf is not None:
+                    if data_type == 'emotion':
+                        # Emotion client_ts is time.time() (Unix seconds), not performance.now().
+                        # Use gaze server_ts anchor to convert emotion server_ts to timeline time.
+                        df['timestamp'] = server_ts_col - gaze_server_anchor
+                    elif 'timestamp' in df.columns:
+                        client_ts_col = pd.to_numeric(df['timestamp'], errors='coerce')
+                        df['timestamp'] = client_ts_col - startTime_perf
+                    else:
+                        df['timestamp'] = server_ts_col - gaze_server_anchor
+                elif ref_server_ts is not None:
+                    # Legacy: all streams normalized by earliest server_ts
+                    df['timestamp'] = server_ts_col - ref_server_ts
+
+                result[data_type] = df.to_dict(orient="records")
+            except Exception as e:
+                print(f"Disk load error ({data_type} for {session_id}): {e}")
+
+        return result
 
     def get_latest_data(self, session_id: str, n: int = 100) -> Dict[str, List[Dict]]:
         """Get the latest n records for each data type."""

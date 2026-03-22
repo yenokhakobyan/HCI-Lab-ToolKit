@@ -8,6 +8,11 @@
     <style>
         html, body { height: 100%; margin: 0; overflow: hidden; }
 
+        /* Hide WebGazer's gaze prediction dot from participants */
+        #webgazerGazeDot,
+        #webgazerGazeDotCurrent,
+        .webgazerGazeDot { display: none !important; }
+
         /* Step container */
         .step { display: none; width: 100%; height: 100%; }
         .step.active { display: flex; flex-direction: column; align-items: center; justify-content: center; }

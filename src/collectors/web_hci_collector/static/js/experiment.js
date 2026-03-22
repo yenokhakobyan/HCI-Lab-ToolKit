@@ -34,6 +34,7 @@ let screenStream = null;
 let mediaRecorder = null;
 let recordedChunks = [];
 let recordingStartTime = 0;
+let recordingStartTimeUnix = 0;
 let recordingMimeType = 'video/webm';
 let pendingVideoReaders = 0;
 let recorderStopped = false;
@@ -1202,6 +1203,7 @@ async function startScreenRecording() {
 
         recordedChunks = [];
         recordingStartTime = performance.now();
+        recordingStartTimeUnix = Date.now(); // Unix ms — used for video_start sync
         pendingVideoReaders = 0;
         recorderStopped = false;
 
@@ -1262,7 +1264,14 @@ async function startScreenRecording() {
         };
 
         // Handle stream ending (user stops sharing)
-        screenStream.getVideoTracks()[0].onended = () => {
+        const videoTrack = screenStream.getVideoTracks()[0];
+        if (!videoTrack) {
+            console.warn('Screen stream has no video track — aborting recording');
+            screenStream.getTracks().forEach(t => t.stop());
+            screenStream = null;
+            return false;
+        }
+        videoTrack.onended = () => {
             console.log('Screen sharing stopped by user');
             stopScreenRecording();
         };
@@ -1273,11 +1282,12 @@ async function startScreenRecording() {
         console.log('Screen recording started with', mimeType);
 
         // Send recording start event
+        const trackSettings = videoTrack.getSettings();
         sendData('video_start', {
             mimeType: mimeType,
-            width: screenStream.getVideoTracks()[0].getSettings().width,
-            height: screenStream.getVideoTracks()[0].getSettings().height,
-            startTime: recordingStartTime,
+            width: trackSettings.width,
+            height: trackSettings.height,
+            startTime: recordingStartTimeUnix,  // Unix ms — aligns with server_timestamp reference
             devicePixelRatio: window.devicePixelRatio || 1,
         });
 
@@ -1285,7 +1295,13 @@ async function startScreenRecording() {
 
     } catch (error) {
         console.error('Screen recording error:', error);
-        // User denied permission or API not supported
+        if (error.name === 'NotAllowedError' || error.name === 'AbortError') {
+            const el = document.createElement('div');
+            el.style.cssText = 'position:fixed;bottom:16px;right:16px;background:#e67e22;color:#fff;padding:10px 14px;border-radius:6px;font-size:0.8rem;z-index:9999;max-width:280px';
+            el.textContent = 'Screen sharing was not enabled. The session will continue without a screen recording.';
+            document.body.appendChild(el);
+            setTimeout(() => el.remove(), 8000);
+        }
         return false;
     }
 }
