@@ -7,6 +7,7 @@ Handles data storage, synchronization, and export.
 import atexit
 import csv
 import json
+import os
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, Optional, List
@@ -71,7 +72,12 @@ class DataProcessor:
     - Data synchronization across streams
     """
 
-    def __init__(self, output_dir: str = "/Users/yenokhakobyan/HCI Lab ToolKit/data/raw/web_hci"):
+    def __init__(self, output_dir: str = None):
+        if output_dir is None:
+            output_dir = os.environ.get(
+                "HCI_DATA_DIR",
+                str(Path(__file__).parent.parent.parent.parent / "data" / "raw" / "web_hci")
+            )
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
 

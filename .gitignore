@@ -45,6 +45,18 @@ logs/
 # Video recortings
 *.webm
 
+# SSL certificates
+certs/
+*.pem
+
+# Claude worktrees
+.claude/worktrees/
+
+# Processed data artifacts
+data/processed/**/*.npy
+data/processed/**/*.json
+*.npy
+
 # Credentials
 configs/credentials.yaml
 configs/secrets.yaml

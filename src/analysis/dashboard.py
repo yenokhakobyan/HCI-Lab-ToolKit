@@ -15,6 +15,7 @@ A Streamlit-based dashboard for analyzing web HCI session data including:
 - Export & reporting
 """
 
+import os
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -41,7 +42,10 @@ st.set_page_config(
 )
 
 # Constants
-DATA_DIR = Path(__file__).parent.parent.parent / "data" / "raw" / "web_hci"
+DATA_DIR = Path(os.environ.get(
+    "HCI_DATA_DIR",
+    str(Path(__file__).parent.parent.parent / "data" / "raw" / "web_hci")
+))
 
 
 # =============================================================================

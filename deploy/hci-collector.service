@@ -1,0 +1,18 @@
+[Unit]
+Description=HCI Data Collector Server
+After=network.target
+
+[Service]
+Type=simple
+User=hci
+Group=hci
+WorkingDirectory=/opt/hci-toolkit
+EnvironmentFile=/opt/hci-toolkit/.env
+ExecStart=/opt/hci-toolkit/venv/bin/python -m src.collectors.web_hci_collector.run_server --no-browser
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

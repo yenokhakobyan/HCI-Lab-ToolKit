@@ -21,6 +21,7 @@ import time
 import numpy as np
 import pandas as pd
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, FileResponse
 import uvicorn
@@ -32,23 +33,37 @@ from .gaze_estimator import L2CSGazeEstimator, AsyncGazeEstimator, create_gaze_e
 from .analytics_engine import AnalyticsEngine
 
 
+def _env_bool(key: str, default: bool) -> bool:
+    """Read a boolean from an environment variable."""
+    val = os.environ.get(key)
+    if val is None:
+        return default
+    return val.lower() in ("1", "true", "yes")
+
+
+def _default_data_dir() -> str:
+    """Portable default data directory (relative to project root)."""
+    env = os.environ.get("HCI_DATA_DIR")
+    if env:
+        return env
+    return str(Path(__file__).parent.parent.parent.parent / "data" / "raw" / "web_hci")
+
+
 @dataclass
 class ServerConfig:
     """Configuration for the Web HCI Collector Server."""
-    host: str = "127.0.0.1"
-    port: int = 8000
-    output_dir: str = "/Users/yenokhakobyan/HCI Lab ToolKit/data/raw/web_hci"
-    enable_emotion_detection: bool = True
-    enable_l2cs_gaze: bool = False  # L2CS-Net server-side gaze estimation (optional)
+    host: str = field(default_factory=lambda: os.environ.get("HCI_HOST", "0.0.0.0"))
+    port: int = field(default_factory=lambda: int(os.environ.get("HCI_PORT", "8000")))
+    output_dir: str = field(default_factory=_default_data_dir)
+    enable_emotion_detection: bool = field(default_factory=lambda: _env_bool("HCI_ENABLE_EMOTION", True))
+    enable_l2cs_gaze: bool = field(default_factory=lambda: _env_bool("HCI_ENABLE_L2CS", False))
     save_interval_seconds: int = 30
-    debug: bool = False
-    # SSL/HTTPS settings for WebGazer (requires HTTPS for webcam access)
-    ssl_enabled: bool = True
-    ssl_certfile: Optional[str] = None  # Path to cert.pem
-    ssl_keyfile: Optional[str] = None   # Path to key.pem
-    # Screen dimensions for L2CS gaze mapping
-    screen_width: int = 1920
-    screen_height: int = 1080
+    debug: bool = field(default_factory=lambda: _env_bool("HCI_DEBUG", False))
+    ssl_enabled: bool = field(default_factory=lambda: _env_bool("HCI_SSL_ENABLED", False))
+    ssl_certfile: Optional[str] = field(default_factory=lambda: os.environ.get("HCI_SSL_CERTFILE") or None)
+    ssl_keyfile: Optional[str] = field(default_factory=lambda: os.environ.get("HCI_SSL_KEYFILE") or None)
+    screen_width: int = field(default_factory=lambda: int(os.environ.get("HCI_SCREEN_WIDTH", "1920")))
+    screen_height: int = field(default_factory=lambda: int(os.environ.get("HCI_SCREEN_HEIGHT", "1080")))
 
 
 class WebHCICollectorServer:
@@ -70,6 +85,17 @@ class WebHCICollectorServer:
     def __init__(self, config: Optional[ServerConfig] = None):
         self.config = config or ServerConfig()
         self.app = FastAPI(title="Web HCI Collector")
+
+        # CORS middleware
+        cors_origins = os.environ.get("HCI_CORS_ORIGINS", "")
+        if cors_origins:
+            self.app.add_middleware(
+                CORSMiddleware,
+                allow_origins=[o.strip() for o in cors_origins.split(",")],
+                allow_credentials=True,
+                allow_methods=["*"],
+                allow_headers=["*"],
+            )
 
         # Initialize components
         self.session_manager = SessionManager()

@@ -1,9 +1,15 @@
 #!/bin/bash
 # HCI Lab Analysis Dashboard Launcher
-# Run this script to start the Streamlit dashboard
+# Configuration via environment variables (see .env.example)
 
-# Get the directory where this script is located
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Load .env if present
+if [ -f "$SCRIPT_DIR/.env" ]; then
+    set -a
+    source "$SCRIPT_DIR/.env"
+    set +a
+fi
 
 # Activate virtual environment if it exists
 if [ -d "$SCRIPT_DIR/venv" ]; then
@@ -12,6 +18,11 @@ elif [ -d "$SCRIPT_DIR/.venv" ]; then
     source "$SCRIPT_DIR/.venv/bin/activate"
 fi
 
-# Run the Streamlit dashboard
-echo "Starting HCI Session Analysis Dashboard..."
-streamlit run "$SCRIPT_DIR/src/analysis/dashboard.py" --server.port 8502 --browser.gatherUsageStats false
+PORT="${HCI_DASHBOARD_PORT:-8502}"
+
+echo "Starting HCI Session Analysis Dashboard on port $PORT..."
+streamlit run "$SCRIPT_DIR/src/analysis/dashboard.py" \
+    --server.port "$PORT" \
+    --server.address 127.0.0.1 \
+    --server.headless true \
+    --browser.gatherUsageStats false
